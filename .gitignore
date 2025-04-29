@@ -1,0 +1,81 @@
+# ─── 通用 ─────────────────────
+*.log
+*.swp
+*.swo
+.DS_Store
+
+# ─── Python / Django ────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pot
+*.pyc
+*.pycache
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+
+# Migrations
+*/migrations/__pycache__/
+*/migrations/*.pyc
+*/migrations/*.pyo
+*/migrations/*.pyd
+
+# Env
+.env
+env/
+venv/
+ENV/
+.venv/
+back-end/
+.back-end/
+
+# Coverage
+htmlcov/
+.coverage
+.tox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# ─── React Native ───────────
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.expo-shared/
+
+# Native Build
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Local env
+.env*.local
+
+# ─── IDE / Editor ──────────
+.idea/
+.vscode/
