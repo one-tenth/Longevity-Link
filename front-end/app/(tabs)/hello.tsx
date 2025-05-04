@@ -8,7 +8,7 @@ export default function HelloScreen() {
   const [message, setMessage] = useState('Loading...');
 
   useEffect(() => {
-    axios.get('http://192.168.0.10:8000/api/hello/')
+    axios.get('http://192.168.0.21:8000/api/hello/')
       .then(response => {
         setMessage(response.data.message);
       })
