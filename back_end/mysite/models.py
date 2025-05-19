@@ -1,6 +1,6 @@
 from django.db import models
 from django.core.validators import RegexValidator
-from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Family(models.Model):
     FamilyID = models.AutoField(primary_key=True)
@@ -20,8 +20,13 @@ class User(models.Model):
     Phone = models.CharField(max_length=15, validators=[RegexValidator(regex=r'^\+8869\d{8}$')], unique=True)
     Password = models.CharField(max_length=20)
     FamilyID = models.ForeignKey(Family, on_delete=models.CASCADE, db_column='FamilyID')
-    CaregiverID = models.IntegerField()
-    Relationship = models.CharField(max_length=5)
+    RelatedId = models.ForeignKey(
+        'self',                # 參照自己
+        on_delete=models.SET_NULL,
+        null=True,             # 最上層類別可以沒有父類別
+        blank=True,
+        related_name='RelatedFamily'
+    )
     Created_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -43,8 +48,12 @@ class Hos(models.Model):
 class HealthCare(models.Model):
     HealthID = models.AutoField(primary_key=True)
     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
-    BloodP = models.CharField(max_length=10)
-    BloodS = models.CharField(max_length=10)
+    Systolic=models.IntegerField(    
+        validators=[MinValueValidator(70), MaxValueValidator(250)],
+    )
+    Diastolic=models.IntegerField(
+        validators=[MinValueValidator(40), MaxValueValidator(150)],
+    )
     Pluse = models.CharField(max_length=5)
     Numsteps = models.CharField(max_length=5)
     Date = models.DateTimeField()

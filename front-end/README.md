@@ -1,3 +1,25 @@
+🔁 從 GitHub clone 專案 / 換新電腦該注意什麼？
+必備檔案
+請確保下列內容有被加入 GitHub：
+
+package.json, eas.json, app.json 或 app.config.js
+
+android/、ios/（已預建）
+
+.expo/ 可忽略
+
+clone 專案後操作：
+   git clone <your-repo>
+   cd <your-repo>
+   npm install
+   eas login
+   eas build -p android --profile development
+
+
+
+
+
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
