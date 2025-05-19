@@ -4,7 +4,7 @@
 *.swo
 .DS_Store
 
-# ─── Python / Django ────────
+# ─── Python / Django ──────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -16,56 +16,51 @@ dist/
 build/
 .eggs/
 *.pot
-*.pyc
-*.pycache
 local_settings.py
 db.sqlite3
 media/
 staticfiles/
 
-# Migrations
-*/migrations/__pycache__/
-*/migrations/*.pyc
-*/migrations/*.pyo
-*/migrations/*.pyd
+# Django Migrations
+**/migrations/
+**/migrations/__pycache__/
 
-# Env
+# 虛擬環境
 .env
+.env*.local
 env/
+.venv/
 venv/
 ENV/
-.venv/
-back-end/
-.   back-end/
 
-# Coverage
+# 測試與覆蓋率
 htmlcov/
 .coverage
+coverage.xml
 .tox/
 .pytest_cache/
 nosetests.xml
-coverage.xml
 
-# ─── React Native ───────────
+# ─── React Native / Expo ────────
 node_modules/
 .expo/
-dist/
-web-build/
-expo-env.d.ts
 .expo-shared/
+web-build/
+dist/
+expo-env.d.ts
 
-# Native Build
-*.orig.*
+# 原生建置憑證與檔案
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.orig.*
 
-# Metro
+# Metro bundler
 .metro-health-check*
 
-# Debug
+# Debug logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
@@ -73,9 +68,6 @@ yarn-error.*
 # TypeScript
 *.tsbuildinfo
 
-# Local env
-.env*.local
-
-# ─── IDE / Editor ──────────
+# ─── IDE / 編輯器 ──────────────
 .idea/
 .vscode/
