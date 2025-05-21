@@ -1,9 +1,10 @@
 name: EAS Build on Push
 
-on:
-  push:
-    branches:
-      - main  # 改成你要觸發的分支，例如 main、dev、feature/x
+# ❌ 註解掉自動觸發條件（這樣不會在 push 時自動執行）
+# on:
+#   push:
+#     branches:
+#       - main  # 改成你要觸發的分支，例如 main、dev、feature/x
 
 jobs:
   build:
