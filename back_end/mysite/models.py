@@ -12,26 +12,53 @@ class Family(models.Model):
         verbose_name = "Family"
         verbose_name_plural = "Family"
 
-class User(models.Model):
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.validators import RegexValidator
+from django.db import models
+
+class CustomUserManager(BaseUserManager):
+    #建立使用者帳號
+    def create_user(self, Phone, password=None, **extra_fields):
+        if not Phone:
+            raise ValueError('必須提供手機號碼')
+        user = self.model(Phone=Phone, **extra_fields)
+        user.set_password(password)  # 密碼加密儲存
+        user.save()
+        return user
+    #建立超級使用者帳號
+    def create_superuser(self, Phone, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)   #指定 is_staff = True 可以進後台
+        extra_fields.setdefault('is_superuser', True)   #指定 is_superuser = True 擁有全部權限
+        return self.create_user(Phone, password, **extra_fields)
+
+class User(AbstractBaseUser, PermissionsMixin):
     UserID = models.AutoField(primary_key=True)
-    Name = models.CharField(max_length=10)
-    Gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female')])
-    Borndate = models.DateField()
-    Phone = models.CharField(max_length=15, validators=[RegexValidator(regex=r'^\+8869\d{8}$')], unique=True)
-    Password = models.CharField(max_length=20)
-    FamilyID = models.ForeignKey(Family, on_delete=models.CASCADE, db_column='FamilyID')
-    RelatedId = models.ForeignKey(
-        'self',                # 參照自己
-        on_delete=models.SET_NULL,
-        null=True,             # 最上層類別可以沒有父類別
-        blank=True,
-        related_name='RelatedFamily'
+    Name = models.CharField(max_length=10,null=True, blank=True)#靠 API 驗證資料完整性 這裡先允許空值
+    Gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female')],null=True, blank=True)
+    Borndate = models.DateField(null=True, blank=True)
+    Phone = models.CharField(
+        max_length=10,
+        unique=True,
+        validators=[RegexValidator(regex=r'^09\d{8}$')]
     )
+    FamilyID = models.ForeignKey('Family',on_delete=models.CASCADE,db_column='FamilyID')
+    RelatedID = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='related_family')
     Created_time = models.DateTimeField(auto_now_add=True)
 
+    is_active = models.BooleanField(default=True)   # 可登入
+    is_staff = models.BooleanField(default=False)   # 可進後台（僅限 superuser）
+
+    USERNAME_FIELD = 'Phone'    #用phone當作登入的名稱
+    REQUIRED_FIELDS = ['Name']
+
+    objects = CustomUserManager()
+
+    def __str__(self):
+        return self.Phone
+
     class Meta:
-        verbose_name = "User"
-        verbose_name_plural = "User"
+        db_table = 'User'  
+
 
 class Hos(models.Model):
     HosId = models.AutoField(primary_key=True)

@@ -1,12 +1,30 @@
 from django.contrib import admin
 from .models import Family,User,Hos,HealthCare,Med,CallRecord,Scam
-
-
-
+from django.utils.translation import gettext_lazy as _
 class FamilyAdmin(admin.ModelAdmin):
     list_display = [field.name for field in Family._meta.fields]  # 自動顯示所有欄位
+@admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = [field.name for field in User._meta.fields]  # 自動顯示所有欄位
+    model = User
+    list_display = ('UserID', 'Phone', 'Name', 'is_staff', 'is_superuser')
+    list_filter = ('is_staff', 'is_superuser', 'Gender')
+    search_fields = ('Phone', 'Name')
+
+    ordering = ('UserID',)
+
+    fieldsets = (   #編輯頁面的欄位分區
+        (None, {'fields': ('Phone', 'password')}),  #無標題區塊，顯示電話與密碼欄位
+        (_('Personal info'), {'fields': ('Name', 'Gender', 'Borndate', 'FamilyID', 'RelatedID')}),      #標題是「Personal info」（個人資訊），包含姓名、性別、生日、家庭與關係資訊。
+        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),  #權限相關設定
+        (_('Important dates'), {'fields': ('last_login', )}), 
+    )
+
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('Phone', 'Name', 'password1', 'password2'),
+        }),
+    )# 自動顯示所有欄位
 class HospitalAdmin(admin.ModelAdmin):
     list_display = [field.name for field in Hos._meta.fields]  # 自動顯示所有欄位
 class HealthCareAdmin(admin.ModelAdmin):
@@ -19,7 +37,7 @@ class ScamAdmin(admin.ModelAdmin):
     list_display = [field.name for field in Scam._meta.fields]  # 自動顯示所有欄位
 # Register your models here.
 admin.site.register(Family,FamilyAdmin)
-admin.site.register(User,UserAdmin)
+# admin.site.register(User,UserAdmin)
 admin.site.register(Hos,HospitalAdmin)
 admin.site.register(HealthCare,HealthCareAdmin)
 admin.site.register(Med,MedicineAdmin)

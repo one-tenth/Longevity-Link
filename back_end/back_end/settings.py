@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+#告訴Django用自己的 User 模型
+AUTH_USER_MODEL = 'mysite.User'
 
 # Application definition
 
@@ -38,10 +40,21 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'mysite',
-    'rest_framework',
+    'rest_framework',#回傳json格式 幫助建立API
+    'djoser',#快速建立帳號系統API
+    'rest_framework.authtoken',#token認證支援
+    'corsheaders',#允許前端跨線連接
 ]
 
+#所有需要登入的 API，都會使用 JWT（JSON Web Token）作為驗證機制
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -50,6 +63,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+#允許所有來源連線
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'back_end.urls'
 
