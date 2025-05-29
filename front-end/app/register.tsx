@@ -9,26 +9,26 @@ const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2,
 
 export default function RegisterScreen({ navigation }: any) {
   const [form, setForm] = useState({
-    name: '',
-    gender: 'M',
+    Name: '',
+    Gender: 'M',
     year: '1970',
     month: '01',
     day: '01',
-    phone: '',
-    password: '',
+    Phone: '',
+    Password: '',
   });
 
-  const handleGender = (gender: 'M' | 'F') => setForm({ ...form, gender });
+  const handleGender = (Gender: 'M' | 'F') => setForm({ ...form, Gender });
 
   const handleRegister = async () => {
   const borndate = `${form.year}-${form.month}-${form.day}`;
   try {
     await register({
-      name: form.name,
-      gender: form.gender as 'M' | 'F',
+      name: form.Name,
+      gender: form.Gender as 'M' | 'F',
       borndate,
-      phone: form.phone,
-      password: form.password,
+      Phone: form.Phone,
+      password: form.Password,
     });
     Alert.alert('註冊成功', '請前往登入');
     navigation.navigate('Login' as never);
@@ -52,8 +52,8 @@ export default function RegisterScreen({ navigation }: any) {
         <Text style={styles.label}>姓名</Text>
         <TextInput
           placeholder="請輸入姓名"
-          value={form.name}
-          onChangeText={(text) => setForm({ ...form, name: text })}
+          value={form.Name}
+          onChangeText={(text) => setForm({ ...form, Name: text })}
           style={styles.input}
         />
       </View>
@@ -62,14 +62,14 @@ export default function RegisterScreen({ navigation }: any) {
       <Text style={[styles.label, { alignSelf: 'flex-start', marginLeft: 20 }]}>性別</Text>
 <View style={styles.genderRow}>
   <TouchableOpacity
-    style={[styles.genderBtn, form.gender === 'M' && styles.genderSelected]}
-    onPress={() => setForm({ ...form, gender: 'M' })}
+    style={[styles.genderBtn, form.Gender === 'M' && styles.genderSelected]}
+    onPress={() => setForm({ ...form, Gender: 'M' })}
   >
     <Text style={styles.genderText}>男</Text>
   </TouchableOpacity>
   <TouchableOpacity
-    style={[styles.genderBtn, form.gender === 'F' && styles.genderSelected]}
-    onPress={() => setForm({ ...form, gender: 'F' })}
+    style={[styles.genderBtn, form.Gender === 'F' && styles.genderSelected]}
+    onPress={() => setForm({ ...form, Gender: 'F' })}
   >
     <Text style={styles.genderText}>女</Text>
   </TouchableOpacity>
@@ -113,8 +113,8 @@ export default function RegisterScreen({ navigation }: any) {
         <Text style={styles.label}>電話號碼</Text>
         <TextInput
           placeholder="請輸入手機號碼 EX:09XXXXXXXX"
-          value={form.phone}
-          onChangeText={(text) => setForm({ ...form, phone: text })}
+          value={form.Phone}
+          onChangeText={(text) => setForm({ ...form, Phone: text })}
           keyboardType="phone-pad"
           style={styles.input}
         />
@@ -125,8 +125,8 @@ export default function RegisterScreen({ navigation }: any) {
         <Text style={styles.label}>密碼</Text>
         <TextInput
           placeholder="Value"
-          value={form.password}
-          onChangeText={(text) => setForm({ ...form, password: text })}
+          value={form.Password}
+          onChangeText={(text) => setForm({ ...form, Password: text })}
           secureTextEntry
           style={styles.input}
         />
