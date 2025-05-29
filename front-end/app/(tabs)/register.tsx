@@ -11,7 +11,7 @@ export default function RegisterScreen() {
   const [message, setMessage] = useState('');
 
   const handleRegister = () => {
-    axios.post('http://172.20.10.3:8000/api/account/users/', {
+    axios.post('http://192.168.0.21:8000/api/account/users/', {
       phone,
       name,
       gender,
