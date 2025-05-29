@@ -10,7 +10,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('http://172.20.10.3:8000/api/account/jwt/create/', {
+      const response = await axios.post('http://192.168.0.21:8000/api/account/jwt/create/', {
         phone,
         password,
       });
