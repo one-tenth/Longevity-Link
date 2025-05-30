@@ -17,9 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 import mysite.views as views
+from mysite.views import CreateFamilyAPIView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
-    path('api/families/', views.CreateFamilyAPIView.as_view(), name='family-create'),
-    path('api/families/join/', views.JoinFamilyAPIView.as_view(), name='family-join'),
+     path('api/family/create/', CreateFamilyAPIView.as_view(), name='create_family'),
 ]
