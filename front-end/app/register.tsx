@@ -2,16 +2,18 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Button, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { register } from '../api/authApi';
+import { useNavigation } from '@react-navigation/native';
 
-const years = Array.from({ length: 60 }, (_, i) => 1970 + i);
+const years = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 
-export default function RegisterScreen({ navigation }: any) {
+export default function RegisterScreen() {
+  const navigation = useNavigation();
   const [form, setForm] = useState({
     Name: '',
     Gender: 'M',
-    year: '1970',
+    year: '1930',
     month: '01',
     day: '01',
     Phone: '',
@@ -22,6 +24,16 @@ export default function RegisterScreen({ navigation }: any) {
 
   const handleRegister = async () => {
   const Borndate = `${form.year}-${form.month}-${form.day}`;
+  
+  // 印出註冊資料確認格式
+  console.log('Register data:', {
+    Name: form.Name,
+    Gender: form.Gender,    // 應該是 'M' 或 'F'
+    Borndate,               // 格式 YYYY-MM-DD
+    Phone: form.Phone,
+    password: form.Password,
+  });
+
   try {
     await register({
       Name: form.Name,
@@ -33,11 +45,10 @@ export default function RegisterScreen({ navigation }: any) {
     Alert.alert('註冊成功', '請前往登入');
     navigation.navigate('Login' as never);
   } catch (error: any) {
-    console.error(error.response?.data || error.message);
+    console.error(error.response?.data || error.message);  // 印出後端錯誤訊息
     Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
   }
 };
-
 
   return (
     <View style={styles.container}>
