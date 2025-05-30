@@ -17,7 +17,7 @@ from .models import *
 def hello_world(request):
     return Response({"message": "Hello, world!(你好世界)"})
 
-#創建家庭
+#先創建家庭
 class CreateFamilyAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
