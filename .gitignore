@@ -71,3 +71,6 @@ yarn-error.*
 # ─── IDE / 編輯器 ──────────────
 .idea/
 .vscode/
+
+back_end/google_vision_key.json
+.json

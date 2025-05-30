@@ -1,3 +1,7 @@
+
+#openai
+from dotenv import load_dotenv
+load_dotenv()
 """
 Django settings for back_end project.
 

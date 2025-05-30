@@ -21,4 +21,5 @@ from mysite import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
+    path('api/ocr/', views.OcrAPIView.as_view()),
 ]
