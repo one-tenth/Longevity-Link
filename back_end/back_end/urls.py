@@ -16,9 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from mysite import views
-
+import mysite.views as views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
+    path('api/families/', views.CreateFamilyAPIView.as_view(), name='family-create'),
+    path('api/families/join/', views.JoinFamilyAPIView.as_view(), name='family-join'),
 ]
