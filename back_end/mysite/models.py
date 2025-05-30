@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import RegexValidator
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 class Family(models.Model):
     FamilyID = models.AutoField(primary_key=True)
@@ -8,13 +9,13 @@ class Family(models.Model):
     FamilyName = models.CharField(max_length=10)
     Created_Time = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return str(self.FamilyID)
+    
     class Meta:
         verbose_name = "Family"
         verbose_name_plural = "Family"
 
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.core.validators import RegexValidator
-from django.db import models
 
 class CustomUserManager(BaseUserManager):
     #建立使用者帳號
@@ -41,7 +42,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
         validators=[RegexValidator(regex=r'^09\d{8}$')]
     )
-    FamilyID = models.ForeignKey('Family',on_delete=models.CASCADE,db_column='FamilyID')
+    FamilyID = models.ForeignKey('Family',on_delete=models.CASCADE,db_column='FamilyID',null=True, blank=True)
     RelatedID = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='related_family')
     Created_time = models.DateTimeField(auto_now_add=True)
 

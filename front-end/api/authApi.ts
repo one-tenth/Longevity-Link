@@ -3,8 +3,8 @@ import axios from 'axios';
 
 const API_BASE = 'http://192.168.0.21:8000/api/account';
 
-export interface RegisterData { Phone: string; name: string; gender: 'M' | 'F'; borndate: string; password: string; }
-export interface LoginData { phone: string; password: string; }
+export interface RegisterData { Phone: string; Name: string; Gender: 'M' | 'F'; Borndate: string; password: string; }
+export interface LoginData { Phone: string; password: string; }
 export interface TokenData { refresh: string; }
 export interface VerifyData { token: string; }
 

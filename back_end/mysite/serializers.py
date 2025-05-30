@@ -5,7 +5,7 @@ from .models import User
 class UserRegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['phone', 'name', 'gender', 'borndate', 'password']    #定義哪些欄位是前端可以提供的（註冊時必填）
+        fields = ['Phone', 'Name', 'Gender', 'Borndate', 'password']    #定義哪些欄位是前端可以提供的（註冊時必填）
         extra_kwargs = {
             'password': {'write_only': True},  # 密碼不能回傳
         }

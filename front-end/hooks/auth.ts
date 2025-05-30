@@ -24,9 +24,9 @@ interface VerifyData { //verify 是用來驗證 token 是否有效
   token: string;
 }
 
-export const register = (data: RegisterData) => axios.post(`${API_BASE}/users/`, data);
+export const Register = (data: RegisterData) => axios.post(`${API_BASE}/users/`, data);
 
-export const login = (data: LoginData) => axios.post(`${API_BASE}/jwt/create/`, data);
+export const Login = (data: LoginData) => axios.post(`${API_BASE}/jwt/create/`, data);
 
 export const refresh = (data: TokenData) => axios.post(`${API_BASE}/jwt/refresh/`, data);
 

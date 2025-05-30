@@ -21,12 +21,12 @@ export default function RegisterScreen({ navigation }: any) {
   const handleGender = (Gender: 'M' | 'F') => setForm({ ...form, Gender });
 
   const handleRegister = async () => {
-  const borndate = `${form.year}-${form.month}-${form.day}`;
+  const Borndate = `${form.year}-${form.month}-${form.day}`;
   try {
     await register({
-      name: form.Name,
-      gender: form.Gender as 'M' | 'F',
-      borndate,
+      Name: form.Name,
+      Gender: form.Gender as 'M' | 'F',
+      Borndate,
       Phone: form.Phone,
       password: form.Password,
     });
@@ -141,7 +141,7 @@ export default function RegisterScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', backgroundColor: '#FEFEE7', paddingTop: 16 },
+  container: { flex: 1, alignItems: 'center', backgroundColor: '#FEFEE7', paddingTop: 0 },
   logoArea: { backgroundColor: '#A3D8F4', width: '100%', alignItems: 'center', paddingVertical: 10, marginBottom: 8, flexDirection: 'row', justifyContent: 'center' },
   logo: { fontSize: 26, fontWeight: 'bold', color: '#222', marginLeft: 8 },
   inputGroup: { width: '90%', marginTop: 6 },
