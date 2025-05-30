@@ -53,7 +53,8 @@ export default function HospitalRecord() {
         style={[styles.button, { backgroundColor: '#F58402' }]}
         onPress={() => router.back()}
       >
-        <Text style={styles.buttonText}>回首頁</Text>
+        <Text style={styles.buttonText}
+        onPress={() => router.push('/childhome')}>回首頁</Text>
       </TouchableOpacity>
     </View>
   );

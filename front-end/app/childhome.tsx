@@ -58,7 +58,14 @@ export default function ChildHome() {
         <Image source={require('../img/childhome/image-1.png')} style={styles.phone} />
         <Text style={styles.callText}>通話紀錄</Text>
       </TouchableOpacity>
+
+      
+      <Text style={styles.alertText2}
+      onPress={() => router.push('/')}>切換使用者</Text>
+
     </View>
+
+    
   );
 }
 
@@ -212,4 +219,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginLeft: 10 
   },
+
+  alertText2: {
+    fontSize: 20, 
+    fontWeight: '900',
+    marginLeft:220,
+    marginTop:30
+  }
 });
