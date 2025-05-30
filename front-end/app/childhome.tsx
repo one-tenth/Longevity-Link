@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function ChildHome() {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Image source={require('../img/childhome/13866.png')} style={styles.setting} />
-        
+        <TouchableOpacity onPress={() => router.push('/setting')}>
+          <Image source={require('../img/childhome/13866.png')} style={styles.setting} />
+        </TouchableOpacity>
         <Text style={styles.title}>CareMate</Text>
         <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
       </View>
@@ -14,7 +18,7 @@ export default function ChildHome() {
       <View style={styles.userBox}>
         <Image source={require('../img/childhome/image.png')} style={styles.userIconLarge} />
         <Text style={styles.userText}>爺爺</Text>
-                  <Image source={require('../img/childhome/61456.png')} style={styles.edit} />
+        <Image source={require('../img/childhome/61456.png')} style={styles.edit} />
       </View>
 
       <View style={styles.alertBox}> 
@@ -38,7 +42,7 @@ export default function ChildHome() {
       </View>
       <View style={styles.gridRow}>
         <TouchableOpacity style={[styles.gridBox1, { backgroundColor: '#F58402' }]}> 
-        <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
+          <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
           <Text style={styles.gridText}>用藥</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.gridBox1, { backgroundColor: '#65B6E4' }]}> 
@@ -54,16 +58,12 @@ export default function ChildHome() {
   );
 }
 
-//----------------------------------------------------------------------------------
 const styles = StyleSheet.create({
-  //整個畫面的容器
   container: { 
     flex: 1, 
     backgroundColor: '#FCFEED', 
     alignItems: 'center' 
   },
-
-  //caremate開頭
   header: {
     width: '100%',
     height:70,
@@ -75,25 +75,21 @@ const styles = StyleSheet.create({
     paddingLeft:10,
     paddingRight:10,
   },
-  //logo圖片
   logo: { 
     width: 60, 
     height: 60,
     marginTop:15,
   },
-  //設定圖片
   setting:{
     width: 40, 
     height: 40,
     marginTop:15,
   },
-  //caremate字體
   title: { 
     fontSize: 50, 
     fontWeight:'900', 
     color: '#000', 
   },
-  //長輩資訊
   userBox: {
     width: '90%', 
     height:65,
@@ -102,32 +98,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
   },
-  //爺爺照片
   userIconLarge: { 
     width: 62, 
     height: 62, 
-  textAlign:'center',
+    textAlign:'center',
     marginTop:2,
   },
-
-  //長輩字體
   userText: { 
     fontSize: 36, 
     fontWeight: '900', 
     marginLeft:50,
     marginTop:5,
   },
-
-  //筆圖
   edit:{
     width: 20, 
     height: 20, 
     marginLeft:100,
     marginTop:20,
-
   },
-
-  //可疑提醒
   alertBox: {
     width: '90%',
     height:100,
@@ -139,87 +127,71 @@ const styles = StyleSheet.create({
     paddingLeft:5,
     paddingRight:10,
   },
-
-  //可疑提醒圖片
   alertIcon: { 
     width: 60, 
     height: 60, 
     marginRight:20,
     marginLeft:5, 
   },
-  //可疑提醒字體
   alertText: { 
     fontSize: 20, 
     fontWeight: '900' 
   },
-
-  //下面幾格
   gridRow: {
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     width: '90%',
     marginTop:10,
   },
-
-  //框
   gridBox: {
     width: '45%', 
     borderRadius: 10, 
     alignItems: 'center', 
     borderWidth: 3, 
   },
-
-    gridBox1: {
+  gridBox1: {
     width: '45%', 
     borderRadius: 10, 
     alignItems: 'center', 
     borderWidth: 3, 
   },
-  //文字
-gridText: { 
-  fontSize: 20, 
-  fontWeight: '900',  
-  marginTop: 6, 
-  textAlign: 'center',
-},
-
-gridText1: { 
-  fontSize: 20, 
-  fontWeight: '900',  
-  color: '#fff',
-  marginTop: 6, 
-  textAlign: 'center',
-},
-
+  gridText: { 
+    fontSize: 20, 
+    fontWeight: '900',  
+    marginTop: 6, 
+    textAlign: 'center',
+  },
+  gridText1: { 
+    fontSize: 20, 
+    fontWeight: '900',  
+    color: '#fff',
+    marginTop: 6, 
+    textAlign: 'center',
+  },
   locate: {
     width: 50, 
     height: 50, 
     marginTop:5
   },
-
   hospital: {
     width: 55, 
     height: 55, 
     marginTop:5
   },
-
   medcine: {
     width: 50, 
     height: 50, 
     marginTop:5
   },
-
   health: {
     width: 54, 
     height: 50,
     marginTop:5 
   },
-
   phone: {
     width: 54, 
     height: 50, 
   },
-
   callBox: {
     width: '90%',
     height:70,
@@ -237,4 +209,3 @@ gridText1: {
     marginLeft: 10 
   },
 });
-
