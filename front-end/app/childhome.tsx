@@ -45,7 +45,10 @@ export default function ChildHome() {
           <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
           <Text style={styles.gridText}>用藥</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.gridBox1, { backgroundColor: '#65B6E4' }]}> 
+        <TouchableOpacity
+          style={[styles.gridBox1, { backgroundColor: '#65B6E4' }]}
+          onPress={() => router.push('/HospitalRecord')}
+        >
           <Image source={require('../img/childhome/4320350.png')} style={styles.hospital} />
           <Text style={styles.gridText}>看診</Text>
         </TouchableOpacity>
