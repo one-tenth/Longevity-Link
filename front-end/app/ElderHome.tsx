@@ -50,7 +50,7 @@ export default function ElderHome() {
       <View style={styles.buttonRow}>
         <TouchableOpacity
           style={styles.buttonGreen}
-          onPress={() => router.push('/PhotoUpload')}
+          onPress={() => router.push('/ElderlyUpload')}
         >
           <Image source={require('../img/elderlyhome/add-photo.png')} style={styles.icon} />
           <Text style={styles.buttonText}>拍照上傳</Text>
