@@ -55,7 +55,7 @@ class OcrAPIView(APIView):
 
     # 這裡加 self！
     def analyze_text_with_openai(self, ocr_text):
-        prompt = f"以下是病人藥袋上的藥品：\n{ocr_text}\n\n請直接列出病人可能患有的疾病名稱，**只列病名，不要其他描述**。若無法判斷請回答「無法確定」。"
+        prompt = f"以下是病人藥袋上的藥品：\n{ocr_text}\n\n請直接列出病人可能患有的疾病名稱。若無法判斷請回答「無法確定」。"
 
         try:
             response = openai.chat.completions.create(
