@@ -192,13 +192,16 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   addButton: {
-    backgroundColor: '#65B6E4'
+    backgroundColor: '#65B6E4',
+    borderWidth: 3
+
   },
   backButton: {
-    backgroundColor: '#F58402'
+    backgroundColor: '#F58402',
+
   },
   buttonText: {
     fontSize: 22,
-    fontWeight: '900'
+    fontWeight: '900',
   }
 });

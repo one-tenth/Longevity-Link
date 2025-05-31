@@ -25,16 +25,19 @@ export default function Medicine() {
 
       <TouchableOpacity style={[styles.featureButton, { backgroundColor: '#F4C80B' }]}>
         <Image source={require('../img/medicine/clock.png')} style={styles.featureIcon} />
-        <Text style={styles.featureText}>用藥時間設定</Text>
+        <Text style={styles.featureText}
+          onPress={() => router.push('/MedTimeSetting')}>用藥時間設定</Text>
       </TouchableOpacity>
 
       <View style={styles.rowButtons}>
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]}>
-          <Image source={require('../img/medicine/med.png')} style={styles.featureIcon} />
-          <Text style={styles.featureText}>用藥提醒</Text>
+          <Image source={require('../img/medicine/med.png')} style={styles.gridIcon} />
+          <Text style={styles.featureText}
+          onPress={() => router.push('/MedRemind')}
+          >用藥提醒</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]}>
-          <Image source={require('../img/medicine/information.png')} style={styles.featureIcon} />
+          <Image source={require('../img/medicine/information.png')} style={styles.gridIcon1} />
           <Text style={styles.featureText}>用藥資訊</Text>
         </TouchableOpacity>
       </View>
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: '#000',
     borderRadius: 10,
     backgroundColor: '#fff',
@@ -124,8 +127,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row'
   },
   featureIcon: {
-    width: 50,
-    height: 50,
+    width: 60,
+    height: 60,
     marginRight: 10
   },
   featureText: {
@@ -143,7 +146,20 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#000',
     alignItems: 'center',
-    padding: 10
+    justifyContent: 'center', // 確保內容垂直居中
+    padding: 10,
+    flexDirection: 'column' // 將圖片和文字垂直排列
+  },
+  gridIcon: {
+    width: 40, // 調整圖片大小為 40x40
+    height: 40,
+    marginBottom: 5 // 圖片和文字之間留點空間
+  },
+
+  gridIcon1: {
+    width: 50, // 調整圖片大小為 40x40
+    height: 50,
+    marginBottom: 5 // 圖片和文字之間留點空間
   },
   button: {
     marginTop: 20,
