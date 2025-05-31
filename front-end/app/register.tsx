@@ -24,15 +24,6 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
   const Borndate = `${form.year}-${form.month}-${form.day}`;
-  
-  // 印出註冊資料確認格式
-  console.log('Register data:', {
-    Name: form.Name,
-    Gender: form.Gender,    // 應該是 'M' 或 'F'
-    Borndate,               // 格式 YYYY-MM-DD
-    Phone: form.Phone,
-    password: form.Password,
-  });
 
   try {
     await register({

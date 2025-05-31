@@ -5,7 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../app';  
 
-type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'index'>;
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 const HomeScreen = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
@@ -13,9 +13,9 @@ const HomeScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>歡迎使用 Longevity Link</Text>
-      <Button title="登入" onPress={() => navigation.navigate('login')} />
+      <Button title="登入" onPress={() => navigation.navigate('Login')} />
       <View style={{ marginTop: 10 }} />
-      <Button title="註冊" onPress={() => navigation.navigate('register')} />
+      <Button title="註冊" onPress={() => navigation.navigate('Register')} />
     </View>
   );
 };

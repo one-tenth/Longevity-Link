@@ -22,9 +22,20 @@ class CustomUserManager(BaseUserManager):
     def create_user(self, Phone, password=None, **extra_fields):
         if not Phone:
             raise ValueError('必須提供手機號碼')
-        user = self.model(Phone=Phone, **extra_fields)
-        user.set_password(password)  # 密碼加密儲存
+
+        # 這裡只存儲固定的欄位，這些欄位是必須的
+        Name = extra_fields.get('Name')
+        Gender = extra_fields.get('Gender')
+        Borndate = extra_fields.get('Borndate')
+        print(f"create_user called with Phone={Phone}, password={password}, {Name},{Gender},{Borndate}")
+
+        # 使用者物件建立
+        user = self.model(Phone=Phone, Name=Name, Gender=Gender, Borndate=Borndate)
+
+        # 儲存密碼
+        user.set_password(password)
         user.save()
+
         return user
     #建立超級使用者帳號
     def create_superuser(self, Phone, password=None, **extra_fields):

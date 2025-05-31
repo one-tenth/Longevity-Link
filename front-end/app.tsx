@@ -7,9 +7,9 @@ import LoginScreen from './app/login';
 import RegisterScreen from './app/register';
 
 export type RootStackParamList = {
-  index: undefined;
-  login: undefined;
-  register: undefined;
+  Home: undefined;
+  Login: undefined;
+  Register: undefined;
 };
 
 const Stack = createNativeStackNavigator();

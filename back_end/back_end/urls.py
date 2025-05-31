@@ -22,6 +22,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
     path('api/register/', views.register_user, name='register'),
-    path('api/account/', include('djoser.urls')),   #註冊帳號
-    path('api/account/', include('djoser.urls.jwt')),   #登入取得 token
+    path('api/account/', include('djoser.urls')),   # 註冊帳號
+    path('api/account/', include('djoser.urls.jwt')),  # 登入和 token
 ]
