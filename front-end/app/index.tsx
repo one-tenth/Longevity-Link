@@ -1,106 +1,96 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  Button,
-  StyleSheet,
-  Alert,
-  Platform,
-  PermissionsAndroid,
-} from 'react-native';
-import GoogleFit, { Scopes } from 'react-native-google-fit';
+import React from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 
-const GoogleFitStepScreen = () => {
-  const [steps, setSteps] = useState<number | null>(null);
-
-  const requestActivityPermission = async (): Promise<boolean> => {
-    if (Platform.OS === 'android' && Platform.Version >= 29) {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION,
-        {
-          title: '需要活動辨識權限',
-          message: '此應用程式需要讀取您的 Google Fit 步數資料',
-          buttonPositive: '確定',
-        }
-      );
-      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        Alert.alert('權限被拒絕', '無法讀取步數資料');
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const authorizeAndFetchSteps = async () => {
-    const hasPermission = await requestActivityPermission();
-    if (!hasPermission) return;
-
-    const options = {
-      scopes: [
-        Scopes.FITNESS_ACTIVITY_READ,
-        Scopes.FITNESS_ACTIVITY_WRITE,
-      ],
-    };
-
-    const authResult = await GoogleFit.authorize(options);
-    if (!authResult.success) {
-      Alert.alert('授權失敗', authResult.message || '無法取得授權');
-      return;
-    }
-
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setHours(0, 0, 0, 0); // 今天凌晨
-    const todayDateStr = new Date().toISOString().slice(0, 10); // e.g. 2025-05-17
-
-    GoogleFit.getDailyStepCountSamples({
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-    })
-      .then((res) => {
-        console.log('📦 所有資料來源：', res.map((r) => r.source));
-
-        const androidSteps = res.find((r) =>
-          r.source === 'com.google.android.gms:merge_step_deltas'
-        );
-
-        if (androidSteps && androidSteps.steps.length > 0) {
-          console.log('📆 所有步數資料：', androidSteps.steps);
-
-          const todayStepEntry = androidSteps.steps.find(
-            (s) => s.date === todayDateStr
-          );
-
-          if (todayStepEntry) {
-            setSteps(todayStepEntry.value);
-          } else {
-            Alert.alert('今天沒有步數資料');
-          }
-        } else {
-          Alert.alert('無步數資料');
-        }
-      })
-      .catch((err) => {
-        console.error('讀取步數失敗', err);
-        Alert.alert('讀取失敗', '請確認 Google Fit 有記錄步數');
-      });
-  };
+export default function HomeScreen() {
+  const router = useRouter();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Google Fit 步數讀取</Text>
-      <Button title="讀取今日步數" onPress={authorizeAndFetchSteps} />
-      <Text style={styles.steps}>
-        {steps !== null ? `✅ 今日步數：${steps} 步` : '📭 尚未讀取'}
-      </Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>CareMate</Text>
+        <Image source={require('../img/hospital/logo.png')} style={styles.logo} />
+      </View>
+
+      <View style={styles.gridRow}>
+        <TouchableOpacity
+          style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}
+          onPress={() => router.push('/elderlyhome')}>
+          <Image source={require('../img/setting/elderly.png')} style={styles.elderly} />
+          <Text style={styles.gridText1}>長者首頁</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.gridBox, { backgroundColor: '#F58402' }]}
+          onPress={() => router.push('/childhome')}>
+          <Image source={require('../img/setting/young.png')} style={styles.young} />
+          <Text style={styles.gridText1}>家人首頁</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, marginBottom: 20 },
-  steps: { fontSize: 18, marginTop: 20 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FCFEED', 
+    alignItems: 'center' 
+  },
+  header: {
+    width: '100%',
+    height: 70,
+    flexDirection: 'row', 
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#65B6E4',
+    position: 'relative',
+    marginBottom: 20,
+    paddingLeft: 10,
+    paddingRight: 10,
+  },
+  home: {
+    width: 40, 
+    height: 40,
+    marginTop: 15,
+    resizeMode: 'contain',
+  },
+  logo: { 
+    width: 60, 
+    height: 60,
+    marginTop: 15,
+    resizeMode: 'contain',
+  },
+  title: { 
+    fontSize: 50, 
+    fontWeight: '900', 
+    color: '#000', 
+  },
+  gridRow: {
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    width: '90%',
+    marginTop: 10,
+  },
+  gridBox: {
+    width: '45%', 
+    height: 100, // 增加高度以容納圖片和文字
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center', // 讓內容垂直居中
+    borderWidth: 3, 
+  },
+  gridText1: { 
+    fontSize: 20, 
+    fontWeight: '900',  
+    marginTop: 6, 
+    textAlign: 'center',
+  },
+  elderly: {
+    width: 50, 
+    height: 50,  
+  },
+  young: {
+    width: 54, 
+    height: 50, 
+  },
 });
-
-export default GoogleFitStepScreen;
