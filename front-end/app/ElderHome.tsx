@@ -58,7 +58,7 @@ export default function ElderHome() {
 
         <TouchableOpacity
           style={styles.buttonOrange}
-          onPress={() => router.push('/ElderHealth')}
+          onPress={() => router.push('/ElderlyHealth')}
         >
           <Image source={require('../img/elderlyhome/health-check.png')} style={styles.icon} />
           <Text style={styles.buttonText}>健康狀況</Text>
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     color: 'black',
   },
   boxText: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: '900',
     color: 'black',
   },
