@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -89,6 +88,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'back_end.wsgi.application'
 
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'UserID',  # 👈 告訴它你的主鍵欄位是 UserID
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases

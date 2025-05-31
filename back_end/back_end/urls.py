@@ -21,7 +21,9 @@ from mysite import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
-    path('api/register/', views.register_user, name='register'),
+    path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
+    path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
+
     path('api/account/', include('djoser.urls')),   # 註冊帳號
     path('api/account/', include('djoser.urls.jwt')),  # 登入和 token
 ]

@@ -34,7 +34,7 @@ export default function RegisterScreen() {
       password: form.Password,
     });
     Alert.alert('註冊成功', '請前往登入');
-    navigation.navigate('Login' as never);
+    navigation.navigate('login' as never);
   } catch (error: any) {
     console.error(error.response?.data || error.message);  // 印出後端錯誤訊息
     Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
