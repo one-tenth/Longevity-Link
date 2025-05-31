@@ -1,32 +1,30 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
-import { createFamily } from '../api/authApi';  // 引用創建家庭的 API 函式
+import { joinFamily } from '../api/authApi';  // 引用加入家庭的 API 函式
 
-interface CreateFamilyProps {
-  token: string;
+interface JoinFamilyProps {
+  token: string; 
 }
 
-export default function CreateFamily({ token }: CreateFamilyProps) {
+export default function JoinFamily({ token }: JoinFamilyProps) {
   const [fcode, setFcode] = useState('');
-  const [familyName, setFamilyName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleCreate = async () => {
-    if (!fcode || !familyName) {
-      setError('請填寫家庭代碼與家庭名稱');
+  const handleJoin = async () => {
+    if (!fcode) {
+      setError('請輸入家庭代碼');
       setSuccess('');
       return;
     }
 
     try {
-      const res = await createFamily({ Fcode: fcode, FamilyName: familyName }, token);
-      setSuccess('家庭建立成功！');
+      const res = await joinFamily({ Fcode: fcode }, token);  // 呼叫 API
+      setSuccess('成功加入家庭！');
       setError('');
       setFcode('');
-      setFamilyName('');
     } catch (err: any) {
-      const msg = err?.response?.data || '創建家庭失敗';
+      const msg = err?.response?.data?.error || '加入家庭失敗';
       setError(msg);
       setSuccess('');
     }
@@ -34,20 +32,14 @@ export default function CreateFamily({ token }: CreateFamilyProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>建立家庭</Text>
+      <Text style={styles.title}>加入家庭</Text>
       <TextInput
-        placeholder="家庭代碼"
+        placeholder="輸入家庭代碼"
         value={fcode}
         onChangeText={setFcode}
         style={styles.input}
       />
-      <TextInput
-        placeholder="家庭名稱"
-        value={familyName}
-        onChangeText={setFamilyName}
-        style={styles.input}
-      />
-      <Button title="建立" onPress={handleCreate} />
+      <Button title="加入家庭" onPress={handleJoin} />
       {error && <Text style={styles.error}>{error}</Text>}
       {success && <Text style={styles.success}>{success}</Text>}
     </View>
