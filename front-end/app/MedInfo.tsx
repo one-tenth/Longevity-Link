@@ -63,16 +63,10 @@ export default function MedicineInfo() {
           </View>
         </View>
 
-        {/* Buttons */}
-        <TouchableOpacity style={[styles.button, { backgroundColor: '#65B6E4' }]}>
-          <Text style={styles.buttonText}>新增紀錄</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.button, { backgroundColor: '#F58402' }]}
-          onPress={() => router.push('/childhome')}
-        >
-          <Text style={styles.buttonText}>回首頁</Text>
+          onPress={() => router.push('/medicine')}>
+          <Text style={styles.buttonText}>回前頁</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

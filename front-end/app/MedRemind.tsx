@@ -57,9 +57,9 @@ export default function MedicineReminder() {
       {/* Home Button */}
       <TouchableOpacity
         style={[styles.button, { backgroundColor: '#FF9500' }]}
-        onPress={() => router.push('/childhome')}
+        onPress={() => router.push('/medicine')}
       >
-        <Text style={styles.buttonText}>回首頁</Text>
+        <Text style={styles.buttonText}>回前頁</Text>
       </TouchableOpacity>
     </View>
   );

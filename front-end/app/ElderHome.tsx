@@ -19,7 +19,7 @@ export default function ElderHome() {
       {/* Scrollable Content */}
       <ScrollView style={styles.scrollContainer}>
         {/* 藥物提醒 */}
-        <View style={[styles.boxGreen, { marginTop: 20 }]}> {/* 增加 marginTop 向下移動 */}
+        <View style={[styles.boxGreen, { marginTop: 20 }]}>
           <Text style={styles.boxTitle}>吃藥提醒</Text>
           <View style={styles.row}>
             <Image source={require('../img/elderlyhome/clock.png')} style={styles.icon} />
@@ -65,12 +65,11 @@ export default function ElderHome() {
             <Image source={require('../img/elderlyhome/health-check.png')} style={styles.icon} />
             <Text style={styles.buttonText}>健康狀況</Text>
           </TouchableOpacity>
-
         </View>
 
-        
-          <Text style={styles.alertText2}
-                onPress={() => router.push('/')}>切換使用者</Text>
+        <TouchableOpacity onPress={() => router.push('/')}>
+          <Text style={styles.alertText2}>切換使用者</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -80,7 +79,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFEED',
-    alignItems: 'center', // 確保整個容器置中
+    alignItems: 'center',
   },
   header: {
     width: '100%',
@@ -89,7 +88,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#65B6E4',
     paddingHorizontal: 10,
-    alignItems: 'center', // 確保圖標和文字垂直居中
+    alignItems: 'center',
   },
   title: {
     fontSize: 50,
@@ -107,8 +106,8 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   scrollContainer: {
-    width: '90%', // 限制 ScrollView 寬度為 90%，並置中
-    alignSelf: 'center', // 確保 ScrollView 水平置中
+    width: '90%',
+    alignSelf: 'center',
   },
   boxGreen: {
     backgroundColor: '#549D77',
@@ -145,13 +144,12 @@ const styles = StyleSheet.create({
   icon: {
     width: 62,
     height: 62,
-    textAlign: 'center',
-    marginTop: 2,
+    marginTop: 2, // 移除無效的 textAlign
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16, // 確保按鈕區域與上方內容有間距
+    marginTop: 16,
   },
   buttonGreen: {
     flex: 1,
@@ -179,11 +177,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: 'white',
   },
-
-    alertText2: {
-    fontSize: 20, 
+  alertText2: {
+    fontSize: 20,
     fontWeight: '900',
-    marginLeft:220,
-    marginTop:30
-  }
+    alignSelf: 'center', // 置中顯示
+    marginTop: 30,
+    marginBottom: 20, // 增加底部間距
+  },
 });

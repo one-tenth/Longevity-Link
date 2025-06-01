@@ -59,9 +59,9 @@ export default function ChildHome() {
         <Text style={styles.callText}>通話紀錄</Text>
       </TouchableOpacity>
 
-      
-      <Text style={styles.alertText2}
-      onPress={() => router.push('/')}>切換使用者</Text>
+      <TouchableOpacity onPress={() => router.push('/')}>
+        <Text style={styles.alertText2}>切換使用者</Text>
+      </TouchableOpacity>
 
     </View>
 

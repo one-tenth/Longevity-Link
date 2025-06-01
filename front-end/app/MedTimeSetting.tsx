@@ -72,8 +72,8 @@ export default function TimeSettingInput() {
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]} onPress={handleSave}>
           <Text style={styles.featureText}>儲存</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]} onPress={() => router.push('/childhome')}>
-          <Text style={styles.featureText}>回首頁</Text>
+        <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]} onPress={() => router.push('/medicine')}>
+          <Text style={styles.featureText}>回前頁</Text>
         </TouchableOpacity>
       </View>
     </View>
