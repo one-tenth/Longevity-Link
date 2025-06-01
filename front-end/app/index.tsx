@@ -15,7 +15,7 @@ export default function HomeScreen() {
       <View style={styles.gridRow}>
         <TouchableOpacity
           style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}
-          onPress={() => router.push('/elderlyhome')}>
+          onPress={() => router.push('/ElderHome')}>
           <Image source={require('../img/setting/elderly.png')} style={styles.elderly} />
           <Text style={styles.gridText1}>長者首頁</Text>
         </TouchableOpacity>
