@@ -38,7 +38,9 @@ export default function Medicine() {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]}>
           <Image source={require('../img/medicine/information.png')} style={styles.gridIcon1} />
-          <Text style={styles.featureText}>用藥資訊</Text>
+          <Text style={styles.featureText}
+          onPress={() => router.push('/MedInfo')}
+          >用藥資訊</Text>
         </TouchableOpacity>
       </View>
 
