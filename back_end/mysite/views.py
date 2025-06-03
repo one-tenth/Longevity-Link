@@ -55,13 +55,13 @@ class OcrAPIView(APIView):
 
     # 這裡加 self！
     def analyze_text_with_openai(self, ocr_text):
-        prompt = f"以下是病人藥袋上的藥品：\n{ocr_text}\n\n請直接列出病人可能患有的疾病名稱。若無法判斷請回答「無法確定」。"
+        prompt = f"以下是病人藥袋上的藥品：\n{ocr_text}\n\n請直接列出病人可能患有的疾病名稱，根據藥單內容列出疾病名稱、藥物名稱、使用方式。若無法判斷請回答「無法確定」。"
 
         try:
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "你是專業藥劑師助理。"},
+                    {"role": "system", "content": "你是超級無敵專業藥劑師。"},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.5

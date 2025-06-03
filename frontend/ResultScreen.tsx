@@ -1,36 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
-export default function ResultScreen({ route }) {
+export default function ResultScreen() {
   const navigation = useNavigation();
-  const { ocrResult, analysisResult } = route.params;
+  const route = useRoute();
+
+  const { ocrResult, analysisResult, photoUri } = route.params;
 
   const [loading, setLoading] = useState(false);
 
-  // 一進頁面就印出辨識結果
   useEffect(() => {
-    console.log('🔍 OCR 辨識結果:', ocrResult);
-    console.log('🧠 AI 分析結果:', analysisResult);
-  }, [ocrResult, analysisResult]);
+    console.log('OCR:', ocrResult);
+    console.log('AI 分析:', analysisResult);
+    console.log('照片 URI:', photoUri);
+  }, [ocrResult, analysisResult, photoUri]);
 
   const handleBackToCamera = () => {
     if (loading) return;
     setLoading(true);
     setTimeout(() => {
-      navigation.navigate('OcrScreen');
+      navigation.navigate('OcrScreen'); // 改成你的拍照頁面路由名稱
       setLoading(false);
     }, 500);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* <Text style={styles.title}>🔍 辨識結果：</Text>
-      {ocrResult.map((line: string, idx: number) => (
-        <Text key={idx} style={styles.textLine}>
-          {line}
-        </Text>
-      ))} */}
+      {photoUri && <Image source={{ uri: photoUri }} style={styles.photo} />}
+
+      <Text style={styles.title}>🔍 辨識結果：</Text>
+      {Array.isArray(ocrResult) ? (
+        ocrResult.map((line, idx) => (
+          <Text key={idx} style={styles.textLine}>
+            {line}
+          </Text>
+        ))
+      ) : (
+        <Text style={styles.textLine}>{ocrResult}</Text>
+      )}
 
       <Text style={styles.title}>🧠 AI 分析結果：</Text>
       <Text style={styles.analysisText}>{analysisResult}</Text>
@@ -40,20 +56,19 @@ export default function ResultScreen({ route }) {
         onPress={handleBackToCamera}
         disabled={loading}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>返回拍照</Text>
-        )}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>返回拍照</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    padding: 20, 
-    alignItems: 'center',
+  container: { padding: 20, alignItems: 'center' },
+  photo: {
+    width: 300,
+    height: 300,
+    borderRadius: 10,
+    marginBottom: 20,
   },
   title: {
     fontSize: 22,
