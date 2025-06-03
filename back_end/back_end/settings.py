@@ -1,3 +1,13 @@
+
+#openai
+from dotenv import load_dotenv
+load_dotenv()
+#google vision ocr
+import os
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(BASE_DIR, 'google_vision_key.json')
+
 """
 Django settings for back_end project.
 
