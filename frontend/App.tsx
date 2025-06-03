@@ -1,15 +1,8 @@
-// import React from 'react';
-// import OcrScreen from './OcrScreen';
-
-// export default function App() {
-//   return <OcrScreen />;
-// }
-
 import * as React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import OcrScreen from './OcrScreen';
-import ResultScreen from './ResultScreen'; // 新增的頁面
+import OcrScreen from './screens/OcrScreen';
+import ResultScreen from './screens/ResultScreen'; // 新增的頁面
 
 const Stack = createNativeStackNavigator();
 
