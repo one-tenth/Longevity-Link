@@ -1,22 +1,20 @@
 from django.shortcuts import render
 
-# Create your views here.
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import os
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser
+from google.cloud import vision
+from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
+import openai
 
 @api_view(['GET'])
 def hello_world(request):
     return Response({"message": "Hello, world!(你好世界)"})
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser
-from google.cloud import vision
 
-import os
-import openai
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
 class OcrAPIView(APIView):
     parser_classes = [MultiPartParser]
@@ -29,7 +27,7 @@ class OcrAPIView(APIView):
 
         try:
             # OCR 辨識
-            vision_client = vision.ImageAnnotatorClient()
+            vision_client = vision.ImageAnnotatorClient.from_service_account_info(GOOGLE_VISION_CREDENTIALS)
             content = image_file.read()
             image = vision.Image(content=content)
             response = vision_client.text_detection(image=image)

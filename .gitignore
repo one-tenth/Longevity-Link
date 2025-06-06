@@ -74,3 +74,5 @@ yarn-error.*
 
 back_end/google_vision_key.json
 .json
+# 排除 CMake 暫存
+frontend/android/app/.cxx/
