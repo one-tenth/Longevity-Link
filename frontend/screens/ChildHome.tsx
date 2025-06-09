@@ -48,7 +48,7 @@ export default function ChildHome() {
       <View style={styles.gridRow}>
         <TouchableOpacity 
           style={[styles.gridBox1, { backgroundColor: '#F58402' }]} 
-          onPress={() => navigation.navigate('medicine')}>
+          onPress={() => navigation.navigate('Medicine')}>
           <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
           <Text style={styles.gridText}>用藥</Text>
         </TouchableOpacity>

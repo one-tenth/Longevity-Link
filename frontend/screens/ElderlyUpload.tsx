@@ -1,10 +1,15 @@
 // elderlyupload.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+
+// ChildHome 頁面的 navigation 型別
+type ElderlyUploadNavProp = StackNavigationProp<RootStackParamList, 'ElderlyUpload'>;
 
 export default function ElderlyUpload() {
-  const router = useRouter();
+  const navigation = useNavigation<ElderlyUploadNavProp>();
 
   return (
     <View style={styles.container}>
@@ -33,7 +38,7 @@ export default function ElderlyUpload() {
       {/* 回首頁 */}
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => router.push('/ElderHome')}
+        onPress={() => navigation.navigate('ElderHome')}
       >
         <Text style={styles.backText}>回首頁</Text>
       </TouchableOpacity>
