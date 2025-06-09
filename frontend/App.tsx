@@ -6,9 +6,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 // 引入各頁（改成你自己的路徑）
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
-import ElderHome from './screens/ElderHome';
-import ElderlyHealth from './screens/ElderlyHealth';
-import ElderlyUpload from './screens/ElderlyUpload';
+//import ElderHome from './screens/ElderHome';
+//import ElderlyHealth from './screens/ElderlyHealth';
+//import ElderlyUpload from './screens/ElderlyUpload';
 import HospitalRecord from './screens/HospitalRecord';
 import index from './screens/index';
 import Medicine from './screens/Medicine';
@@ -34,8 +34,8 @@ export type RootStackParamList = {
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
-  login: undefined;
-  register: undefined;
+  LoginScreen: undefined;
+  RegisterScreen: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -45,9 +45,6 @@ const App: React.FC = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
-      <Stack.Screen name="ElderHome" component={ElderHome} />
-      <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
-      <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="index" component={index} />
       <Stack.Screen name="Medicine" component={Medicine} />
@@ -55,8 +52,8 @@ const App: React.FC = () => (
       <Stack.Screen name="MedRemind" component={MedRemind} />
       <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
       <Stack.Screen name="Setting" component={Setting} />
-      <Stack.Screen name="login" component={LoginScreen} />
-        <Stack.Screen name="register" component={RegisterScreen} />
+      <Stack.Screen name="LoginScreen" component={LoginScreen} />
+        <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
     </Stack.Navigator>
   </NavigationContainer>
 );

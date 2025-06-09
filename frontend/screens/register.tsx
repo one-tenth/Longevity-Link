@@ -27,7 +27,7 @@ export default function RegisterScreen() {
   password: string;
 }
   async function register(data: RegisterData) {
-  const response = await fetch('http://192.168.0.21:8000/api/register/', {
+  const response = await fetch('http://172.20.10.2:8000/api/register/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -55,7 +55,7 @@ const handleRegister = async () => {
   try {
     const result = await register(dataToSend);
     Alert.alert('註冊成功', '請前往登入');
-    navigation.navigate('login' as never);
+    navigation.navigate('LoginScreen' as never);
   } catch (error: any) {
     console.error(error.message || error);
     Alert.alert('註冊失敗', '請確認資訊是否填寫正確');

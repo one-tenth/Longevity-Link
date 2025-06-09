@@ -8,21 +8,26 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+
+// ElderHome 頁面的 navigation 型別
+type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
 export default function LoginScreen() {
-  const router = useRouter();
+  const navigation = useNavigation<LoginScreenNavProp>();
 
   const [Phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://192.168.0.21:8000/api/account/login/', {
+      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            Phone: Phone,       // 👈 大寫
+            Phone: Phone,     
             password: password
         }),
       });
@@ -41,7 +46,7 @@ export default function LoginScreen() {
 
       if (response.ok) {
         Alert.alert('登入成功', `歡迎 ${data.user.Name}`);
-        router.push('/');  // ✅ 登入成功後跳轉
+        navigation.navigate('index');  // ✅ 登入成功後跳轉
       } else {
         Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');  // 修正錯誤訊息來源
       }
@@ -53,14 +58,14 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Image source={require('../assets/images/icon.png')} style={styles.logo} />
+        <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
         <Text style={styles.headerText}>CareMate</Text>
-        <Image source={require('../assets/images/icon.png')} style={styles.icon} />
+        <Image source={require('../img/childhome/logo.png')} style={styles.icon} />
       </View>
 
       <View style={styles.inputGroup}>
         <View style={styles.inputLabel}>
-          <Image source={require('../assets/images/icon.png')} style={styles.iconSmall} />
+          <Image source={require('../img/childhome/logo.png')} style={styles.iconSmall} />
           <Text style={styles.labelText}>帳號</Text>
         </View>
         <TextInput
@@ -74,7 +79,7 @@ export default function LoginScreen() {
 
       <View style={styles.inputGroup}>
         <View style={styles.inputLabel}>
-          <Image source={require('../assets/images/icon.png')} style={styles.iconSmall} />
+          <Image source={require('../img/childhome/logo.png')} style={styles.iconSmall} />
           <Text style={styles.labelText}>密碼</Text>
         </View>
         <TextInput
@@ -90,7 +95,7 @@ export default function LoginScreen() {
         <Text style={styles.buttonText}>登入</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/register')}>
+      <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
         <Text style={styles.registerText}>沒有帳號？註冊</Text>
       </TouchableOpacity>
     </View>
