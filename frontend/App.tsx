@@ -16,6 +16,8 @@ import MedInfo from './screens/MedInfo';
 import MedRemind from './screens/MedRemind';
 import MedTimeSetting from './screens/MedTimeSetting';
 import Setting from './screens/Setting';
+import LoginScreen from './screens/login';
+import RegisterScreen from './screens/register';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -32,6 +34,8 @@ export type RootStackParamList = {
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
+  login: undefined;
+  register: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -51,6 +55,8 @@ const App: React.FC = () => (
       <Stack.Screen name="MedRemind" component={MedRemind} />
       <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
       <Stack.Screen name="Setting" component={Setting} />
+      <Stack.Screen name="login" component={LoginScreen} />
+        <Stack.Screen name="register" component={RegisterScreen} />
     </Stack.Navigator>
   </NavigationContainer>
 );
