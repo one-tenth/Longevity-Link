@@ -1,15 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+
+// ChildHome 頁面的 navigation 型別
+type ElderHomeNavProp = StackNavigationProp<RootStackParamList, 'ElderHome'>;
+
 
 export default function ElderHome() {
-  const router = useRouter();
+  const navigation = useNavigation<ElderHomeNavProp>();
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/setting')}>
+        <TouchableOpacity onPress={() => navigation.navigate('Setting')}>
           <Image source={require('../img/elderlyhome/home.png')} style={styles.settingIcon} />
         </TouchableOpacity>
         <Text style={styles.title}>CareMate</Text>
@@ -50,7 +56,7 @@ export default function ElderHome() {
       <View style={styles.buttonRow}>
         <TouchableOpacity
           style={styles.buttonGreen}
-          onPress={() => router.push('/ElderlyUpload')}
+          onPress={() => navigation.navigate('ElderlyUpload')}
         >
           <Image source={require('../img/elderlyhome/add-photo.png')} style={styles.icon} />
           <Text style={styles.buttonText}>拍照上傳</Text>
@@ -58,7 +64,7 @@ export default function ElderHome() {
 
         <TouchableOpacity
           style={styles.buttonOrange}
-          onPress={() => router.push('/ElderlyHealth')}
+          onPress={() => navigation.navigate('ElderlyHealth')}
         >
           <Image source={require('../img/elderlyhome/health-check.png')} style={styles.icon} />
           <Text style={styles.buttonText}>健康狀況</Text>
