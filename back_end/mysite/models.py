@@ -52,6 +52,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)   # 可登入
     is_staff = models.BooleanField(default=False)   # 可進後台（僅限 superuser）
 
+    groups = models.ManyToManyField(
+        'auth.Group',
+        related_name='mysite_user_set',  # 修改反向關聯名稱
+        blank=True
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        related_name='mysite_user_permissions_set',  # 修改反向關聯名稱
+        blank=True
+    )
+
     USERNAME_FIELD = 'Phone'    #用phone當作登入的名稱
     REQUIRED_FIELDS = ['Name']
 

@@ -49,9 +49,23 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'mysite',
     'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework.authtoken',#token認證支援
+    'corsheaders',#允許前端跨線連接
 ]
 
+#所有需要登入的 API，都會使用 JWT（JSON Web Token）作為驗證機制
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -60,6 +74,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'back_end.urls'
 
@@ -80,6 +97,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'back_end.wsgi.application'
 
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'UserID',  # 👈 告訴它你的主鍵欄位是 UserID
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -101,12 +121,17 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 6},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        'NAME': 'mysite.validators.MaximumLengthValidator',
+        'OPTIONS': {'max_length': 16},  # 這邊可以自己改數字
     },
 ]
 

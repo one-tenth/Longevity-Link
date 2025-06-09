@@ -7,7 +7,9 @@ charset-normalizer==3.4.2
 colorama==0.4.6
 distro==1.9.0
 Django==5.2
+django-cors-headers==4.7.0
 djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
 google-api-core==2.24.2
 google-auth==2.40.2
 google-cloud-vision==3.10.1
@@ -26,6 +28,7 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pydantic==2.11.5
 pydantic_core==2.33.2
+PyJWT==2.9.0
 python-dotenv==1.1.0
 requests==2.32.3
 rsa==4.9.1

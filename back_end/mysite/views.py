@@ -69,3 +69,68 @@ class OcrAPIView(APIView):
             return response.choices[0].message.content
         except Exception as e:
             return f"AI 分析錯誤: {str(e)}"
+        
+# Create your views here.
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import UserRegisterSerializer
+from django.contrib.auth import authenticate
+from .models import User  # 你的自訂 User 模型
+from rest_framework_simplejwt.tokens import RefreshToken
+
+@api_view(['GET'])
+def hello_world(request):
+    return Response({"message": "Hello, world!(你好世界)"})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    serializer = UserRegisterSerializer(data=request.data)
+
+    if serializer.is_valid():
+        user = serializer.save()  # 不要自己額外傳參數，全部由 serializer.create 處理
+
+        user_serializer = UserRegisterSerializer(user)
+        return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login(request):
+    Phone = request.data.get('Phone')
+    password = request.data.get('password')
+
+    # 檢查是否有輸入 Phone 與 password
+    if not Phone or not password:
+        return Response({"message": "請提供帳號與密碼"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(Phone=Phone)
+    except User.DoesNotExist:
+        return Response({"message": "帳號不存在"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not user.check_password(password):
+        return Response({"message": "密碼錯誤"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 產生 JWT token
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        "message": "登入成功",
+        "token": {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        },
+        "user": {
+            "UserID": user.UserID,
+            "Name": user.Name,
+            "Phone": user.Phone,
+        }
+    }, status=status.HTTP_200_OK)
