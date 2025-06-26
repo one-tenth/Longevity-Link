@@ -28,7 +28,7 @@ export default function ResultScreen() {
     if (loading) return;
     setLoading(true);
     setTimeout(() => {
-      navigation.navigate('OcrScreen'); // 改成你的拍照頁面路由名稱
+      navigation.navigate('ElderlyUpload'); // 改成你的拍照頁面路由名稱
       setLoading(false);
     }, 500);
   };

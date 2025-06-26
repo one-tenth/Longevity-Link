@@ -13,13 +13,12 @@ import {
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import axios from 'axios';
-import { useNavigation } from '@react-navigation/native';
 
 export default function CameraScreen() {
-  const navigation = useNavigation();
-
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ocrText, setOcrText] = useState<string[]>([]);
+  const [analysisResult, setAnalysisResult] = useState<string>('');
 
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
@@ -54,19 +53,18 @@ export default function CameraScreen() {
 
     try {
       setLoading(true);
-      const response = await axios.post('http://172.20.10.5:8000/api/ocr/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const response = await axios.post('http://192.168.0.55:8000/api/ocr/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      navigation.navigate('Result', {
-        ocrResult: response.data.text,
-        analysisResult: response.data.analysis,
-        photoUri: uri,  // 傳送照片 URI
-      });
-
-      setPhotoUri(null);
+      // 儲存結果
+      setOcrText(response.data.text || []);
+      setAnalysisResult(response.data.analysis || '');
     } catch (error: any) {
       console.error('上傳錯誤:', error?.message ?? error);
+      console.log('錯誤詳細內容:', error?.response?.data); // ← 新增這行
       Alert.alert('上傳或辨識錯誤', error?.message ?? '請確認後端服務');
     } finally {
       setLoading(false);
@@ -74,30 +72,27 @@ export default function CameraScreen() {
   };
 
   const openCamera = async () => {
-    if (loading) return;
-
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
       Alert.alert('權限不足', '請到設定開啟相機權限');
       return;
     }
 
-    launchCamera(
-      { mediaType: 'photo', saveToPhotos: true },
-      async response => {
-        if (response.didCancel) {
-          console.log('使用者取消拍照');
-        } else if (response.errorCode) {
-          console.warn('相機錯誤:', response.errorMessage);
-        } else if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          setPhotoUri(uri ?? null);
-          if (uri) {
-            await uploadImageToBackend(uri);
-          }
+    launchCamera({ mediaType: 'photo', saveToPhotos: true }, async response => {
+      if (response.didCancel) {
+        console.log('使用者取消拍照');
+      } else if (response.errorCode) {
+        console.warn('相機錯誤:', response.errorMessage);
+      } else if (response.assets && response.assets.length > 0) {
+        const uri = response.assets[0].uri;
+        setPhotoUri(uri ?? null);
+        setOcrText([]);
+        setAnalysisResult('');
+        if (uri) {
+          await uploadImageToBackend(uri);
         }
-      },
-    );
+      }
+    });
   };
 
   return (
@@ -110,14 +105,36 @@ export default function CameraScreen() {
         <Text style={styles.buttonText}>{loading ? '辨識中...' : '拍照並辨識'}</Text>
       </TouchableOpacity>
 
-      {photoUri && <Image source={{ uri: photoUri }} style={styles.previewImage} />}
+      {photoUri && (
+        <>
+          <Text style={styles.sectionTitle}>照片預覽：</Text>
+          <Image source={{ uri: photoUri }} style={styles.previewImage} />
+        </>
+      )}
+
       {loading && <ActivityIndicator size="large" color="#007aff" style={{ marginTop: 20 }} />}
+
+      {ocrText.length > 0 && (
+        <View style={styles.resultContainer}>
+          <Text style={styles.sectionTitle}>OCR 辨識文字：</Text>
+          {ocrText.map((line, index) => (
+            <Text key={index} style={styles.resultText}>• {line}</Text>
+          ))}
+        </View>
+      )}
+
+      {analysisResult !== '' && (
+        <View style={styles.resultContainer}>
+          <Text style={styles.sectionTitle}>AI 分析結果：</Text>
+          <Text style={styles.resultText}>{analysisResult}</Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, alignItems: 'center' },
+  container: { padding: 20, alignItems: 'center', backgroundColor: '#FCFEED' },
   button: {
     backgroundColor: '#007aff',
     padding: 16,
@@ -130,10 +147,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#A0A0A0',
   },
   buttonText: { color: 'white', fontSize: 16 },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 20,
+    color: '#333',
+  },
   previewImage: {
     width: 300,
     height: 300,
     borderRadius: 8,
-    marginVertical: 16,
+    marginTop: 10,
+  },
+  resultContainer: {
+    marginTop: 20,
+    width: '90%',
+    padding: 10,
+    backgroundColor: '#FFF8DC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  resultText: {
+    fontSize: 16,
+    marginBottom: 5,
+    color: '#000',
   },
 });

@@ -1,7 +1,8 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-
+// fcm
+apply plugin: 'com.google.gms.google-services' // ← 加這行
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -80,7 +81,9 @@ android {
     namespace "com.frontend"
     defaultConfig {
         applicationId "com.frontend"
-        minSdkVersion rootProject.ext.minSdkVersion
+        // minSdkVersion rootProject.ext.minSdkVersion
+        // firebase 推播最低版本建議 21
+        minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
@@ -106,6 +109,7 @@ android {
         }
     }
 }
+apply plugin: 'com.google.gms.google-services' // ✅ 最底部加這行
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin

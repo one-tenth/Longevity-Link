@@ -73,6 +73,15 @@ yarn-error.*
 .vscode/
 
 back_end/google_vision_key.json
-.json
+back_end/firebase-key.json
+frontend/android/app/google-services.json
 # 排除 CMake 暫存
 frontend/android/app/.cxx/
+
+
+
+#防止根目錄上傳這兩個.json
+/package-lock.json
+/package.json
+!frontend/package-lock.json
+!frontend/package.json

@@ -8,7 +8,44 @@ from rest_framework.parsers import MultiPartParser
 from google.cloud import vision
 from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
+#----------------------------------------------------------------
+# back_end/views.py
+import firebase_admin
+from firebase_admin import credentials, messaging
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from django.conf import settings  # 加這行來讀取 FIREBASE_KEY_PATH
 
+# 避免重複初始化（只會初始化一次）
+if not firebase_admin._apps:
+    cred = credentials.Certificate(settings.FIREBASE_KEY_PATH)  # 使用 settings 中的路徑
+    firebase_admin.initialize_app(cred)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_fcm_message(request):
+    token = request.data.get('token')
+    title = request.data.get('title', '預設通知標題')
+    body = request.data.get('body', '預設通知內容')
+
+    if not token:
+        return Response({'error': '請提供 token'}, status=400)
+    
+    #token 指定到要發通知的目標上
+    message = messaging.Message(
+        notification=messaging.Notification(title=title, body=body),
+        token=token#前端發送過來的token
+    )
+
+    try:
+        response = messaging.send(message)
+        return Response({'message_id': response})
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+#----------------------------------------------------------------
 @api_view(['GET'])
 def hello_world(request):
     return Response({"message": "Hello, world!(你好世界)"})
@@ -16,8 +53,10 @@ def hello_world(request):
 
 openai.api_key = OPENAI_API_KEY
 
+from rest_framework.permissions import AllowAny
 class OcrAPIView(APIView):
-    parser_classes = [MultiPartParser]
+    # parser_classes = [MultiPartParser]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         image_file = request.FILES.get('image')
@@ -67,3 +106,64 @@ class OcrAPIView(APIView):
             return response.choices[0].message.content
         except Exception as e:
             return f"AI 分析錯誤: {str(e)}"
+        
+# Create your views here.
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import UserRegisterSerializer
+from django.contrib.auth import authenticate
+from .models import User  # 你的自訂 User 模型
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    serializer = UserRegisterSerializer(data=request.data)
+
+    if serializer.is_valid():
+        user = serializer.save()  # 不要自己額外傳參數，全部由 serializer.create 處理
+
+        user_serializer = UserRegisterSerializer(user)
+        return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login(request):
+    Phone = request.data.get('Phone')
+    password = request.data.get('password')
+
+    # 檢查是否有輸入 Phone 與 password
+    if not Phone or not password:
+        return Response({"message": "請提供帳號與密碼"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(Phone=Phone)
+    except User.DoesNotExist:
+        return Response({"message": "帳號不存在"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not user.check_password(password):
+        return Response({"message": "密碼錯誤"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 產生 JWT token
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        "message": "登入成功",
+        "token": {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        },
+        "user": {
+            "UserID": user.UserID,
+            "Name": user.Name,
+            "Phone": user.Phone,
+        }
+    }, status=status.HTTP_200_OK)
