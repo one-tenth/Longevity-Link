@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/ocr/', views.OcrAPIView.as_view()),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
+    path('hos/', views.HosListView, name='hos-list'),
 ]

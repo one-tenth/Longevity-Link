@@ -1,6 +1,6 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-from .models import User
+from .models import User,Hos
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     Phone = serializers.CharField(max_length=10)
@@ -30,4 +30,18 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         )
         return user
 
+class UserSerializer(serializers.ModelSerializer):
+    is_elder = serializers.ReadOnlyField()
+    is_family = serializers.ReadOnlyField()
 
+    class Meta:
+        model = User
+        fields = ['UserID', 'Name', 'Phone', 'is_elder', 'is_family']
+
+
+#後端轉成JSON格式
+#前端傳來的JSON格式轉成後端可以使用的格式
+class HosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hos
+        fields = '__all__' 

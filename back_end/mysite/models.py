@@ -71,6 +71,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.Phone
 
+    @property
+    def is_elder(self):
+        return self.RelatedID is None
+
+    @property
+    def is_family(self):
+        return self.RelatedID is not None
+    
     class Meta:
         db_table = 'User'  
 
@@ -78,6 +86,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Hos(models.Model):
     HosId = models.AutoField(primary_key=True)
     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    Created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_hos')
     ClinicPlace = models.CharField(max_length=20)
     ClinicDate = models.DateField()
     Doctor = models.CharField(max_length=10)

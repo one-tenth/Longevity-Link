@@ -134,3 +134,29 @@ def login(request):
             "Phone": user.Phone,
         }
     }, status=status.HTTP_200_OK)
+
+
+#HOS 
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import Hos
+from .serializers import HosSerializer
+
+class HosListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.is_elder:
+            # 長者只能看自己的回診資料
+            hos_records = Hos.objects.filter(UserID=user)
+        elif user.is_family:
+            # 家人可以看他所關聯的長者的資料
+            hos_records = Hos.objects.filter(UserID=user.RelatedID)
+        else:
+            return Response({"error": "無效身份"}, status=400)
+
+        data = HosSerializer(hos_records, many=True).data
+        return Response(data)

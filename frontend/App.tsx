@@ -1,3 +1,4 @@
+
 // App.tsx
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -25,8 +26,8 @@ export type RootStackParamList = {
   ChildHome: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
-  ElderlyUpload: undefined;
-  fit: undefined;
+  // ElderlyUpload: undefined;
+  // fit: undefined;
   HospitalRecord: undefined;
   index: undefined;
   Medicine: undefined;
@@ -43,17 +44,17 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" component={index} />
+      <Stack.Screen name="LoginScreen" component={LoginScreen} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
-      <Stack.Screen name="index" component={index} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
       <Stack.Screen name="MedRemind" component={MedRemind} />
       <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
       <Stack.Screen name="Setting" component={Setting} />
-      <Stack.Screen name="LoginScreen" component={LoginScreen} />
-        <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+      <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
     </Stack.Navigator>
   </NavigationContainer>
 );
