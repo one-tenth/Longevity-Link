@@ -2,7 +2,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import Toast from 'react-native-toast-message'; // ⬅️ 加這行
+
 
 // 引入各頁（改成你自己的路徑）
 import AddHospitalRecord from './screens/AddHospitalRecord';
@@ -21,7 +21,7 @@ import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import ResultScreen from './screens/ResultScreen';
 import OcrScreen from './screens/OcrScreen';
-import FcmTest from './screens/FcmTest';
+import fit from './screens/fit';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -43,7 +43,7 @@ export type RootStackParamList = {
   ResultScreen: undefined;
   OcrScreen: undefined;
   a: undefined;
-  FcmTest: undefined;
+
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -51,10 +51,10 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="FcmTest" component={FcmTest} />
+      <Stack.Screen name="fit" component={fit} />
+      <Stack.Screen name="index" component={index} />
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="OcrScreen" component={OcrScreen} />
-      <Stack.Screen name="index" component={index} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
@@ -69,7 +69,6 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
       <Stack.Screen name="ResultScreen" component={ResultScreen} />
     </Stack.Navigator>
-    <Toast /> {/* ⬅️ 放在這裡最底下 */}
   </NavigationContainer>
 );
 

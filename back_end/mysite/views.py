@@ -8,42 +8,6 @@ from rest_framework.parsers import MultiPartParser
 from google.cloud import vision
 from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
-#----------------------------------------------------------------
-# back_end/views.py
-import firebase_admin
-from firebase_admin import credentials, messaging
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from django.conf import settings  # 加這行來讀取 FIREBASE_KEY_PATH
-
-# 避免重複初始化（只會初始化一次）
-if not firebase_admin._apps:
-    cred = credentials.Certificate(settings.FIREBASE_KEY_PATH)  # 使用 settings 中的路徑
-    firebase_admin.initialize_app(cred)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def send_fcm_message(request):
-    token = request.data.get('token')
-    title = request.data.get('title', '預設通知標題')
-    body = request.data.get('body', '預設通知內容')
-
-    if not token:
-        return Response({'error': '請提供 token'}, status=400)
-    
-    #token 指定到要發通知的目標上
-    message = messaging.Message(
-        notification=messaging.Notification(title=title, body=body),
-        token=token#前端發送過來的token
-    )
-
-    try:
-        response = messaging.send(message)
-        return Response({'message_id': response})
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
 
 #----------------------------------------------------------------
 @api_view(['GET'])
