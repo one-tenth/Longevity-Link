@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity ,ScrollView} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
@@ -10,6 +10,29 @@ type HospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'HospitalRe
 export default function HospitalRecord() {
   const navigation = useNavigation<HospitalRecordNavProp>();
 
+  // ✅ 這裡放 useState
+  const [records, setRecords] = useState<any[]>([]);
+
+  // ✅ 這裡放 useEffect
+  useEffect(() => {
+    const fetchRecords = async () => {
+      try {
+        const response = await fetch('http://172.20.10.2:8000/api/hos/', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer 你的token`, // ← 這裡請換成實際 token
+            'Content-Type': 'application/json',
+          }
+        });
+        const data = await response.json();
+        setRecords(data);
+      } catch (error) {
+        console.error('取得回診資料失敗:', error);
+      }
+    };
+
+    fetchRecords();
+  }, []);
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -28,24 +51,29 @@ export default function HospitalRecord() {
         <Text style={styles.sectionTitle}>看診紀錄</Text>
       </View>
 
-      <View style={styles.recordBox}>
-        <View style={styles.recordItem}>
-          <Image source={require('../img/hospital/clock.png')} style={styles.recordIcon} />
-          <Text style={styles.recordText}>早上8:00</Text>
-        </View>
-        <View style={styles.recordItem}>
-          <Image source={require('../img/hospital/locate.png')} style={styles.recordIcon} />
-          <Text style={styles.recordText}>臺大醫院</Text>
-        </View>
-        <View style={styles.recordItem}>
-          <Image source={require('../img/hospital/doctor.png')} style={styles.recordIcon} />
-          <Text style={styles.recordText}>XXX</Text>
-        </View>
-        <View style={styles.editRow}>
-          <Image source={require('../img/hospital/edit.png')} style={styles.actionIcon} />
-          <Image source={require('../img/hospital/delete.png')} style={styles.actionIcon} />
-        </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+  {records.map((record, index) => (
+    <View style={styles.recordBox} key={index}>
+      <View style={styles.recordItem}>
+        <Image source={require('../img/hospital/clock.png')} style={styles.recordIcon} />
+        <Text style={styles.recordText}>{record.ClinicDate}（第 {record.Num} 號）</Text>
       </View>
+      <View style={styles.recordItem}>
+        <Image source={require('../img/hospital/locate.png')} style={styles.recordIcon} />
+        <Text style={styles.recordText}>{record.ClinicPlace}</Text>
+      </View>
+      <View style={styles.recordItem}>
+        <Image source={require('../img/hospital/doctor.png')} style={styles.recordIcon} />
+        <Text style={styles.recordText}>{record.Doctor}</Text>
+      </View>
+      <View style={styles.editRow}>
+        <Image source={require('../img/hospital/edit.png')} style={styles.actionIcon} />
+        <Image source={require('../img/hospital/delete.png')} style={styles.actionIcon} />
+      </View>
+    </View>
+  ))}
+</ScrollView>
+
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: '#65B6E4' }]}

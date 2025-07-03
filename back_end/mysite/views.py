@@ -137,8 +137,8 @@ def login(request):
 
 
 #HOS 
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Hos
 from .serializers import HosSerializer
@@ -150,13 +150,29 @@ class HosListView(APIView):
         user = request.user
 
         if user.is_elder:
-            # 長者只能看自己的回診資料
+            # 長者：看自己
             hos_records = Hos.objects.filter(UserID=user)
         elif user.is_family:
-            # 家人可以看他所關聯的長者的資料
+            # 家人：看他所關聯的長者
             hos_records = Hos.objects.filter(UserID=user.RelatedID)
         else:
             return Response({"error": "無效身份"}, status=400)
 
-        data = HosSerializer(hos_records, many=True).data
-        return Response(data)
+        serializer = HosSerializer(hos_records, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        user = request.user
+
+        if not user.is_family:
+            return Response({'error': '只有家人才可以新增回診資料'}, status=403)
+
+        # 把這筆資料指向他關聯的長者（RelatedID）
+        data = request.data.copy()
+        data['UserID'] = user.RelatedID.id
+
+        serializer = HosSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)

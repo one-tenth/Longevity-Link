@@ -44,11 +44,12 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="index" component={index} />
       <Stack.Screen name="LoginScreen" component={LoginScreen} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
-      <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
+      
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
       <Stack.Screen name="MedRemind" component={MedRemind} />
