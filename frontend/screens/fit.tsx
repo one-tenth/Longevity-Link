@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import GoogleFit, { Scopes } from 'react-native-google-fit';
+import axios from 'axios';
 
 export default function GoogleFitScreen() {
   const [steps, setSteps] = useState<any[]>([]);
@@ -85,6 +86,17 @@ export default function GoogleFitScreen() {
         if (fitData && fitData.steps) {
           setSteps(fitData.steps);
           setError('');
+          // ✅ 傳送到後端 API
+          axios.post('http://192.168.0.55/api/步數/', {
+            steps: fitData.steps,
+            user: '目前登入的用戶 ID 或 token', // 如有需要也加上
+          })
+          .then(response => {
+            console.log('✅ 步數已傳送:', response.data);
+          })
+          .catch(error => {
+            console.error('❌ 傳送步數錯誤:', error);
+          });
         } else {
           setSteps([]);
           setError('找不到步數資料');

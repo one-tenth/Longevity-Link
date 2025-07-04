@@ -8,6 +8,8 @@ from rest_framework.parsers import MultiPartParser
 from google.cloud import vision
 from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
+#----------------------------------------------------------------
+#fit
 
 #----------------------------------------------------------------
 @api_view(['GET'])
