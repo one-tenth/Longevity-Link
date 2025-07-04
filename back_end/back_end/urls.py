@@ -22,7 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
     path('api/ocr/', views.OcrAPIView.as_view()),
-    path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
-    path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
-    path('hos/', views.HosListView, name='hos-list'),
+    path('api/register/', views.register_user, name='register'),
+    path('api/account/login/', views.login, name='login'),
+    path('hos/', views.HosListView.as_view(), name='HosListView'),#類別視圖後面要加as_view()
 ]

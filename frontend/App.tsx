@@ -7,7 +7,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 // 引入各頁（改成你自己的路徑）
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
-//import ElderHome from './screens/ElderHome';
+import ElderHome from './screens/ElderHome';
 //import ElderlyHealth from './screens/ElderlyHealth';
 //import ElderlyUpload from './screens/ElderlyUpload';
 import HospitalRecord from './screens/HospitalRecord';
@@ -44,8 +44,9 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="index" component={index} />
+      <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
+      
       <Stack.Screen name="LoginScreen" component={LoginScreen} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />

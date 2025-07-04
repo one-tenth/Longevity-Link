@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity ,ScrollView} from 'reac
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ElderHome 頁面的 navigation 型別
 type HospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'HospitalRecord'>;
@@ -12,19 +13,20 @@ export default function HospitalRecord() {
 
   // ✅ 這裡放 useState
   const [records, setRecords] = useState<any[]>([]);
-
   // ✅ 這裡放 useEffect
   useEffect(() => {
     const fetchRecords = async () => {
       try {
-        const response = await fetch('http://172.20.10.2:8000/api/hos/', {
+        const token = await AsyncStorage.getItem('access');
+        const response = await fetch('http://192.168.0.19:8000/hos/', {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer 你的token`, // ← 這裡請換成實際 token
+            'Authorization': `Bearer ${token}`, // ← 這裡請換成實際 token
             'Content-Type': 'application/json',
           }
         });
         const data = await response.json();
+        console.log('取得的資料:', data);
         setRecords(data);
       } catch (error) {
         console.error('取得回診資料失敗:', error);

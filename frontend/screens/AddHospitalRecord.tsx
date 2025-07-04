@@ -8,6 +8,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 type AddHospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'AddHospitalRecord'>;
 
@@ -19,40 +21,60 @@ export default function AddHospitalRecord() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [location, setLocation] = useState('臺大醫院');
   const [doctor, setDoctor] = useState('XXX');
+  
 
+  
   const handleSubmit = async () => {
-    try {
-      const dateStr = clinicDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      const hour = clinicDate.getHours().toString().padStart(2, '0');
-      const minute = clinicDate.getMinutes().toString().padStart(2, '0');
-      const time = `${hour}:${minute}`;
+  try {
+    const dateStr = clinicDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const hour = clinicDate.getHours().toString().padStart(2, '0');
+    const minute = clinicDate.getMinutes().toString().padStart(2, '0');
+    const time = `${hour}:${minute}`;
 
-      const token = '你的Token'; // TODO: 改成實際 token
-      const response = await fetch('http://172.20.10.2:8000/api/hos/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ClinicDate: dateStr,
-          ClinicPlace: location,
-          Doctor: doctor,
-          Num: 1  // TODO: 可依需求設定
-        }),
-      });
-
-      if (response.ok) {
-        Alert.alert('成功', '回診資料已新增');
-        navigation.goBack();
-      } else {
-        Alert.alert('失敗', '無法新增資料');
-      }
-    } catch (error) {
-      console.error('錯誤:', error);
-      Alert.alert('錯誤', '請檢查網路或資料格式');
+    const token = await AsyncStorage.getItem('access');
+    if (!token) {
+      Alert.alert('錯誤', '找不到 access token，請重新登入');
+      return;
     }
-  };
+
+    const response = await fetch('http://192.168.0.19:8000/hos/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ClinicDate: dateStr,
+        ClinicPlace: location,
+        Doctor: doctor,
+        Num: 1 // TODO: 可依需求設定
+      }),
+    });
+
+    const text = await response.text();
+    console.log('status:', response.status);
+    console.log('response text:', text);
+
+    if (response.ok) {
+      Alert.alert('成功', '回診資料已新增');
+      navigation.goBack();
+    } else {
+      let errorMsg = '無法新增資料';
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData && typeof errorData === 'object') {
+          errorMsg = Object.values(errorData).join('\n');
+        }
+      } catch {
+        // 如果不是 JSON，不處理
+      }
+      Alert.alert('錯誤', errorMsg);
+    }
+  } catch (error) {
+    console.error('錯誤:', error);
+    Alert.alert('錯誤', '請檢查網路或資料格式');
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -93,7 +115,7 @@ export default function AddHospitalRecord() {
   <DateTimePicker
     value={clinicDate}
     mode="date"
-    display="default" // 不要用 spinner！
+    display="default"
     onChange={(event, selectedDate) => {
       setShowDatePicker(false);
       if (selectedDate) setClinicDate(selectedDate);
@@ -126,15 +148,12 @@ export default function AddHospitalRecord() {
           <Image source={require('../img/hospital/locate.png')} style={styles.icon} />
           <Text style={styles.cardTitle}>地點</Text>
         </View>
-        <Picker
-          selectedValue={location}
-          onValueChange={itemValue => setLocation(itemValue)}
+        <TextInput
           style={styles.input}
-        >
-          <Picker.Item label="臺大醫院" value="臺大醫院" />
-          <Picker.Item label="長庚醫院" value="長庚醫院" />
-          <Picker.Item label="馬偕醫院" value="馬偕醫院" />
-        </Picker>
+          value={location}
+          onChangeText={setLocation}
+          placeholder="臺大醫院"
+        />
       </View>
 
       {/* 醫師 */}
@@ -165,9 +184,7 @@ export default function AddHospitalRecord() {
   );
 }
 
-// ✅ 原本的樣式不動（如有其他 style 檔也可繼續沿用）
 const styles = StyleSheet.create({
-  // ...維持原樣...
   container: { flex: 1, backgroundColor: '#FCFEED' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between',

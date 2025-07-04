@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RootStackParamList } from '../App'; 
 
 // ElderHome 頁面的 navigation 型別
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
@@ -22,38 +23,49 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
+  try {
+    const response = await fetch('http://192.168.0.19:8000/api/account/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        Phone: Phone,
+        password: password
+      }),
+    });
+
+    const text = await response.text();
+    console.log('status:', response.status);
+    console.log('response text:', text);
+
+    let data;
     try {
-      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            Phone: Phone,     
-            password: password
-        }),
-      });
-      
-
-      const text = await response.text();
-      console.log('status:', response.status);
-      console.log('response text:', text);
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('伺服器回傳非 JSON:', text);
-        throw new Error('伺服器回傳格式錯誤');
-      }
-
-      if (response.ok) {
-        Alert.alert('登入成功', `歡迎 ${data.user.Name}`);
-        navigation.navigate('index');  // ✅ 登入成功後跳轉
-      } else {
-        Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');  // 修正錯誤訊息來源
-      }
-    } catch (error: any) {
-      Alert.alert('發生錯誤', error?.message || '未知錯誤');
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('伺服器回傳非 JSON:', text);
+      throw new Error('伺服器回傳格式錯誤');
     }
-  };
+
+    if (response.ok) {
+      if (data.token.access) {
+        await AsyncStorage.setItem('access', data.token.access);
+        await AsyncStorage.setItem('refresh', data.token.refresh);
+      } else {
+        console.error('後端未回傳 access token:', data);
+        Alert.alert('錯誤', '後端未傳 access token');
+        return;
+      }
+
+      Alert.alert('登入成功', `歡迎 ${data.user?.Name || ''}`);
+      navigation.navigate('index');
+    } else {
+      Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
+    }
+
+  } catch (error: any) {
+    Alert.alert('發生錯誤', error?.message || '未知錯誤');
+  }
+};
+
 
   return (
     <View style={styles.container}>
