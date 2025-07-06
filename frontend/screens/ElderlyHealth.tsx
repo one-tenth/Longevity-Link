@@ -147,7 +147,7 @@ export default function ElderlyHealth() {
 
       {/* 血壓卡片 */}
       <View style={styles.cardLarge}>
-        <Image source={require('../img/elderlyhealth/blood preasure.png')} style={styles.cardIconLarge} />
+        <Image source={require('../img/elderlyhealth/blood_preasure.png')} style={styles.cardIconLarge} />
         <View style={styles.bpTextGroup}>
           <Text style={styles.bpText}>收縮壓：120</Text>
           <Text style={styles.bpText}>舒張壓：80</Text>

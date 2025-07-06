@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',#token認證支援
     'corsheaders',#允許前端跨線連接
 ]
+AUTH_USER_MODEL = 'mysite.User'
 
 #所有需要登入的 API，都會使用 JWT（JSON Web Token）作為驗證機制
 REST_FRAMEWORK = {
@@ -98,9 +99,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'back_end.wsgi.application'
+# SimpleJWT 的設定
+from datetime import timedelta
 
 SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'USER_ID_FIELD': 'UserID',  # 👈 告訴它你的主鍵欄位是 UserID
+    'USER_ID_CLAIM': 'user_id',# JWT token 中的 key 名稱
 }
 
 # Database

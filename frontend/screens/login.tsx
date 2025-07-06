@@ -11,6 +11,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 // ElderHome 頁面的 navigation 型別
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
@@ -23,7 +25,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
+      const response = await fetch('http://192.168.0.55:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -45,6 +47,12 @@ export default function LoginScreen() {
       }
 
       if (response.ok) {
+        // 儲存 token
+        await AsyncStorage.setItem('access', data.token.access);
+        await AsyncStorage.setItem('refresh', data.token.refresh);
+
+        console.log('🔐 存入 token:', data.token.access);  // 可加也可省略
+
         Alert.alert('登入成功', `歡迎 ${data.user.Name}`);
         navigation.navigate('index');  // ✅ 登入成功後跳轉
       } else {

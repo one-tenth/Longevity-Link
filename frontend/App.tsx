@@ -51,9 +51,9 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" component={index} />
       <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
       <Stack.Screen name="fit" component={fit} />
-      <Stack.Screen name="index" component={index} />
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="OcrScreen" component={OcrScreen} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
