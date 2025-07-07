@@ -96,7 +96,7 @@ class HealthCare(models.Model):
     Diastolic=models.IntegerField(
         validators=[MinValueValidator(40), MaxValueValidator(150)],
     )
-    Pluse = models.CharField(max_length=5)
+    Pulse = models.CharField(max_length=5)
     Numsteps = models.CharField(max_length=5)
     Date = models.DateTimeField()
 

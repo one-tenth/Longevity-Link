@@ -122,7 +122,7 @@ export default function ElderlyUpload() {
       {/* 血壓按鈕 */}
       <TouchableOpacity
         style={styles.bigButton}
-        onPress={() => openCamera('http://192.168.0.55:8000/api/blood/')}
+        onPress={() => openCamera('http://192.168.0.55:8000/api/ocrblood/')}
         disabled={loading}
       >
         <Image source={require('../img/elderlyupload/blood_preasure.png')} style={styles.bigIcon} />
