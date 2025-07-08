@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../App'; 
+import { authFetch } from '../utils/authFetch';
 
 // ElderHome 頁面的 navigation 型別
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
@@ -24,7 +25,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
   try {
-    const response = await fetch('http://192.168.0.19:8000/api/account/login/', {
+    const response = await authFetch('http://192.168.0.19:8000/api/account/login/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Button, Alert } fr
 import { Picker } from '@react-native-picker/picker';
 import { register } from '../api/authApi';
 import { useNavigation } from '@react-navigation/native';
+import { authFetch } from '../utils/authFetch';
 
 const years = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
@@ -27,7 +28,7 @@ export default function RegisterScreen() {
   password: string;
 }
   async function register(data: RegisterData) {
-  const response = await fetch('http://192.168.0.19:8000/api/register/', {
+  const response = await authFetch('http://192.168.0.19:8000/api/register/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

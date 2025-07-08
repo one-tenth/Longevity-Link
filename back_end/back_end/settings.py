@@ -64,6 +64,11 @@ REST_FRAMEWORK = {
     ],
 }
 
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'UserID',       # 對應你 User model 的主鍵欄位名
+    'USER_ID_CLAIM': 'user_id',      # token 中會存這個 key
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
     'django.middleware.security.SecurityMiddleware',

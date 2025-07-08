@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authFetch } from '../utils/authFetch';
 
 // ElderHome 頁面的 navigation 型別
 type HospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'HospitalRecord'>;
@@ -18,7 +19,7 @@ export default function HospitalRecord() {
     const fetchRecords = async () => {
       try {
         const token = await AsyncStorage.getItem('access');
-        const response = await fetch('http://192.168.0.19:8000/hos/', {
+        const response = await authFetch('http://192.168.0.19:8000/hos/', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`, // ← 這裡請換成實際 token

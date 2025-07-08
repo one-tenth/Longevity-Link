@@ -9,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authFetch } from '../utils/authFetch';
 
 
 type AddHospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'AddHospitalRecord'>;
@@ -37,7 +38,7 @@ export default function AddHospitalRecord() {
       return;
     }
 
-    const response = await fetch('http://192.168.0.19:8000/hos/', {
+    const response = await authFetch('http://192.168.0.19:8000/hos/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
