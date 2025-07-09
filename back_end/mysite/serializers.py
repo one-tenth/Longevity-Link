@@ -1,6 +1,6 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-from .models import User
+from .models import User,Med
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     Phone = serializers.CharField(max_length=10)
@@ -30,4 +30,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         )
         return user
 
-
+class MedNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Med
+        fields = ['MedId', 'Disease']

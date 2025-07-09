@@ -1,218 +1,207 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RootStackParamList } from '../App';
 
-// ElderHome 頁面的 navigation 型別
-type MedicineInfoNavProp = StackNavigationProp<RootStackParamList, 'MedInfo'>;
+type NavigationProp = StackNavigationProp<RootStackParamList, 'MedInfo'>;
 
-export default function MedicineInfo() {
-  const navigation = useNavigation<MedicineInfoNavProp>();
+type Medication = {
+  MedId: number;
+  Disease: string;
+};
+
+type GroupedPrescription = {
+  PrescriptionID: string;
+  medications: Medication[];
+};
+
+export default function MedicationInfoScreen() {
+  const navigation = useNavigation<NavigationProp>();
+  const [groupedData, setGroupedData] = useState<GroupedPrescription[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        console.warn('⚠️ 找不到 JWT token');
+        return;
+      }
+
+      const response = await axios.get('http://192.168.0.55:8000/api/mednames/', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setGroupedData(response.data);
+    } catch (error) {
+      console.error('❌ 撈資料錯誤:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (prescriptionID: string) => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) return;
+
+      await axios.delete(
+        `http://192.168.0.55:8000/api/delete-prescription/${prescriptionID}/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // 更新畫面
+      setGroupedData(prev =>
+        prev.filter(group => group.PrescriptionID !== prescriptionID)
+      );
+    } catch (error) {
+      console.error('❌ 刪除失敗:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('ChildHome')}>
-          <Image source={require('../img/medicine/med.png')} style={styles.home} />
-        </TouchableOpacity>
-        <Text style={styles.title}>CareMate</Text>
-        <Image source={require('../img/medicine/logo.png')} style={styles.logo} />
+        <Image
+          source={require('../img/medicine/cold.png')}
+          style={styles.avatar}
+        />
+        <Text style={styles.title}>用藥資訊</Text>
       </View>
 
-      {/* Profile */}
-      <View style={styles.profileRow}>
-        <View style={styles.profileBox}>
-          <Image source={require('../img/medicine/elderly.png')} style={styles.profileIcon} />
-          <Text style={styles.profileText}>爺爺</Text>
-        </View>
-        <Text style={styles.sectionTitle}>用藥資訊</Text>
-      </View>
+      {loading ? (
+        <Text>載入中...</Text>
+      ) : (
+        groupedData.map((group) => {
+          const uniqueDiseases = Array.from(
+            new Set(group.medications.map((item) => item.Disease))
+          );
 
-      {/* Illness label */}
-      <View style={styles.illnessBox}>
-        <Image source={require('../img/medicine/illness.png')} style={styles.illnessIcon} />
-        <Text style={styles.illnessText}>高血壓</Text>
-      </View>
+          return (
+            <View key={group.PrescriptionID} style={{ marginBottom: 20, width: '90%' }}>
+              {uniqueDiseases.map((disease, index) => (
+                <View key={index} style={styles.card}>
+                  <Image
+                    source={require('../img/medicine/cold.png')}
+                    style={styles.cardIcon}
+                  />
+                  <Text style={styles.cardText}>{disease}</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('MedInfo_1')}>
+                    <Image
+                      source={require('../img/medicine/view.png')}
+                      style={styles.iconButton}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDelete(group.PrescriptionID)}>
+                    <Image
+                      source={require('../img/medicine/delete.png')}
+                      style={styles.iconButton}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          );
+        })
+      )}
 
-      {/* Medicine Cards */}
-      <ScrollView style={styles.scrollContainer}>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/medicine.png')} style={styles.icon} />
-            <Text style={styles.cardText}>Diovan 得安穩{"\n"}每次使用一顆</Text>
-          </View>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/clock.png')} style={styles.icon} />
-            <Text style={styles.cardText}>三餐飯後</Text>
-          </View>
-          <View style={styles.actionRow}>
-            <Image source={require('../img/medicine/edit.png')} style={styles.actionIcon} />
-            <Image source={require('../img/medicine/delete.png')} style={styles.actionIcon} />
-          </View>
-        </View>
+      <TouchableOpacity style={styles.addButton}>
+        <Text style={styles.addText}>新增</Text>
+      </TouchableOpacity>
 
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/medicine.png')} style={styles.icon} />
-            <Text style={styles.cardText}>Fluitran{"\n"}服爾伊得安{"\n"}每次使用半顆</Text>
-          </View>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/clock.png')} style={styles.icon} />
-            <Text style={styles.cardText}>睡前</Text>
-          </View>
-          <View style={styles.actionRow}>
-            <Image source={require('../img/medicine/edit.png')} style={styles.actionIcon} />
-            <Image source={require('../img/medicine/delete.png')} style={styles.actionIcon} />
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: '#F58402' }]}
-          onPress={() => navigation.navigate('Medicine')}>
-          <Text style={styles.buttonText}>回前頁</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
+      <TouchableOpacity
+        style={styles.homeButton}
+        onPress={() => navigation.navigate('Medicine')}
+      >
+        <Text style={styles.homeText}>回前頁</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#FCFEED'
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: '#FFFEF2',
   },
   header: {
-    width: '100%',
-    height: 70,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#65B6E4',
-    paddingLeft: 10,
-    paddingRight: 10,
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  logo: {
+  avatar: {
     width: 60,
     height: 60,
-    marginTop: 15
-  },
-  home: {
-    width: 50,
-    height: 50,
-    marginTop: 15
+    marginBottom: 10,
   },
   title: {
-    fontSize: 50,
-    fontWeight: '900',
-    color: '#000'
-  },
-  profileRow: {
-    marginTop: 20,
-    flexDirection: 'row',
-    marginBottom: 10,
-    marginLeft: 5
-  },
-  profileBox: {
-    width: '40%',
-    marginLeft: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#000',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    padding: 1
-  },
-  profileIcon: {
-    width: 55,
-    height: 55,
-    marginRight: 10
-  },
-  profileText: {
-    fontSize: 30,
-    fontWeight: '900'
-  },
-  sectionTitle: {
-    fontSize: 30,
-    fontWeight: '900',
-    textAlign: 'center',
-    paddingLeft: 10,
-    marginTop: 20
-  },
-  illnessBox: {
-    flexDirection: 'row',
-    borderWidth: 2,
-    borderColor: '#000',
-    padding: 10,
-    backgroundColor: '#fff',
-    marginTop: 10,
-    alignItems: 'center',
-    alignSelf: 'center'
-  },
-  illnessIcon: {
-    width: 40,
-    height: 40,
-    marginRight: 10
-  },
-  illnessText: {
     fontSize: 24,
-    fontWeight: '900'
-  },
-  scrollContainer: {
-    flex: 1,
-    width: '100%'
+    fontWeight: 'bold',
   },
   card: {
-    backgroundColor: '#F4C80B',
-    borderRadius: 12,
-    borderWidth: 4,
-    borderColor: '#000',
-    padding: 12,
-    marginTop: 15,
-    width: '90%',
-    alignSelf: 'center'
-  },
-  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8
+    backgroundColor: '#FFD439',
+    padding: 10,
+    marginVertical: 8,
+    width: '100%',
+    borderRadius: 10,
+    justifyContent: 'space-between',
   },
-  icon: {
+  cardIcon: {
     width: 40,
     height: 40,
-    marginRight: 10
   },
   cardText: {
-    fontSize: 20,
-    fontWeight: '900',
-    flexShrink: 1
+    fontSize: 18,
+    flex: 1,
+    marginLeft: 10,
   },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 5
+  iconButton: {
+    width: 24,
+    height: 24,
+    marginHorizontal: 5,
   },
-  actionIcon: {
-    width: 30,
-    height: 30,
-    marginLeft: 20
-  },
-  button: {
-    marginTop: 20,
-    marginBottom: 20,
-    width: '60%',
-    padding: 12,
+  addButton: {
+    backgroundColor: '#A6D9FF',
+    padding: 10,
     borderRadius: 10,
-    borderWidth: 4,
-    borderColor: '#000',
+    marginTop: 20,
+    width: '50%',
     alignItems: 'center',
-    alignSelf: 'center'
   },
-  buttonText: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#000'
-  }
+  addText: {
+    fontSize: 18,
+    color: '#000',
+  },
+  homeButton: {
+    backgroundColor: '#FF8C1A',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    width: '50%',
+    alignItems: 'center',
+  },
+  homeText: {
+    fontSize: 18,
+    color: '#000',
+  },
 });

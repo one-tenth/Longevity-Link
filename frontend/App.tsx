@@ -14,14 +14,12 @@ import HospitalRecord from './screens/HospitalRecord';
 import index from './screens/index';
 import Medicine from './screens/Medicine';
 import MedInfo from './screens/MedInfo';
+import MedInfo_1 from './screens/MedInfo_1';
 import MedRemind from './screens/MedRemind';
 import MedTimeSetting from './screens/MedTimeSetting';
 import Setting from './screens/Setting';
 import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
-import ResultScreen from './screens/ResultScreen';
-import OcrScreen from './screens/OcrScreen';
-import fit from './screens/fit';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -30,20 +28,16 @@ export type RootStackParamList = {
   ElderHome: undefined;
   ElderlyHealth: undefined;
   ElderlyUpload: undefined;
-  fit: undefined;
   HospitalRecord: undefined;
   index: undefined;
   Medicine: undefined;
   MedInfo: undefined;
+  MedInfo_1: undefined;
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
   RegisterScreen: undefined;
-  ResultScreen: undefined;
-  OcrScreen: undefined;
-  a: undefined;
-
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -53,21 +47,19 @@ const App: React.FC = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" component={index} />
       <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
-      <Stack.Screen name="fit" component={fit} />
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
-      <Stack.Screen name="OcrScreen" component={OcrScreen} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
+      <Stack.Screen name="MedInfo_1" component={MedInfo_1} />
       <Stack.Screen name="MedRemind" component={MedRemind} />
       <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
       <Stack.Screen name="Setting" component={Setting} />
       <Stack.Screen name="LoginScreen" component={LoginScreen} />
       <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
       <Stack.Screen name="ElderHome" component={ElderHome} />
-      <Stack.Screen name="ResultScreen" component={ResultScreen} />
     </Stack.Navigator>
   </NavigationContainer>
 );

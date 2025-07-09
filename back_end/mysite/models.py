@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import RegexValidator
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+import uuid
 
 class Family(models.Model):
     FamilyID = models.AutoField(primary_key=True)
@@ -111,7 +112,8 @@ class Med(models.Model):
     MedName = models.CharField(max_length=10)
     MedNote = models.CharField(max_length=50)
     MedTime = models.DateTimeField()
-
+    # ✅ 新增這行
+    PrescriptionID = models.UUIDField(default=uuid.uuid4, editable=False)
     class Meta:
         verbose_name = "Med"
         verbose_name_plural = "Med"
