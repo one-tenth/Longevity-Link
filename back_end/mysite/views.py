@@ -6,6 +6,7 @@ from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
+#藥單
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Med
@@ -40,6 +41,52 @@ class DeletePrescriptionView(APIView):
         user = request.user
         deleted_count, _ = Med.objects.filter(UserID=user, PrescriptionID=prescription_id).delete()
         return Response({'message': '已刪除', 'deleted_count': deleted_count}, status=status.HTTP_200_OK)
+#----------------------------------------------------------------
+#健康
+from django.utils.timezone import is_naive, make_aware
+from datetime import datetime, time, timedelta
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import FitData
+
+class FitDataAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        steps = request.data.get('steps')
+        timestamp_str = request.data.get('timestamp')
+
+        if steps is None or not timestamp_str:
+            return Response({'error': '缺少步數或時間'}, status=400)
+
+        # 解析並處理時間
+        timestamp = datetime.fromisoformat(timestamp_str)
+        if is_naive(timestamp):
+            timestamp = make_aware(timestamp)
+
+        # 僅允許上傳「昨天」的資料
+        today = now().date()
+        yesterday = today - timedelta(days=1)
+        if timestamp.date() != yesterday:
+            return Response({'message': '❌ 僅允許上傳昨天的步數資料'}, status=403)
+
+        # 查詢昨天是否已存在資料
+        day_start = make_aware(datetime.combine(yesterday, time.min))
+        day_end = make_aware(datetime.combine(yesterday, time.max))
+
+        existing = FitData.objects.filter(
+            UserID=user,
+            timestamp__gte=day_start,
+            timestamp__lte=day_end
+        ).first()
+
+        if existing:
+            return Response({'message': '✅ 昨天資料已存在，無需更新'})
+        else:
+            FitData.objects.create(UserID=user, steps=steps, timestamp=timestamp)
+            return Response({'message': '✅ 成功新增昨天的步數'})
 
 
 #----------------------------------------------------------------
@@ -174,109 +221,59 @@ class OcrAPIView(APIView):
             )
             print("完成")
 
-# class OcrAPIViewblood(APIView):
-#     permission_classes = [IsAuthenticated]
+#---------------------------------------------------------------------------------------
+#ocrblood
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser
+from django.core.files.storage import default_storage
+import os
+import uuid
+from ocr_modules.bp_ocr_yolo import run_yolo_ocr  # 你封裝的 YOLO 函式
+from .models import HealthCare  # 你要存資料庫的模型
+from datetime import datetime
 
-#     def post(self, request):
-#         print("目前登入的使用者是：", request.user)  # 測試用
-#         image_file = request.FILES.get('image')
-#         user = request.user if request.user.is_authenticated else User.objects.first()
-
-#         if not image_file:
-#             return Response({'error': '沒有收到圖片'}, status=400)
-
-#         try:
-#             # 1. OCR 圖像辨識
-#             vision_client = vision.ImageAnnotatorClient.from_service_account_info(GOOGLE_VISION_CREDENTIALS)
-#             content = image_file.read()
-#             image = vision.Image(content=content)
-#             response = vision_client.text_detection(image=image)
-#             annotations = response.text_annotations
-
-#             if not annotations:
-#                 return Response({'text': [], 'analysis': '辨識不到任何文字'})
-
-#             ocr_text = annotations[0].description.strip()
-#             print('📄 OCR Text:', ocr_text)
-#             # 2. 丟給 GPT 分析
-#             ai_result = self.analyze_text_with_openai(ocr_text)
-#             print("🤖 AI 回覆：", ai_result)
-#             # 3. 解析 GPT 結果為結構化資料
-#             parsed_data = self.parse_gpt_analysis(ai_result)
-#             print('📊 Parsed Data:', parsed_data)
-#             # 4. 存入資料庫
-#             self.save_to_database(user, parsed_data)
-
-#             return Response({'message': '資料已成功儲存'}, status=201)
-#             #回傳給前端
-#             # return Response({
-#             #     'text': ocr_text,
-#             #     'analysis': parsed_data
-#             # })
-
-#         except Exception as e:
-#             print('錯誤:', e)
-#             return Response({'error': str(e)}, status=500)
-        
-#     def analyze_text_with_openai(self, ocr_text):
-#         prompt = f"""
-#     以下是血壓機照片的 OCR 辨識文字結果：
-
-#     {ocr_text}
-
-#     請根據內容幫我判斷以下數值（若無法判斷請填「None」）：
-#     1. 收縮壓（SYS / Systolic）：數字
-#     2. 舒張壓（DIA / Diastolic）：數字
-#     3. 脈搏（PULSE）：數字
-
-#     請用以下格式回覆：
-#     收縮壓：xxx
-#     舒張壓：xxx
-#     脈搏：xxx
-#     """
-#         try:
-#             response = openai.chat.completions.create(
-#                 model="gpt-3.5-turbo",
-#                 messages=[
-#                     {"role": "system", "content": "你是一位善於從雜亂圖片中提取血壓資訊的 AI 健康助理。"},
-#                     {"role": "user", "content": prompt}
-#                 ],
-#                 temperature=0.3,
-#             )
-#             return response.choices[0].message.content
-#         except Exception as e:
-#             return f"GPT 分析錯誤: {str(e)}"
-
-#     def parse_gpt_analysis(self, gpt_text):
-#         import re
-
-#         systolic = re.search(r'收縮壓：(\d+)', gpt_text)
-#         diastolic = re.search(r'舒張壓：(\d+)', gpt_text)
-#         pulse = re.search(r'脈搏：(\d+)', gpt_text)
-
-#         return {
-#             'systolic': int(systolic.group(1)) if systolic else None,
-#             'diastolic': int(diastolic.group(1)) if diastolic else None,
-#             'pulse': int(pulse.group(1)) if pulse else None,
-#         }
+class BloodOCRView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
     
-#     def save_to_database(self, user, parsed_data):
-#         from .models import HealthCare  
-#         from django.utils import timezone
+    def post(self, request):
+        print("目前登入的使用者是：", request.user)  # 測試用
+        image_file = request.FILES.get('image')
+        user = request.user if request.user.is_authenticated else User.objects.first()
+        if not image_file:
+            return Response({"error": "未收到圖片"}, status=400)
 
-#         # 沒有任何一個值就不要寫入
-#         if not all([parsed_data['systolic'], parsed_data['diastolic'], parsed_data['pulse']]):
-#             print('⚠️ 資料不完整，不寫入：', parsed_data)
-#             return  # 直接退出
-        
-#         HealthCare.objects.create(
-#             UserID=user,
-#             Systolic=parsed_data['systolic'],
-#             Diastolic=parsed_data['diastolic'],
-#             Pulse=parsed_data['pulse'],
-#             Numsteps='0',  # 如果你還沒做步數可以先填預設
-#             Date=timezone.now(),  # 或不寫也行，已經有 default
-#         )
+        # 暫存圖片
+        filename = f"temp_{uuid.uuid4()}.jpg"
+        file_path = os.path.join('temp', filename)
+        full_path = default_storage.save(file_path, image_file)
+
+        try:
+            # 🧠 呼叫 YOLO+OCR 主函式
+            result = run_yolo_ocr(default_storage.path(full_path))
+            systolic = result.get('systolic')
+            diastolic = result.get('diastolic')
+            pulse = result.get('pulse')
+
+            # 💾 儲存進資料庫
+            HealthCare.objects.create(
+                UserID=user,
+                Systolic=systolic,
+                Diastolic=diastolic,
+                Pulse=pulse,
+                Numsteps=("1"),
+                Date=datetime.now()
+            )
+
+            return Response({
+                "message": "分析完成",
+                "data": result
+            })
+        finally:
+            default_storage.delete(full_path)  # 清除暫存圖檔
+
 
 #---------------------------------------------------------------------------------------
 

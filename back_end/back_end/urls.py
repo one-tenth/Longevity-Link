@@ -22,7 +22,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world),
     path('api/ocr/', views.OcrAPIView.as_view()),
-    # path('api/ocrblood/', views.OcrAPIViewblood.as_view()),
+    path('api/ocrblood/', views.BloodOCRView.as_view(), name='ocr_blood'),
+    path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個

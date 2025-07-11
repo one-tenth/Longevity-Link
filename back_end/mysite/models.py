@@ -98,7 +98,6 @@ class HealthCare(models.Model):
         validators=[MinValueValidator(40), MaxValueValidator(150)],
     )
     Pulse = models.CharField(max_length=5)
-    Numsteps = models.CharField(max_length=5)
     Date = models.DateTimeField()
 
     class Meta:
@@ -138,3 +137,12 @@ class Scam(models.Model):
     class Meta:
         verbose_name = "Scam"
         verbose_name_plural = "Scam"
+
+class FitData(models.Model):
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    steps = models.IntegerField()
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "FitData"
+        verbose_name_plural = "FitData"

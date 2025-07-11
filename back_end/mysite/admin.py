@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Family, User, Hos, HealthCare, Med, CallRecord, Scam
+from .models import Family, User, Hos, HealthCare, Med, CallRecord, Scam,FitData
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin 
 
@@ -46,6 +46,12 @@ class CallRecordAdmin(admin.ModelAdmin):
 class ScamAdmin(admin.ModelAdmin):
     list_display = [field.name for field in Scam._meta.fields]
 
+class FitDataAdmin(admin.ModelAdmin):
+    list_display = [field.name for field in FitData._meta.fields]
+    
+class FitDataAdmin(admin.ModelAdmin):
+    list_display = ['UserID', 'steps', 'timestamp']
+
 # 註冊
 admin.site.register(Family, FamilyAdmin)
 admin.site.register(Hos, HospitalAdmin)
@@ -53,3 +59,4 @@ admin.site.register(HealthCare, HealthCareAdmin)
 admin.site.register(Med, MedicineAdmin)
 admin.site.register(CallRecord, CallRecordAdmin)
 admin.site.register(Scam, ScamAdmin)
+admin.site.register(FitData, FitDataAdmin)
