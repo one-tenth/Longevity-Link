@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,12 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../App';
+import { launchCamera } from 'react-native-image-picker';
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'MedInfo'>;
 
@@ -64,7 +65,6 @@ export default function MedicationInfoScreen() {
         }
       );
 
-      // 更新畫面
       setGroupedData(prev =>
         prev.filter(group => group.PrescriptionID !== prescriptionID)
       );
@@ -73,9 +73,65 @@ export default function MedicationInfoScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const handleTakePhoto = async () => {
+    const result = await launchCamera({
+      mediaType: 'photo',
+      cameraType: 'back',
+      quality: 0.8,
+    });
+
+    if (result.didCancel || result.errorCode) {
+      console.log('❌ 使用者取消或出錯:', result.errorMessage);
+      return;
+    }
+
+    const photo = result.assets?.[0];
+    if (!photo) {
+      console.log('❌ 沒有獲得圖片');
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        console.warn('⚠️ 找不到 JWT token');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', {
+        uri: photo.uri,
+        name: 'photo.jpg',
+        type: photo.type || 'image/jpeg',
+      });
+
+      const response = await axios.post(
+        'http://192.168.0.55:8000/ocr-analyze/',
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      console.log('✅ 圖片上傳成功:', response.data);
+      alert('圖片上傳成功');
+    } catch (error) {
+      console.error('❌ 圖片上傳失敗:', error);
+      alert('圖片上傳失敗');
+    }
+  };
+
+  // ✅ 每次畫面進來時自動開始更新，每 3 秒刷新一次
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+      const interval = setInterval(fetchData, 3000);
+      return () => clearInterval(interval); // 頁面離開時停止
+    }, [])
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -104,7 +160,11 @@ export default function MedicationInfoScreen() {
                     style={styles.cardIcon}
                   />
                   <Text style={styles.cardText}>{disease}</Text>
-                  <TouchableOpacity onPress={() => navigation.navigate('MedInfo_1')}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('MedInfo_1', {
+                      prescriptionId: group.PrescriptionID
+                    })}
+                  >
                     <Image
                       source={require('../img/medicine/view.png')}
                       style={styles.iconButton}
@@ -123,7 +183,7 @@ export default function MedicationInfoScreen() {
         })
       )}
 
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity style={styles.addButton} onPress={handleTakePhoto}>
         <Text style={styles.addText}>新增</Text>
       </TouchableOpacity>
 

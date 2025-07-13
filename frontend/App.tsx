@@ -55,7 +55,7 @@ const App: React.FC = () => (
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
-      <Stack.Screen name="MedInfo_1" component={MedInfo_1} />
+      <Stack.Screen name="MedInfo_1" component={MedInfo_1} initialParams={{ prescriptionId: '' }} />
       <Stack.Screen name="MedRemind" component={MedRemind} />
       <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
       <Stack.Screen name="Setting" component={Setting} />

@@ -40,7 +40,9 @@ export default function ChildHome() {
           <Image source={require('../img/childhome/Group.png')} style={styles.locate} />
           <Text style={styles.gridText1}>即時位置</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}> 
+        <TouchableOpacity
+          style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}
+          onPress={() => navigation.navigate('Health')}> 
           <Image source={require('../img/childhome/Vector.png')} style={styles.health} />
           <Text style={styles.gridText}>健康狀況</Text>
         </TouchableOpacity>
