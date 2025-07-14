@@ -48,7 +48,7 @@ export default function ElderlyHealth() {
     if (!token) return;
 
     try {
-      const response = await axios.post('http://192.168.0.55:8000/api/fitdata/', {
+      const response = await axios.post('http://192.168.0.91:8000/api/fitdata/', {
         steps,
         timestamp: timestamp.toISOString(),
       }, {
@@ -66,10 +66,10 @@ export default function ElderlyHealth() {
     const token = await AsyncStorage.getItem('access');
     if (!token) return;
 
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toLocaleDateString('sv-SE');
 
     try {
-      const response = await axios.get(`http://192.168.0.55:8000/api/healthcare/by-date/?date=${dateStr}`, {
+      const response = await axios.get(`http://192.168.0.91:8000/api/healthcare/by-date/?date=${dateStr}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

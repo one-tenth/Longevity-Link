@@ -6,7 +6,7 @@ from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
-#血壓功能
+# 血壓功能
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -14,19 +14,20 @@ from rest_framework.parsers import MultiPartParser
 from django.core.files.storage import default_storage
 import os
 import uuid
-from ocr_modules.bp_ocr_yolo import run_yolo_ocr  # 你封裝的 YOLO 函式
-from .models import HealthCare  # 你要存資料庫的模型
 from datetime import datetime
-from django.utils import timezone
+from ocr_modules.bp_ocr_yolo import run_yolo_ocr
+from .models import HealthCare
+from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
+
 
 class BloodOCRView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser]
-    
+
     def post(self, request):
-        print("目前登入的使用者是：", request.user)  # 測試用
+        print("🔐 目前登入的使用者：", request.user)
+
         image_file = request.FILES.get('image')
-        user = request.user if request.user.is_authenticated else User.objects.first()
         if not image_file:
             return Response({"error": "未收到圖片"}, status=400)
 
@@ -36,37 +37,35 @@ class BloodOCRView(APIView):
         full_path = default_storage.save(file_path, image_file)
 
         try:
-            # 🧠 呼叫 YOLO+OCR 主函式
+            # 🧠 執行 YOLO + OCR 辨識
             result = run_yolo_ocr(default_storage.path(full_path))
 
-
-            # ➤ 新增：安全轉成 int（避免字串直接存入 IntegerField）
             def safe_int(val):
                 try:
                     return int(val)
                 except:
                     return None
-                
+
             systolic = safe_int(result.get('systolic'))
             diastolic = safe_int(result.get('diastolic'))
             pulse = safe_int(result.get('pulse'))
 
-
-            # ➤ 新增：驗證數值範圍
             if systolic is None or diastolic is None or pulse is None:
                 return Response({"error": "OCR 辨識失敗，請再試一次"}, status=400)
 
             if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
                 return Response({"error": "數值異常，請確認圖片品質"}, status=400)
 
+            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
+            local_now = timezone.localtime(timezone.now())
+            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
 
-            # 💾 儲存進資料庫
             HealthCare.objects.create(
-                UserID=user,
+                UserID=request.user,
                 Systolic=systolic,
                 Diastolic=diastolic,
                 Pulse=pulse,
-                Date = timezone.now()
+                Date=local_now  # timezone-aware datetime
             )
 
             return Response({
@@ -77,14 +76,16 @@ class BloodOCRView(APIView):
                     "pulse": pulse
                 }
             })
+
         finally:
-            default_storage.delete(full_path)  # 清除暫存圖檔
+            default_storage.delete(full_path)  # 清除暫存圖片
+
 #查血壓
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.utils.timezone import make_aware
-from datetime import datetime, time
+from django.utils.timezone import get_current_timezone
+from datetime import datetime, time, timezone as dt_timezone # ✅ 要用 datetime 的 timezone
 from .models import HealthCare
 
 class HealthCareByDateAPI(APIView):
@@ -102,10 +103,15 @@ class HealthCareByDateAPI(APIView):
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        start = make_aware(datetime.combine(target_date, time.min))
-        end = make_aware(datetime.combine(target_date, time.max))
+        # 🔧 正確的 timezone 處理
+        tz = get_current_timezone()
+        start = datetime.combine(target_date, time.min).replace(tzinfo=tz).astimezone(dt_timezone.utc)
+        end = datetime.combine(target_date, time.max).replace(tzinfo=tz).astimezone(dt_timezone.utc)
 
-        record = HealthCare.objects.filter(UserID=user, Date__range=(start, end)).order_by('-Date').first()
+        record = HealthCare.objects.filter(
+            UserID=user,
+            Date__range=(start, end)
+        ).order_by('-Date').first()
 
         if record:
             return Response({
@@ -116,6 +122,8 @@ class HealthCareByDateAPI(APIView):
             })
         else:
             return Response({'message': '當日無血壓資料'}, status=404)
+
+
 #----------------------------------------------------------------
 #藥單
 from rest_framework.views import APIView
