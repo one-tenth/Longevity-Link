@@ -39,7 +39,7 @@ export default function MedicationInfoScreen() {
         return;
       }
 
-      const response = await axios.get('http://192.168.0.91:8000/api/mednames/', {
+      const response = await axios.get('http://172.20.10.2:8000/api/mednames/', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -59,7 +59,7 @@ export default function MedicationInfoScreen() {
       if (!token) return;
 
       await axios.delete(
-        `http://192.168.0.91:8000/api/delete-prescription/${prescriptionID}/`,
+        `http://172.20.10.2:8000/api/delete-prescription/${prescriptionID}/`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -106,7 +106,7 @@ export default function MedicationInfoScreen() {
       });
 
       const response = await axios.post(
-        'http://192.168.0.91:8000/ocr-analyze/',
+        'http://172.20.10.2:8000/ocr-analyze/',
         formData,
         {
           headers: {
