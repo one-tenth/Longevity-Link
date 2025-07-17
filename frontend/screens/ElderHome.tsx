@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'rea
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
-
+/*import RealTimeLocation from '../components/RealTimeLocation';*/
 type ElderHomeNavProp = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
 export default function ElderHome() {

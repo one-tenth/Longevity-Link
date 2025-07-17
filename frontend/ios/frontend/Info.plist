@@ -48,5 +48,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+
+    <!-- 定位授權提示 -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>App 需要使用定位來顯示您的位置</string>
+
+    <!-- 如果要顯示 Google 地圖 -->
+    <key>GMSApiKey</key>
+    <string>AIzaSyAMw9L20rtHPH6feNvaiFmOYNSuFa71oX0</string>
+    …
+
+
 </dict>
 </plist>
