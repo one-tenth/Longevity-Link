@@ -50,6 +50,7 @@ export default function LoginScreen() {
         // 儲存 token
         await AsyncStorage.setItem('access', data.token.access);
         await AsyncStorage.setItem('refresh', data.token.refresh);
+        await AsyncStorage.setItem('userName', data.user.Name);
 
         console.log('🔐 存入 token:', data.token.access);  // 可加也可省略
 
