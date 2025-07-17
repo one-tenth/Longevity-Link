@@ -6,19 +6,24 @@ import uuid
 from django.utils import timezone
 
 
+import random
+import string
+
+def generate_family_code():
+    return ''.join(random.choices(string.digits, k=5))  # 例如 4832
+
 class Family(models.Model):
     FamilyID = models.AutoField(primary_key=True)
-    Fcode = models.CharField(max_length=50)
+    Fcode = models.CharField(max_length=10, unique=True, default=generate_family_code)
     FamilyName = models.CharField(max_length=10)
     Created_Time = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return str(self.FamilyID)
-    
+        return f"{self.FamilyName} ({self.Fcode})"
+
     class Meta:
         verbose_name = "Family"
         verbose_name_plural = "Family"
-
 
 class CustomUserManager(BaseUserManager):
     #建立使用者帳號
@@ -51,6 +56,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     FamilyID = models.ForeignKey('Family',on_delete=models.CASCADE,db_column='FamilyID',null=True, blank=True)
     RelatedID = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='related_family')
     Created_time = models.DateTimeField(auto_now_add=True)
+
+    is_family = models.BooleanField(default=True)  # 預設是家人
+    is_elder = models.BooleanField(default=False)  # 如果是老人就會設為 True
 
     is_active = models.BooleanField(default=True)   # 可登入
     is_staff = models.BooleanField(default=False)   # 可進後台（僅限 superuser）

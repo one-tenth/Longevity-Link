@@ -453,7 +453,6 @@ def register_user(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-    
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -486,5 +485,51 @@ def login(request):
             "UserID": user.UserID,
             "Name": user.Name,
             "Phone": user.Phone,
+            "FamilyID": user.FamilyID.FamilyID if user.FamilyID else None,  # ✅ 新增這行
+            "RelatedID": user.RelatedID.UserID if user.RelatedID else None  # ✅ 新增這行
         }
     }, status=status.HTTP_200_OK)
+
+#------------------------------------------------------------------------
+#創建家庭
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Family, User  # 確保有 import
+from .serializers import FamilySerializer  # 如果沒有等下幫你補
+from django.utils.crypto import get_random_string
+
+class CreateFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({'error': '未登入'}, status=401)
+
+        if user.FamilyID:  # 若已有家庭，就不能再創建
+            return Response({'error': '您已經有家庭了'}, status=400)
+
+        family_name = request.data.get('FamilyName')
+        if not family_name:
+            return Response({'error': '請輸入家庭名稱'}, status=400)
+
+        # 自動產生 Fcode（4碼數字）
+        fcode = get_random_string(4, allowed_chars='0123456789')
+
+        family = Family.objects.create(
+            FamilyName=family_name,
+            Fcode=fcode
+        )
+
+        # 綁定使用者的 FamilyID
+        user.FamilyID = family
+        user.RelatedID = None
+        user.save()
+
+        return Response({
+            'message': '家庭創建成功',
+            'FamilyID': family.FamilyID,
+            'Fcode': family.Fcode,
+            'FamilyName': family.FamilyName,
+        })
