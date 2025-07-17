@@ -159,6 +159,9 @@ const handleRegister = async () => {
       <TouchableOpacity style={styles.btn} onPress={handleRegister}>
         <Text style={styles.btnText}>註冊</Text>
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate('index' as never)}>
+        <Text style={styles.homeText}>返回首頁</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -191,4 +194,12 @@ const styles = StyleSheet.create({
 
   btn: { backgroundColor: '#FFB800', borderRadius: 6, marginTop: 18, width: '90%', alignItems: 'center', padding: 12 },
   btnText: { color: '#222', fontSize: 18, fontWeight: 'bold' },
+  
+  homeText: {
+  marginTop: 12,
+  color: '#007AFF',
+  fontSize: 16,
+  fontWeight: '600',
+  textAlign: 'center',
+},
 });

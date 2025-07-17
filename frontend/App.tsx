@@ -33,7 +33,7 @@ export type RootStackParamList = {
   index: undefined;
   Medicine: undefined;
   MedInfo: undefined;
-  MedInfo_1: undefined;
+  MedInfo_1: { prescriptionId: string };
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;

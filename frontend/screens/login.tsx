@@ -107,6 +107,10 @@ export default function LoginScreen() {
       <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
         <Text style={styles.registerText}>沒有帳號？註冊</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('index')}>
+        <Text style={styles.homeText}>返回首頁</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -189,5 +193,12 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  homeText: {
+    marginTop: 12,
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
