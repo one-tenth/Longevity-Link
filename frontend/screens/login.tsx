@@ -46,6 +46,8 @@ export default function LoginScreen() {
       await AsyncStorage.setItem('access', token.access);
       await AsyncStorage.setItem('refresh', token.refresh);
       await AsyncStorage.setItem('userName', user.Name);
+      await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
+      await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
 
       Alert.alert('登入成功', `歡迎 ${user.Name}`);
 

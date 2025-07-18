@@ -533,3 +533,57 @@ class CreateFamilyView(APIView):
             'Fcode': family.Fcode,
             'FamilyName': family.FamilyName,
         })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_me(request):
+    user = request.user
+    return Response({
+        "UserID": user.UserID,
+        "Name": user.Name,
+        "Phone": user.Phone,
+        "FamilyID": FamilySerializer(user.FamilyID).data if user.FamilyID else None,
+        "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
+    })
+
+
+#新增長者
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_elder(request):
+    user = request.user  # 當前登入的使用者（家人）
+
+    # 僅允許家人身份新增長者
+    if user.RelatedID:
+        return Response({"error": "只有家人可以新增長者"}, status=403)
+
+    name = request.data.get('Name')
+    phone = request.data.get('Phone')
+    password = request.data.get('password')
+    gender = request.data.get('Gender', 'M')  # 預設男
+    borndate = request.data.get('Borndate')
+
+    if not all([name, phone, password, borndate]):
+        return Response({"error": "請填寫完整資料"}, status=400)
+
+    if User.objects.filter(Phone=phone).exists():
+        return Response({"error": "此手機號碼已被註冊"}, status=400)
+
+    elder = User.objects.create_user(
+        Phone=phone,
+        Name=name,
+        Gender=gender,
+        Borndate=borndate,
+        password=password,
+        FamilyID=user.FamilyID,
+        RelatedID=user.UserID
+    )
+
+    return Response({
+        "message": "長者帳號建立成功",
+        "elder": {
+            "UserID": elder.UserID,
+            "Name": elder.Name,
+            "Phone": elder.Phone,
+        }
+    }, status=201)

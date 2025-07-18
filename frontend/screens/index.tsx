@@ -16,18 +16,48 @@ type HomeNavProp = StackNavigationProp<RootStackParamList, 'index'>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavProp>();
+  const isFocused = useIsFocused();
+
   const [userName, setUserName] = useState<string | null>(null);
-  const isFocused = useIsFocused(); // 進來這個畫面時更新登入狀態
+  const [fcode, setFcode] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserName = async () => {
+    const fetchUserInfo = async () => {
+      const token = await AsyncStorage.getItem('access');
       const name = await AsyncStorage.getItem('userName');
       setUserName(name);
+
+      if (!token) return;
+
+      try {
+        const res = await fetch('http://172.20.10.2:8000/api/account/me/', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        if (text.startsWith('<')) {
+          console.warn('⚠️ 後端回傳 HTML，可能未登入');
+          console.warn(text);
+          return;
+        }
+
+        const userData = JSON.parse(text);
+        console.log('✅ 抓到 userData:', userData);
+
+        // 如果後端有傳 FamilyID 物件，就抓裡面的 Fcode
+        if (userData.FamilyID && userData.FamilyID.Fcode) {
+          setFcode(userData.FamilyID.Fcode);
+        }
+      } catch (err) {
+        console.log('⚠️ 抓使用者資訊失敗:', err);
+      }
     };
-    if (isFocused) fetchUserName();
+
+    if (isFocused) fetchUserInfo();
   }, [isFocused]);
 
-  // 登出並回首頁
   const handleLogout = () => {
     Alert.alert('確定要登出嗎？', '', [
       { text: '取消', style: 'cancel' },
@@ -40,7 +70,7 @@ const HomeScreen: React.FC = () => {
           await AsyncStorage.removeItem('userName');
           setUserName(null);
           Alert.alert('已成功登出');
-          navigation.navigate('index'); // 可選擇回首頁或其他畫面
+          navigation.navigate('index');
         },
       },
     ]);
@@ -54,12 +84,18 @@ const HomeScreen: React.FC = () => {
       </View>
 
       {userName && (
-        <View style={styles.welcomeRow}>
-          <Text style={styles.welcomeText}>歡迎，{userName}</Text>
-          <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.logoutText}>登出</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={styles.welcomeRow}>
+            <Text style={styles.welcomeText}>歡迎，{userName}</Text>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text style={styles.logoutText}>登出</Text>
+            </TouchableOpacity>
+          </View>
+
+          {fcode && (
+            <Text style={styles.familyCodeText}>家庭代碼：{fcode}</Text>
+          )}
+        </>
       )}
 
       <View style={styles.gridRow}>
@@ -124,6 +160,13 @@ const styles = StyleSheet.create({
   },
   welcomeText: { fontSize: 18, fontWeight: '600' },
   logoutText: { fontSize: 16, color: 'red', fontWeight: 'bold' },
+
+  familyCodeText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#33691E',
+    marginBottom: 10,
+  },
 
   gridRow: {
     flexDirection: 'row',

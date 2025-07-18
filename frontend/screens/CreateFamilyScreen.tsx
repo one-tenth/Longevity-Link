@@ -19,7 +19,7 @@ const CreateFamilyScreen: React.FC = () => {
   const [familyName, setFamilyName] = useState('');
   const [fcode, setFcode] = useState('');
 
-  // ✅ 畫面一打開先判斷是否已有家庭
+  // ✅ 僅檢查是否已有家庭（不產生代碼）
   useEffect(() => {
     const checkFamily = async () => {
       const token = await AsyncStorage.getItem('access');
@@ -27,16 +27,21 @@ const CreateFamilyScreen: React.FC = () => {
 
       try {
         const res = await fetch('http://172.20.10.2:8000/api/account/me/', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
         });
-        const userData = await res.json();
 
+        const text = await res.text();
+        if (text.startsWith('<')) {
+          console.warn('⚠️ 後端回傳 HTML（可能未登入）:', text);
+          return;
+        }
+
+        const userData = JSON.parse(text);
         if (userData.FamilyID) {
-          navigation.navigate('index'); // 已有家庭 → 回首頁
-        } else {
-          // 沒有家庭 → 產生代碼
-          const code = Math.floor(1000 + Math.random() * 9000).toString();
-          setFcode(code);
+          navigation.navigate('index');
         }
       } catch (err) {
         console.log('⚠️ 取得使用者資料失敗:', err);
@@ -46,6 +51,7 @@ const CreateFamilyScreen: React.FC = () => {
     checkFamily();
   }, []);
 
+  // ✅ 創建家庭時才產生代碼
   const handleCreateFamily = async () => {
     if (!familyName.trim()) {
       Alert.alert('錯誤', '請輸入家庭名稱');
@@ -59,13 +65,16 @@ const CreateFamilyScreen: React.FC = () => {
         return;
       }
 
+      const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
+      setFcode(generatedCode); // 更新畫面代碼
+
       const response = await fetch('http://172.20.10.2:8000/api/family/create/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ FamilyName: familyName, Fcode: fcode }),
+        body: JSON.stringify({ FamilyName: familyName, Fcode: generatedCode }),
       });
 
       const text = await response.text();
@@ -78,7 +87,7 @@ const CreateFamilyScreen: React.FC = () => {
       }
 
       if (response.ok) {
-        Alert.alert('成功', `家庭建立成功，代碼為 ${fcode}`, [
+        Alert.alert('成功', `家庭建立成功，代碼為 ${generatedCode}`, [
           { text: '確定', onPress: () => navigation.navigate('index') },
         ]);
       } else {
@@ -119,7 +128,6 @@ const CreateFamilyScreen: React.FC = () => {
 
 export default CreateFamilyScreen;
 
-// ✅ 樣式不變
 const styles = StyleSheet.create({
   container: {
     flex: 1,
