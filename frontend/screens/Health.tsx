@@ -23,7 +23,7 @@ export default function HealthStatus() {
     const dateStr = date.toLocaleDateString('sv-SE');
 
     try {
-      const stepRes = await axios.get(`http://172.20.10.2:8000/api/fitdata/by-date/?date=${dateStr}`, {
+      const stepRes = await axios.get(`http://192.168.0.91:8000/api/fitdata/by-date/?date=${dateStr}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSteps(stepRes.data.steps);
@@ -32,7 +32,7 @@ export default function HealthStatus() {
     }
 
     try {
-      const bpRes = await axios.get(`http://172.20.10.2:8000/api/healthcare/by-date/?date=${dateStr}`, {
+      const bpRes = await axios.get(`http://192.168.0.91:8000/api/healthcare/by-date/?date=${dateStr}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBpData({
