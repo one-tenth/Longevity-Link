@@ -22,41 +22,43 @@ const HomeScreen: React.FC = () => {
   const [fcode, setFcode] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      const token = await AsyncStorage.getItem('access');
-      const name = await AsyncStorage.getItem('userName');
-      setUserName(name);
+  const fetchUserInfo = async () => {
+    const token = await AsyncStorage.getItem('access');
+    const name = await AsyncStorage.getItem('userName');
+    setUserName(name);
 
-      if (!token) return;
+    if (!token) return;
 
-      try {
-        const res = await fetch('http://172.20.10.2:8000/api/account/me/', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    try {
+      const res = await fetch('http://172.20.10.2:8000/account/me/', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        const text = await res.text();
-        if (text.startsWith('<')) {
-          console.warn('⚠️ 後端回傳 HTML，可能未登入');
-          console.warn(text);
-          return;
-        }
-
-        const userData = JSON.parse(text);
-        console.log('✅ 抓到 userData:', userData);
-
-        // 如果後端有傳 FamilyID 物件，就抓裡面的 Fcode
-        if (userData.FamilyID && userData.FamilyID.Fcode) {
-          setFcode(userData.FamilyID.Fcode);
-        }
-      } catch (err) {
-        console.log('⚠️ 抓使用者資訊失敗:', err);
+      const text = await res.text();
+      if (text.startsWith('<')) {
+        console.warn('⚠️ 後端回傳 HTML，可能未登入');
+        console.warn(text);
+        return;
       }
-    };
 
-    if (isFocused) fetchUserInfo();
-  }, [isFocused]);
+      const userData = JSON.parse(text);
+      console.log('✅ 抓到 userData:', userData);
+
+      // ✅ 正確取得 Fcode
+      if (userData.FamilyID && userData.FamilyID.Fcode) {
+        setFcode(userData.FamilyID.Fcode);
+      } else {
+        console.warn('⚠️ 沒有 Fcode 可顯示');
+      }
+    } catch (err) {
+      console.log('⚠️ 抓使用者資訊失敗:', err);
+    }
+  };
+
+  if (isFocused) fetchUserInfo();
+}, [isFocused]);
 
   const handleLogout = () => {
     Alert.alert('確定要登出嗎？', '', [
