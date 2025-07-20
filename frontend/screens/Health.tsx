@@ -11,7 +11,6 @@ export default function HealthStatus() {
 
   return (
     <View style={styles.container}>
-      {/* Header：改成與 MedInfo 一致 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('ChildHome')}>
         </TouchableOpacity>
@@ -19,7 +18,6 @@ export default function HealthStatus() {
         <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
       </View>
 
-      {/* Profile 區塊 */}
       <View style={styles.profileRow}>
         <View style={styles.profileBox}>
           <Image source={require('../img/medicine/elderly.png')} style={styles.profileIcon} />
@@ -28,15 +26,11 @@ export default function HealthStatus() {
         <Text style={styles.sectionTitle}>用藥資訊</Text>
       </View>
 
-      {/* 步數卡片 */}
       <View style={styles.card}>
-        <Image source={require('../img/health/foot.png')} style={styles.cardIcon} />
         <Text style={styles.cardText}>3,820步</Text>
       </View>
 
-      {/* 血壓卡片 */}
       <View style={styles.card}>
-        <Image source={require('../img/health/bloodPressure.png')} style={styles.cardIcon} />
         <View>
           <Text style={styles.cardText}>收縮壓：120</Text>
           <Text style={styles.cardText}>舒張壓：80</Text>
@@ -44,7 +38,7 @@ export default function HealthStatus() {
         </View>
       </View>
 
-      {/* 回首頁按鈕 */}
+  
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate('ChildHome')}
