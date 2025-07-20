@@ -18,11 +18,8 @@ export default function TimeSettingInput() {
 
   const [times, setTimes] = useState<TimeItem[]>([
     { label: '早上', time: '08:00', color: '#F4C80B' },
-    { label: '飯後', time: '08:30', color: '#F4C80B' },
     { label: '中午', time: '12:00', color: '#F9A66C' },
-    { label: '飯後', time: '12:30', color: '#F9A66C' },
     { label: '晚上', time: '18:00', color: '#A3D6F5' },
-    { label: '飯後', time: '18:30', color: '#A3D6F5' },
     { label: '睡前', time: '20:00', color: '#A3D6F5' }
   ]);
 
