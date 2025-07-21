@@ -19,6 +19,7 @@ interface RegisterData {
   Borndate: string;
   Phone: string;
   password: string;
+  creator_id?: number;
 }
 
 export default function RegisterScreen() {
@@ -38,12 +39,14 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     const Borndate = `${form.year}-${form.month}-${form.day}`;
+
     const dataToSend: RegisterData = {
       Name: form.Name,
       Gender: form.Gender as 'M' | 'F',
       Borndate,
       Phone: form.Phone,
       password: form.Password,
+      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
     };
 
     try {
@@ -56,19 +59,6 @@ export default function RegisterScreen() {
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(JSON.stringify(errData));
-      }
-
-      const result = await res.json();
-
-      if (mode === 'addElder' && creatorId) {
-        await fetch('http://172.20.10.2:8000/account/update_related/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            elder_id: result.UserID,
-            creator_id: creatorId,
-          }),
-        });
       }
 
       Alert.alert('註冊成功', '請前往登入或回首頁');

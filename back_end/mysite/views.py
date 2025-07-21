@@ -442,16 +442,25 @@ from rest_framework_simplejwt.tokens import RefreshToken
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
+    creator_id = request.data.get('creator_id')  # 可選參數
+
     serializer = UserRegisterSerializer(data=request.data)
-
     if serializer.is_valid():
-        user = serializer.save()  # 不要自己額外傳參數，全部由 serializer.create 處理
+        user = serializer.save()
 
-        user_serializer = UserRegisterSerializer(user)
-        return Response(user_serializer.data, status=status.HTTP_201_CREATED)
-    else:
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # 🔸 若是從「家人新增長者」的模式，設定 RelatedID 和 FamilyID
+        if creator_id:
+            try:
+                creator = User.objects.get(UserID=creator_id)
+                user.RelatedID = creator
+                user.FamilyID = creator.FamilyID
+                user.save()
+            except User.DoesNotExist:
+                return Response({'error': '創建者不存在'}, status=400)
 
+        return Response(UserRegisterSerializer(user).data, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
