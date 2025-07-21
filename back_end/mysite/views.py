@@ -550,17 +550,16 @@ def get_me(request):
 #新增長者
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def add_elder(request):
-    user = request.user  # 當前登入的使用者（家人）
+def update_related(request):
+    user = request.user  # 目前登入的家人
 
-    # 僅允許家人身份新增長者
-    if user.RelatedID:
+    if user.is_elder:
         return Response({"error": "只有家人可以新增長者"}, status=403)
 
     name = request.data.get('Name')
     phone = request.data.get('Phone')
     password = request.data.get('password')
-    gender = request.data.get('Gender', 'M')  # 預設男
+    gender = request.data.get('Gender', 'M')
     borndate = request.data.get('Borndate')
 
     if not all([name, phone, password, borndate]):
@@ -576,7 +575,8 @@ def add_elder(request):
         Borndate=borndate,
         password=password,
         FamilyID=user.FamilyID,
-        RelatedID=user.UserID
+        RelatedID=user,
+        is_elder=True
     )
 
     return Response({
@@ -585,5 +585,7 @@ def add_elder(request):
             "UserID": elder.UserID,
             "Name": elder.Name,
             "Phone": elder.Phone,
+            "RelatedID": elder.RelatedID.UserID,
+            "FamilyID": elder.FamilyID
         }
     }, status=201)

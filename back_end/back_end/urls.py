@@ -33,4 +33,5 @@ urlpatterns = [
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
     path('api/family/create/', views.CreateFamilyView.as_view(), name='create_family'),
     path('account/me/', views.get_me,name='get_me'),
+    path('update_related/', views.update_related),
 ]

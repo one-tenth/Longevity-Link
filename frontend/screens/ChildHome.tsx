@@ -66,6 +66,13 @@ export default function ChildHome() {
         <Text style={styles.callText}>通話紀錄</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[styles.gridBox, { backgroundColor: '#6CCFF6' }]}
+        onPress={() => navigation.navigate('FamilyScreen')}>
+        <Image source={require('../img/setting/family.png')} style={{ width: 50, height: 50 }} />
+        <Text style={styles.gridText}>家庭</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity onPress={() => navigation.navigate('index')}>
         <Text style={styles.alertText2}>切換使用者</Text>
       </TouchableOpacity>

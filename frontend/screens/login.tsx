@@ -17,56 +17,60 @@ type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavProp>();
-
+  const [userId, setUserId] = useState<number | null>(null);
   const [Phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
-  try {
-    const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ Phone, password }),
-    });
-
-    const text = await response.text();
-    console.log('status:', response.status);
-    console.log('response text:', text);
-
-    let data;
     try {
-      data = JSON.parse(text);
-    } catch (e) {
-      console.error('伺服器回傳非 JSON:', text);
-      throw new Error('伺服器回傳格式錯誤');
-    }
+      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Phone, password }),
+      });
 
-    if (response.ok) {
-      const { token, user } = data;
-      await AsyncStorage.setItem('access', token.access);
-      await AsyncStorage.setItem('refresh', token.refresh);
-      await AsyncStorage.setItem('userName', user.Name);
-      await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
-      await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
+      const text = await response.text();
+      console.log('status:', response.status);
+      console.log('response text:', text);
 
-      Alert.alert('登入成功', `歡迎 ${user.Name}`);
-
-      // ✅ 判斷導向
-      if (!user.FamilyID) {
-        navigation.navigate('CreateFamilyScreen' as never); // 尚未創建家庭
-      } else if (user.RelatedID) {
-        navigation.navigate('ElderHome' as never); // 有家庭＋有 RelatedID（長者）
-      } else {
-        navigation.navigate('ChildHome' as never); // 有家庭＋沒 RelatedID（家人）
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('伺服器回傳非 JSON:', text);
+        throw new Error('伺服器回傳格式錯誤');
       }
 
-    } else {
-      Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
+      if (response.ok) {
+        const { token, user } = data;
+
+        // 儲存資訊
+        await AsyncStorage.setItem('access', token.access);
+        await AsyncStorage.setItem('refresh', token.refresh);
+        await AsyncStorage.setItem('userName', user.Name);
+        await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
+        await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
+
+        // ✅ 儲存 userId
+        setUserId(user.UserID);
+
+        Alert.alert('登入成功', `歡迎 ${user.Name}`);
+
+        // ✅ 導向
+        if (!user.FamilyID) {
+          navigation.navigate('CreateFamilyScreen' as never);
+        } else if (user.RelatedID) {
+          navigation.navigate('ElderHome' as never);
+        } else {
+          navigation.navigate('ChildHome' as never);
+        }
+      } else {
+        Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
+      }
+    } catch (error: any) {
+      Alert.alert('發生錯誤', error?.message || '未知錯誤');
     }
-  } catch (error: any) {
-    Alert.alert('發生錯誤', error?.message || '未知錯誤');
-  }
-};
+  };
 
   return (
     <View style={styles.container}>
@@ -108,7 +112,15 @@ export default function LoginScreen() {
         <Text style={styles.buttonText}>登入</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+      <TouchableOpacity
+        onPress={() => {
+          if (userId !== null) {
+            navigation.navigate('RegisterScreen', { mode: 'addElder', creatorId: userId });
+          } else {
+            Alert.alert('請先登入以取得使用者資訊');
+          }
+        }}
+      >
         <Text style={styles.registerText}>沒有帳號？註冊</Text>
       </TouchableOpacity>
 
