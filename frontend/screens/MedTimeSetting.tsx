@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Image, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Platform
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import { RootStackParamList } from '../App';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
-// ElderHome 頁面的 navigation 型別
 type MedTimeSettingNavProp = StackNavigationProp<RootStackParamList, 'MedTimeSetting'>;
 
 type TimeItem = {
@@ -23,15 +34,88 @@ export default function TimeSettingInput() {
     { label: '睡前', time: '20:00', color: '#A3D6F5' }
   ]);
 
-  const handleChange = (value: string, index: number) => {
-    const updated = [...times];
-    updated[index].time = value;
-    setTimes(updated);
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+
+  // 🔽 載入時間設定
+  useEffect(() => {
+    loadTimeSetting();
+  }, []);
+
+  const loadTimeSetting = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        Alert.alert('未登入', '請重新登入');
+        return;
+      }
+
+      const response = await axios.get(
+        'http://192.168.0.91:8000/api/get-med-time/',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = response.data;
+      const updated = [...times];
+      updated[0].time = data.MorningTime || '08:00';
+      updated[1].time = data.NoonTime || '12:00';
+      updated[2].time = data.EveningTime || '18:00';
+      updated[3].time = data.Bedtime || '20:00';
+      setTimes(updated);
+      console.log('✅ 成功載入時間設定:', data);
+    } catch (error: any) {
+      console.log('⚠️ 載入失敗或尚未設定:', error.response?.data || error.message);
+    }
   };
 
-  const handleSave = () => {
-    console.log('目前時間設定：', times);
-    Alert.alert('已儲存設定', '時間已成功儲存！');
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowPicker(false);
+      return;
+    }
+    setShowPicker(false);
+    if (selectedDate && pickerIndex !== null) {
+      const updated = [...times];
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      updated[pickerIndex].time = `${hours}:${minutes}`;
+      setTimes(updated);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        Alert.alert('登入失效', '請重新登入');
+        return;
+      }
+
+      const response = await axios.post(
+        'http://192.168.0.91:8000/api/create-med-time/',
+        {
+          MorningTime: times[0].time,
+          NoonTime: times[1].time,
+          EveningTime: times[2].time,
+          Bedtime: times[3].time,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log('✅ 儲存成功:', response.data);
+      Alert.alert('成功', '時間設定已儲存！');
+    } catch (error) {
+      console.error('❌ 儲存失敗:', error);
+      Alert.alert('儲存失敗', '請稍後再試');
+    }
   };
 
   return (
@@ -57,18 +141,26 @@ export default function TimeSettingInput() {
           <TouchableOpacity
             key={index}
             style={[styles.featureButton, { backgroundColor: item.color }]}
-            onPress={() => { /* 可選：添加點擊事件 */ }}
+            onPress={() => {
+              setPickerIndex(index);
+              setShowPicker(true);
+            }}
           >
             <Text style={styles.featureText}>{item.label}</Text>
-            <TextInput
-              style={styles.timeInput}
-              value={item.time}
-              onChangeText={(text) => handleChange(text, index)}
-              placeholder="例如 08:00"
-            />
+            <Text style={styles.timeText}>{item.time}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {showPicker && pickerIndex !== null && (
+        <DateTimePicker
+          value={new Date(`2023-01-01T${times[pickerIndex].time}`)}
+          mode="time"
+          is24Hour={true}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleTimeChange}
+        />
+      )}
 
       <View style={styles.rowButtons}>
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]} onPress={handleSave}>
@@ -123,7 +215,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 3, // 框粗體設為 3
+    borderWidth: 3,
     borderColor: '#000',
     borderRadius: 10,
     backgroundColor: '#fff',
@@ -136,11 +228,11 @@ const styles = StyleSheet.create({
   },
   profileText: {
     fontSize: 30,
-    fontWeight: '900' // 字粗體設為 900
+    fontWeight: '900'
   },
   sectionTitle: {
     fontSize: 30,
-    fontWeight: '900', // 字粗體設為 900
+    fontWeight: '900',
     textAlign: 'center',
     paddingLeft: 10,
     marginTop: 20
@@ -148,14 +240,14 @@ const styles = StyleSheet.create({
   scrollContainer: {
     width: '90%',
     marginBottom: 20,
-    alignSelf: 'center' // 確保滾動區域置中
+    alignSelf: 'center'
   },
   featureButton: {
     marginTop: 5,
     width: '100%',
     padding: 5,
     borderRadius: 12,
-    borderWidth: 3, // 框粗體設為 3
+    borderWidth: 3,
     borderColor: '#000',
     alignItems: 'center',
     alignSelf: 'center',
@@ -164,18 +256,18 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 20,
-    fontWeight: '900' // 字粗體設為 900
+    fontWeight: '900'
   },
-  timeInput: {
+  timeText: {
     backgroundColor: '#fff',
-    borderWidth: 3, // 框粗體設為 3
+    borderWidth: 3,
     borderColor: '#000',
     borderRadius: 8,
     padding: 4,
     width: '50%',
     fontSize: 16,
     textAlign: 'center',
-    fontWeight: '900' // 字粗體設為 900
+    fontWeight: '900'
   },
   rowButtons: {
     flexDirection: 'row',
@@ -183,14 +275,14 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
     width: '90%',
-    alignSelf: 'center' // 確保按鈕區域置中
+    alignSelf: 'center'
   },
   gridButton: {
     width: '40%',
     borderRadius: 12,
-    borderWidth: 3, // 框粗體設為 3
+    borderWidth: 3,
     borderColor: '#000',
     alignItems: 'center',
     padding: 10
-  },
+  }
 });

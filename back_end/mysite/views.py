@@ -312,6 +312,43 @@ class DeletePrescriptionView(APIView):
         user = request.user
         deleted_count, _ = Med.objects.filter(UserID=user, PrescriptionID=prescription_id).delete()
         return Response({'message': '已刪除', 'deleted_count': deleted_count}, status=status.HTTP_200_OK)
+
+#用藥時間設定
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .serializers import MedTimeSettingSerializer
+from rest_framework import status
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_med_time_setting(request):
+    data = request.data.copy()
+    data['UserID'] = request.user.pk  # ✅ 自動加入登入者的 ID
+    print("📩 接收到資料（含使用者）：", data)
+
+    serializer = MedTimeSettingSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    print("❌ 錯誤訊息：", serializer.errors)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import MedTimeSetting
+from .serializers import MedTimeSettingSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_med_time_setting(request):
+    try:
+        setting = MedTimeSetting.objects.get(UserID=request.user)
+        serializer = MedTimeSettingSerializer(setting)
+        return Response(serializer.data)
+    except MedTimeSetting.DoesNotExist:
+        return Response({'detail': '尚未設定時間'}, status=404)
+
 #----------------------------------------------------------------
 #健康
 #新增步數

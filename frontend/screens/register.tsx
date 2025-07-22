@@ -27,7 +27,7 @@ export default function RegisterScreen() {
   password: string;
 }
   async function register(data: RegisterData) {
-  const response = await fetch('http://172.20.10.2:8000/api/register/', {
+  const response = await fetch('http://192.168.0.91:8000/api/register/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

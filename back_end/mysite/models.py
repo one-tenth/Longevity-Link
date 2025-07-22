@@ -128,6 +128,18 @@ class Med(models.Model):
         verbose_name = "Med"
         verbose_name_plural = "Med"
 
+class MedTimeSetting(models.Model):
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    MorningTime = models.TimeField(null=True, blank=True)    # 早上
+    NoonTime = models.TimeField(null=True, blank=True)       # 中午
+    EveningTime = models.TimeField(null=True, blank=True)    # 晚上
+    Bedtime = models.TimeField(null=True, blank=True)        # 睡前
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "MedTimeSetting"
+        verbose_name_plural = "MedTimeSetting"
+
 class CallRecord(models.Model):
     CallId = models.AutoField(primary_key=True)
     UserId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserId')
