@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> 298b1f953955929984bfe185a4810812773ff427
 import {
   View,
   Text,
@@ -13,8 +17,11 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import DateTimePicker from '@react-native-community/datetimepicker';
+<<<<<<< HEAD
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+=======
+>>>>>>> 298b1f953955929984bfe185a4810812773ff427
 
 type MedTimeSettingNavProp = StackNavigationProp<RootStackParamList, 'MedTimeSetting'>;
 
@@ -36,6 +43,7 @@ export default function TimeSettingInput() {
 
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+
 
   // 🔽 載入時間設定
   useEffect(() => {
@@ -69,6 +77,7 @@ export default function TimeSettingInput() {
       console.log('✅ 成功載入時間設定:', data);
     } catch (error: any) {
       console.log('⚠️ 載入失敗或尚未設定:', error.response?.data || error.message);
+
     }
   };
 
