@@ -49,7 +49,6 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App: React.FC = () => (
   <NavigationContainer>
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
       <Stack.Screen name="index" component={index} />
       <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />

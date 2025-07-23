@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
-=======
-import React, { useState } from 'react';
->>>>>>> 298b1f953955929984bfe185a4810812773ff427
 import {
   View,
   Text,
@@ -17,11 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import DateTimePicker from '@react-native-community/datetimepicker';
-<<<<<<< HEAD
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-=======
->>>>>>> 298b1f953955929984bfe185a4810812773ff427
 
 type MedTimeSettingNavProp = StackNavigationProp<RootStackParamList, 'MedTimeSetting'>;
 
