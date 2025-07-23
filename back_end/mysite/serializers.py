@@ -56,7 +56,7 @@ class MedSerializer(serializers.ModelSerializer):  # ✅ 正確
 class MedTimeSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MedTimeSetting
-
+        fields = '__all__'
 class FamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = Family

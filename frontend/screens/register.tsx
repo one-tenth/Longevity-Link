@@ -36,21 +36,13 @@ export default function RegisterScreen() {
     Phone: '',
     Password: '',
   });
-
-  interface RegisterData {
-  Name: string;
-  Gender: 'M' | 'F';
-  Borndate: string;
-  Phone: string;
-  password: string;
-}
   async function register(data: RegisterData) {
   const response = await fetch('http://192.168.0.91:8000/api/register/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-
+}
 
   const handleRegister = async () => {
   const Borndate = `${form.year}-${form.month}-${form.day}`;
