@@ -17,18 +17,25 @@ type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavProp>();
+  const [userId, setUserId] = useState<number | null>(null);
+
+
   const [Phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
+      const response = await fetch('http://172.20.10.4:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
       });
 
       const text = await response.text();
+      console.log('status:', response.status);
+      console.log('response text:', text);
+
+
       let data;
       try {
         data = JSON.parse(text);
@@ -37,10 +44,29 @@ export default function LoginScreen() {
       }
 
       if (response.ok) {
-        await AsyncStorage.setItem('access', data.token.access);
-        await AsyncStorage.setItem('refresh', data.token.refresh);
-        Alert.alert('登入成功', `歡迎 ${data.user.Name}`);
-        navigation.navigate('index');
+        const { token, user } = data;
+
+        // 儲存資訊
+        await AsyncStorage.setItem('access', token.access);
+        await AsyncStorage.setItem('refresh', token.refresh);
+        await AsyncStorage.setItem('userName', user.Name);
+        await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
+        await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
+
+        // ✅ 儲存 userId
+        setUserId(user.UserID);
+
+        Alert.alert('登入成功', `歡迎 ${user.Name}`);
+
+        // ✅ 導向
+        if (!user.FamilyID) {
+          navigation.navigate('CreateFamilyScreen' as never);
+        } else if (user.RelatedID) {
+          navigation.navigate('ElderHome' as never);
+        } else {
+          navigation.navigate('ChildHome' as never);
+        }
+
       } else {
         Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
       }
@@ -91,8 +117,12 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       {/* 註冊導向 */}
-      <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+      <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen', { mode: 'register' })}>
         <Text style={styles.registerText}>沒有帳號？註冊</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('index')}>
+        <Text style={styles.homeText}>返回首頁</Text>
       </TouchableOpacity>
     </View>
   );
@@ -163,5 +193,12 @@ const styles = StyleSheet.create({
     color: '#00288c',
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  homeText: {
+    marginTop: 12,
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

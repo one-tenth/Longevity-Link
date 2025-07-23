@@ -38,9 +38,11 @@ export default function ChildHome() {
         <Text style={styles.featureText}>即時位置</Text>
       </TouchableOpacity>
 
+
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Health')}>
         <MaterialIcons name="favorite" size={28} color="#fff" />
         <Text style={styles.featureText}>健康狀況</Text>
+
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Medicine')}>

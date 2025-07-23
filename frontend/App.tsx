@@ -22,6 +22,8 @@ import Setting from './screens/Setting';
 import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import Health from './screens/Health';
+import CreateFamilyScreen from './screens/CreateFamilyScreen';
+import FamilyScreen from './screens/FamilyScreen';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -35,13 +37,15 @@ export type RootStackParamList = {
   index: undefined;
   Medicine: undefined;
   MedInfo: undefined;
-  MedInfo_1: undefined;
+  MedInfo_1: { prescriptionId: string };
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
-  RegisterScreen: undefined;
+  RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
+  CreateFamilyScreen: undefined;
+  FamilyScreen: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -66,6 +70,9 @@ const App: React.FC = () => (
       <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
+      <Stack.Screen name="CreateFamilyScreen" component={CreateFamilyScreen} />
+      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
+      
     </Stack.Navigator>
   </NavigationContainer>
 );
