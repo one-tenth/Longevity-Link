@@ -64,6 +64,7 @@ export default function HealthStatus() {
         <Text style={styles.sectionTitle}>用藥資訊</Text>
       </View>
 
+
       <TouchableOpacity onPress={() => setShowPicker(true)}>
         <Text style={{ textAlign: 'center', marginTop: 5 }}>
           📅 選擇日期（目前：{selectedDate.toLocaleDateString('sv-SE')}）
@@ -88,10 +89,10 @@ export default function HealthStatus() {
       <View style={styles.card}>
         <Image source={require('../img/health/foot.png')} style={styles.cardIcon} />
         <Text style={styles.cardText}>{steps !== null ? `${steps} 步` : '查無紀錄'}</Text>
+
       </View>
 
       <View style={styles.card}>
-        <Image source={require('../img/health/bloodPressure.png')} style={styles.cardIcon} />
         <View>
           <Text style={styles.cardText}>收縮壓：{bpData ? bpData.systolic : '未紀錄'}</Text>
           <Text style={styles.cardText}>舒張壓：{bpData ? bpData.diastolic : '未紀錄'}</Text>
@@ -99,7 +100,9 @@ export default function HealthStatus() {
         </View>
       </View>
 
+
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('ChildHome')}>
+
         <Text style={styles.buttonText}>回首頁</Text>
       </TouchableOpacity>
     </View>

@@ -7,6 +7,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 // 引入各頁（改成你自己的路徑）
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
+import ChildHome_1 from './screens/ChildHome_1';
 import ElderHome from './screens/ElderHome';
 import ElderlyHealth from './screens/ElderlyHealth';
 import ElderlyUpload from './screens/ElderlyUpload';
@@ -22,11 +23,14 @@ import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import Health from './screens/Health';
 import ElderMedRemind from './screens/ElderMedRemind';
+import CreateFamilyScreen from './screens/CreateFamilyScreen';
+import FamilyScreen from './screens/FamilyScreen';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
   ChildHome: undefined;
+  ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
   ElderlyUpload: undefined;
@@ -34,14 +38,16 @@ export type RootStackParamList = {
   index: undefined;
   Medicine: undefined;
   MedInfo: undefined;
-  MedInfo_1: undefined;
+  MedInfo_1: { prescriptionId: string };
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
-  RegisterScreen: undefined;
+  RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
   ElderMedRemind: undefined;
+  CreateFamilyScreen: undefined;
+  FamilyScreen: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -54,6 +60,7 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
+      <Stack.Screen name="ChildHome_1" component={ChildHome} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
@@ -66,6 +73,8 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
       <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
+      <Stack.Screen name="CreateFamilyScreen" component={CreateFamilyScreen} />
+      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
     </Stack.Navigator>
   </NavigationContainer>
 );

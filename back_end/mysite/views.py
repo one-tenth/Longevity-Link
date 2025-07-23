@@ -443,7 +443,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserRegisterSerializer
+from .serializers import UserRegisterSerializer,UserPublicSerializer
 from django.contrib.auth import authenticate
 from .models import User  # 你的自訂 User 模型
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -452,18 +452,31 @@ from rest_framework_simplejwt.tokens import RefreshToken
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
+    creator_id = request.data.get('creator_id')  # 可選參數：來自家人註冊 elder
+
     serializer = UserRegisterSerializer(data=request.data)
-
     if serializer.is_valid():
-        user = serializer.save()  # 不要自己額外傳參數，全部由 serializer.create 處理
+        user = serializer.save()
 
-        user_serializer = UserRegisterSerializer(user)
-        return Response(user_serializer.data, status=status.HTTP_201_CREATED)
-    else:
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # 若是「家人新增長者」，設定 RelatedID、FamilyID 並標記為 elder
+        if creator_id:
+            try:
+                creator = User.objects.get(UserID=creator_id)
 
+                if creator.is_elder:
+                    return Response({'error': '只有家人可以新增長者帳號'}, status=403)
 
-    
+                user.RelatedID = creator
+                user.FamilyID = creator.FamilyID
+                user.is_elder = True
+                user.save()
+            except User.DoesNotExist:
+                return Response({'error': '創建者不存在'}, status=400)
+
+        return Response(UserRegisterSerializer(user).data, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -496,5 +509,118 @@ def login(request):
             "UserID": user.UserID,
             "Name": user.Name,
             "Phone": user.Phone,
+            "FamilyID": user.FamilyID.FamilyID if user.FamilyID else None,  # ✅ 新增這行
+            "RelatedID": user.RelatedID.UserID if user.RelatedID else None  # ✅ 新增這行
         }
     }, status=status.HTTP_200_OK)
+
+#------------------------------------------------------------------------
+#創建家庭
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Family, User  # 確保有 import
+from .serializers import FamilySerializer  # 如果沒有等下幫你補
+from django.utils.crypto import get_random_string
+
+class CreateFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({'error': '未登入'}, status=401)
+
+        if user.FamilyID:  # 若已有家庭，就不能再創建
+            return Response({'error': '您已經有家庭了'}, status=400)
+
+        family_name = request.data.get('FamilyName')
+        if not family_name:
+            return Response({'error': '請輸入家庭名稱'}, status=400)
+
+        # 自動產生 Fcode（4碼數字）
+        fcode = get_random_string(4, allowed_chars='0123456789')
+
+        family = Family.objects.create(
+            FamilyName=family_name,
+            Fcode=fcode
+        )
+
+        # 綁定使用者的 FamilyID
+        user.FamilyID = family
+        user.RelatedID = None
+        user.save()
+
+        return Response({
+            'message': '家庭創建成功',
+            'FamilyID': family.FamilyID,
+            'Fcode': family.Fcode,
+            'FamilyName': family.FamilyName,
+        })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_me(request):
+    user = request.user
+    return Response({
+        "UserID": user.UserID,
+        "Name": user.Name,
+        "Phone": user.Phone,
+        "FamilyID": FamilySerializer(user.FamilyID).data if user.FamilyID else None,
+        "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
+    })
+
+
+#新增長者
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_related(request):
+    user = request.user  # 目前登入的家人
+
+    if user.is_elder:
+        return Response({"error": "只有家人可以新增長者"}, status=403)
+
+    name = request.data.get('Name')
+    phone = request.data.get('Phone')
+    password = request.data.get('password')
+    gender = request.data.get('Gender', 'M')
+    borndate = request.data.get('Borndate')
+
+    if not all([name, phone, password, borndate]):
+        return Response({"error": "請填寫完整資料"}, status=400)
+
+    if User.objects.filter(Phone=phone).exists():
+        return Response({"error": "此手機號碼已被註冊"}, status=400)
+
+    elder = User.objects.create_user(
+        Phone=phone,
+        Name=name,
+        Gender=gender,
+        Borndate=borndate,
+        password=password,
+        FamilyID=user.FamilyID,
+        RelatedID=user,
+        is_elder=True
+    )
+
+    return Response({
+        "message": "長者帳號建立成功",
+        "elder": {
+            "UserID": elder.UserID,
+            "Name": elder.Name,
+            "Phone": elder.Phone,
+            "RelatedID": elder.RelatedID.UserID,
+            "FamilyID": elder.FamilyID
+        }
+    }, status=201)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_family_members(request):
+    family_id = request.user.FamilyID
+    if not family_id:
+        return Response({"error": "未加入任何家庭"}, status=400)
+
+    members = User.objects.filter(FamilyID=family_id)
+    serializer = UserPublicSerializer(members, many=True)
+    return Response(serializer.data)

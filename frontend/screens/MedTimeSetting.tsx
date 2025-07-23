@@ -70,7 +70,6 @@ export default function TimeSettingInput() {
       console.log('✅ 成功載入時間設定:', data);
     } catch (error: any) {
       console.log('⚠️ 載入失敗或尚未設定:', error.response?.data || error.message);
-
     }
   };
 
