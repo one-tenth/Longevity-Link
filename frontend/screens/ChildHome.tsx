@@ -65,6 +65,12 @@ export default function ChildHome() {
         <Feather name="user" size={20} color="#3a111c" />
         <Text style={styles.switchText}>切換使用者</Text>
       </TouchableOpacity>
+
+
+    <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')} style={styles.switchBox}>
+        <Feather name="user" size={20} color="#3a111c" />
+        <Text style={styles.switchText}>家庭</Text>
+      </TouchableOpacity>
     </View>
   );
 }
