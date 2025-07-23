@@ -38,37 +38,42 @@ export default function RegisterScreen() {
   });
 
   const handleRegister = async () => {
-    const Borndate = `${form.year}-${form.month}-${form.day}`;
+  const Borndate = `${form.year}-${form.month}-${form.day}`;
 
-    const dataToSend: RegisterData = {
-      Name: form.Name,
-      Gender: form.Gender as 'M' | 'F',
-      Borndate,
-      Phone: form.Phone,
-      password: form.Password,
-      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
-    };
-
-    try {
-      const res = await fetch('http://172.20.10.2:8000/api/register/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataToSend),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(JSON.stringify(errData));
-      }
-
-      Alert.alert('註冊成功', '請前往登入或回首頁');
-      navigation.navigate('LoginScreen' as never);
-    } catch (error: any) {
-      console.error(error.message || error);
-      Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
-    }
+  const dataToSend: RegisterData = {
+    Name: form.Name,
+    Gender: form.Gender as 'M' | 'F',
+    Borndate,
+    Phone: form.Phone,
+    password: form.Password,
+    ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
   };
 
+  try {
+    const res = await fetch('http://172.20.10.4:8000/api/register/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dataToSend),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('錯誤回應內容:', errText);
+      throw new Error(errText);
+    }
+
+    if (mode === 'addElder') {
+      Alert.alert('新增成功', '已成功將長者加入家庭');
+      navigation.navigate('ChildHome' as never); // ✅ 家人首頁
+    } else {
+      Alert.alert('註冊成功', '請前往登入');
+      navigation.navigate('LoginScreen' as never); // ✅ 一般註冊跳登入
+    }
+  } catch (error: any) {
+    console.error(error.message || error);
+    Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+  }
+};
   return (
     <View style={styles.container}>
       <View style={styles.logoArea}>

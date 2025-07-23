@@ -3,33 +3,46 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'rea
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 根據你實際檔案調整路徑
+import { RootStackParamList } from '../App';
 
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
+
+interface Member {
+  UserID: number;
+  Name: string;
+  RelatedID: number | null;
+}
 
 const FamilyScreen = () => {
   const navigation = useNavigation<FamilyNavProp>();
   const [familyName, setFamilyName] = useState('家族名稱');
   const [userId, setUserId] = useState<number | null>(null);
-  const [members, setMembers] = useState([
-    { name: '爺爺', status: '正常', image: require('../img/childhome/image.png') },
-    { name: '奶奶', status: '正常', image: require('../img/childhome/image.png') },
-    { name: '外公', status: '正常', image: require('../img/childhome/image.png') },
-    { name: '外婆', status: '有狀況', image: require('../img/childhome/image.png') },
-  ]);
+  const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
-    const fetchUserId = async () => {
+    const fetchUserAndMembers = async () => {
       const token = await AsyncStorage.getItem('access');
-      if (token) {
-        const res = await fetch('http://172.20.10.2:8000/account/me/', {
+      if (!token) return;
+
+      try {
+        const resMe = await fetch('http://172.20.10.4:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const user = await res.json();
+        const user = await resMe.json();
         setUserId(user.UserID);
+        setFamilyName(`${user.Name}的家庭`);
+
+        const resMembers = await fetch('http://172.20.10.4:8000/family/members/', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const membersData = await resMembers.json();
+        setMembers(membersData);
+      } catch (error) {
+        console.error('取得家庭資料失敗:', error);
       }
     };
-    fetchUserId();
+
+    fetchUserAndMembers();
   }, []);
 
   return (
@@ -44,10 +57,10 @@ const FamilyScreen = () => {
       <ScrollView contentContainerStyle={styles.memberContainer}>
         {members.map((m, index) => (
           <View key={index} style={styles.card}>
-            <Image source={m.image} style={styles.avatar} />
-            <Text style={styles.name}>{m.name}</Text>
-            <Text style={[styles.status, m.status === '有狀況' ? styles.alert : styles.normal]}>
-              {m.status}
+            <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
+            <Text style={styles.name}>{m.Name}</Text>
+            <Text style={[styles.status, m.RelatedID ? styles.elder : styles.family]}>
+              {m.RelatedID ? '長者' : '家人'}
             </Text>
           </View>
         ))}
@@ -106,9 +119,16 @@ const styles = StyleSheet.create({
   },
   avatar: { width: 60, height: 60, marginBottom: 10 },
   name: { fontSize: 16, fontWeight: 'bold' },
-  status: { fontSize: 14, marginTop: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  normal: { backgroundColor: '#AED581', color: 'white' },
-  alert: { backgroundColor: '#EF5350', color: 'white' },
+  status: {
+    fontSize: 14,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontWeight: 'bold',
+  },
+  elder: { backgroundColor: '#FF8A65', color: 'white' }, // 長者標籤：橘色
+  family: { backgroundColor: '#4DB6AC', color: 'white' }, // 家人標籤：綠藍色
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

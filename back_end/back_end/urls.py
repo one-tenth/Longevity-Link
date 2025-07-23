@@ -34,4 +34,5 @@ urlpatterns = [
     path('api/family/create/', views.CreateFamilyView.as_view(), name='create_family'),
     path('account/me/', views.get_me,name='get_me'),
     path('update_related/', views.update_related),
+    path('family/members/', views.get_family_members),
 ]

@@ -31,6 +31,12 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+class UserPublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID', 'RelatedID']
+
+
 class MedNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Med
