@@ -7,6 +7,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 // 引入各頁（改成你自己的路徑）
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
+import ChildHome_1 from './screens/ChildHome_1';
 import ElderHome from './screens/ElderHome';
 import ElderlyHealth from './screens/ElderlyHealth';
 import ElderlyUpload from './screens/ElderlyUpload';
@@ -28,6 +29,7 @@ import FamilyScreen from './screens/FamilyScreen';
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
   ChildHome: undefined;
+  ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
   ElderlyUpload: undefined;
@@ -56,6 +58,7 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
+      <Stack.Screen name="ChildHome_1" component={ChildHome} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />

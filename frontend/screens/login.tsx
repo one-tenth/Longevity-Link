@@ -18,6 +18,8 @@ type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavProp>();
   const [userId, setUserId] = useState<number | null>(null);
+
+
   const [Phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
@@ -33,11 +35,11 @@ export default function LoginScreen() {
       console.log('status:', response.status);
       console.log('response text:', text);
 
+
       let data;
       try {
         data = JSON.parse(text);
       } catch (e) {
-        console.error('伺服器回傳非 JSON:', text);
         throw new Error('伺服器回傳格式錯誤');
       }
 
@@ -64,6 +66,7 @@ export default function LoginScreen() {
         } else {
           navigation.navigate('ChildHome' as never);
         }
+
       } else {
         Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
       }
@@ -74,15 +77,15 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
+      {/* CareMate LOGO + 文字上下排列 */}
+      <View style={styles.headerWrapper}>
+        <Image source={require('../img/childhome/logo1.png')} style={styles.logo} />
         <Text style={styles.headerText}>CareMate</Text>
-        <Image source={require('../img/childhome/logo.png')} style={styles.icon} />
       </View>
 
+      {/* 帳號欄位 */}
       <View style={styles.inputGroup}>
         <View style={styles.inputLabel}>
-          <Image source={require('../img/childhome/logo.png')} style={styles.iconSmall} />
           <Text style={styles.labelText}>帳號</Text>
         </View>
         <TextInput
@@ -94,9 +97,9 @@ export default function LoginScreen() {
         />
       </View>
 
+      {/* 密碼欄位 */}
       <View style={styles.inputGroup}>
         <View style={styles.inputLabel}>
-          <Image source={require('../img/childhome/logo.png')} style={styles.iconSmall} />
           <Text style={styles.labelText}>密碼</Text>
         </View>
         <TextInput
@@ -108,19 +111,13 @@ export default function LoginScreen() {
         />
       </View>
 
+      {/* 登入按鈕 */}
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>登入</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => {
-          if (userId !== null) {
-            navigation.navigate('RegisterScreen', { mode: 'addElder', creatorId: userId });
-          } else {
-            Alert.alert('請先登入以取得使用者資訊');
-          }
-        }}
-      >
+      {/* 註冊導向 */}
+      <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen', { mode: 'register' })}>
         <Text style={styles.registerText}>沒有帳號？註冊</Text>
       </TouchableOpacity>
 
@@ -134,31 +131,25 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9EB',
+    backgroundColor: '#F9ECE4',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: 24,
   },
-  header: {
-    flexDirection: 'row',
+  headerWrapper: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 130,
+    height: 130,
     resizeMode: 'contain',
+    marginBottom: 8,
   },
   headerText: {
-    fontSize: 24,
+    fontSize: 48,
     fontWeight: 'bold',
-    marginHorizontal: 8,
-    color: '#004F7A',
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    resizeMode: 'contain',
+    color: '#0000E3',
+    textAlign: 'center',
   },
   inputGroup: {
     width: '100%',
@@ -172,11 +163,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
   },
-  iconSmall: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
   labelText: {
     color: 'white',
     fontWeight: 'bold',
@@ -184,8 +170,6 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#333',
     padding: 10,
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
@@ -206,7 +190,7 @@ const styles = StyleSheet.create({
   },
   registerText: {
     marginTop: 10,
-    color: '#000',
+    color: '#00288c',
     fontSize: 14,
     textDecorationLine: 'underline',
   },
