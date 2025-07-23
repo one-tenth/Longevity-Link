@@ -26,9 +26,9 @@ export default function ChildHome() {
 
       {/* User Info */}
       <View style={styles.userCard}>
-        <FontAwesome name="user-circle" size={50} color="#13335f" />
+        <FontAwesome name="user-circle" size={50} color="#F0F8FF" />
         <Text style={styles.userName}>爺爺</Text>
-        <Feather name="edit-2" size={18} color="#13335f" />
+        <Feather name="edit-2" size={18} color="#F0F8FF" />
       </View>
 
       {/* Function Buttons */}
@@ -69,26 +69,26 @@ export default function ChildHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fcfbcd',
+    backgroundColor: '#F0F8FF',
   },
   header: {
-    backgroundColor: '#a0203c',
+    backgroundColor: '#E6C3C3',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 14,
   },
 headerText: {
-  color: '#f7f6d0',
+  color: '#800000',
   fontSize: 44,
-  fontFamily: 'FascinateInline-Regular', // 注意中間有空格！
+  fontFamily: 'FascinateInline-Regular', 
 },
 
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#cfd5f5',
-    padding: 12,
+    backgroundColor: '#6495ED',
+    padding: 10,
     margin:10,
     borderRadius: 10,
     marginTop: 20,
@@ -97,13 +97,14 @@ headerText: {
   userName: {
     fontSize: 36,
     fontWeight:'900',
-    color: '#13335f',
+    color: '#F0F8FF',
+    fontFamily:'DelaGothicOne-Regular',
     flex: 1,
   },
   featureBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#01398d',
+    backgroundColor: '#24368e',
     padding: 16,
     borderRadius: 10,
     marginTop: 5,
