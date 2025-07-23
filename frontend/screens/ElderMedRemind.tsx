@@ -130,10 +130,13 @@ card: {
   text: {
     fontSize: 25,
     fontWeight: '900'
+
+
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+
     width: '100%',
     marginTop: 10,
     marginBottom: 10
@@ -164,4 +167,5 @@ card: {
     fontWeight: '900',
     color: '#000'
   }
+
 });

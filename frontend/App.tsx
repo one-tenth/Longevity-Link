@@ -66,6 +66,7 @@ const App: React.FC = () => (
       <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
+      <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
     </Stack.Navigator>
   </NavigationContainer>
 );
