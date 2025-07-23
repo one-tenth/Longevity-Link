@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FBC02D',
     padding: 10,
     borderRadius: 10,
-    width: '40%',
+    width: '50%',
     alignItems: 'center',
   },
   buttonText: { fontSize: 18, fontWeight: 'bold' },
