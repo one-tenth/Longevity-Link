@@ -161,7 +161,7 @@ export default function ElderlyUpload() {
 
       <TouchableOpacity
         style={styles.bigButton}
-        onPress={() => chooseImageOrCamera('http://172.20.10.2:8000/api/ocrblood/')}
+        onPress={() => chooseImageOrCamera('http://192.168.0.91:8000/api/ocrblood/')}
         disabled={loading}
       >
         <Image source={require('../img/elderlyupload/blood_preasure.png')} style={styles.bigIcon} />
@@ -170,7 +170,7 @@ export default function ElderlyUpload() {
 
       <TouchableOpacity
         style={styles.bigButton}
-        onPress={() => chooseImageOrCamera('http://172.20.10.2:8000/ocr-analyze/')}
+        onPress={() => chooseImageOrCamera('http://192.168.0.91:8000/ocr-analyze/')}
         disabled={loading}
       >
         <Image source={require('../img/elderlyupload/medicine.png')} style={styles.bigIcon} />

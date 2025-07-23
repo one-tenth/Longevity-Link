@@ -50,7 +50,7 @@ export default function RegisterScreen() {
   };
 
   try {
-    const res = await fetch('http://172.20.10.4:8000/api/register/', {
+    const res = await fetch('http://192.168.0.91:8000/api/register/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dataToSend),
