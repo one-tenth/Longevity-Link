@@ -169,7 +169,7 @@ class OcrAnalyzeView(APIView):
 
             # 2️⃣ GPT 分析藥品資訊
             gpt_result = self.analyze_with_gpt(ocr_text)
-
+            print("🔍 gpt 結果：", gpt_result)
             try:
                 parsed = json.loads(gpt_result)
             except json.JSONDecodeError:
@@ -179,76 +179,46 @@ class OcrAnalyzeView(APIView):
 
 
             # 3️⃣ 存入資料庫（先準備要新增的清單）
-#--------------------------------------------------------------------------------------------------------
             prescription_id = uuid.uuid4()
-            # 計數與判斷重複標記
             count = 0
-            all_duplicate = True  # 預設全部都重複
 
-            for disease in parsed.get("diseaseNames", []):
-                for med in parsed.get("medications", []):
-                    med_name = med.get("medicationName", "未知")[:50]
-                    dosage = med.get("dosageFrequency", "未知")[:50]
-                    route = med.get("administrationRoute", "未知")[:10]
-
-                    is_duplicate = Med.objects.filter(
-                        UserID=request.user,
-                        MedName=med_name,
-                        DosageFrequency=dosage,
-                        AdministrationRoute=route
-                    ).exists()
-
-                    if not is_duplicate:
-                        Med.objects.create(
-                            UserID=request.user,
-                            Disease=disease[:50],
-                            MedName=med_name,
-                            AdministrationRoute=route,
-                            DosageFrequency=dosage,
-                            Effect=med.get("effect", "未知")[:100],
-                            SideEffect=med.get("sideEffect", "未知")[:100],
-                            PrescriptionID=prescription_id
-                        )
-                        count += 1
-                        all_duplicate = False  # 有新增就代表不是全部重複
+            disease = parsed.get("diseaseNames", ["未知"])[0]  # 避免空陣列錯誤
+            for med in parsed.get("medications", []):
+                Med.objects.create(
+                    UserID=request.user,
+                    Disease=disease[:50],
+                    MedName=med.get("medicationName", "未知")[:50],
+                    AdministrationRoute=med.get("administrationRoute", "未知")[:10],
+                    DosageFrequency=med.get("dosageFrequency", "未知")[:50],
+                    Effect=med.get("effect", "未知")[:100],
+                    SideEffect=med.get("sideEffect", "未知")[:100],
+                    PrescriptionID=prescription_id
+                )
+                count += 1
 
             # 回傳訊息
-            if all_duplicate:
-                return Response({
-                    'message': '🟡 此藥單內容已完全上傳過，未寫入資料庫',
-                    'duplicate': True,
-                    'created_count': 0
-                })
-            else:
-                return Response({
-                    'message': f'✅ 成功寫入 {count} 筆藥單資料',
-                    'duplicate': False,
-                    'created_count': count,
-                    'prescription_id': str(prescription_id)
-                })
-#-----------------------------------------------------------------------------------------------
+            return Response({
+                'message': f'✅ 成功寫入 {count} 筆藥單資料',
+                'duplicate': False,
+                'created_count': count,
+                'prescription_id': str(prescription_id)
+            })
+
         except Exception as e:
             print("❌ 例外錯誤：", e)
             return Response({'error': str(e)}, status=500)
 
     def analyze_with_gpt(self, ocr_text):
         prompt = f"""
-以下是病人藥袋上的藥品資訊 OCR 辨識結果：
+你是一個藥物資料結構化助理，請從以下 OCR 辨識出的藥袋文字中，萃取藥品資訊並輸出乾淨 JSON 格式資料。
 
+⬇️ OCR 內容如下：
 {ocr_text}
 
-請你依照 OCR 內容進行分析，並以 JSON 格式回傳以下資訊（若無法判斷請填寫 "未知"）：
+📌 請輸出以下 JSON 格式（請根據上下文**合理推論**，只有在**完全無線索**的情況下才填寫 "未知"）  
+📌 本次資料約包含 8 種藥品，請不要產生超過 8 筆。
 
-1. 病人可能患有的疾病名稱（diseaseNames）：為一個字串陣列，例如 ["高血壓", "糖尿病"]。
-2. 所有藥品的詳細資訊（medications）：每一筆藥品資料需包含以下欄位：
-  - medicationName：藥物名稱
-  - administrationRoute：給藥方式（請填寫「內服」或「外用」）
-  - dosageFrequency：服用頻率（如「一天三次」、「早晚飯後」）
-  - effect：作用（如「抗過敏」、「止痛」）
-  - sideEffect：副作用（如「精神不濟」、「無明顯副作用」）
-
-請以以下 JSON 格式回覆，格式範例如下：
-
+```json
 {{
   "diseaseNames": ["高血壓", "糖尿病"],
   "medications": [
@@ -268,10 +238,13 @@ class OcrAnalyzeView(APIView):
     }}
   ]
 }}
-
 ⚠️ 請注意：
-- **務必只輸出 JSON 結構，不要加任何解釋或多餘文字。**
-- 所有欄位都要出現，若無資料請填寫 "未知"。
+
+只輸出純 JSON 區塊，不要加註解、說明或其他文字
+
+每一筆 medications 一定要有上述五個欄位，若資料不明請填寫 "未知"
+
+diseaseNames 必須是一個字串陣列
 """
 
         response = openai.chat.completions.create(
@@ -339,6 +312,43 @@ class DeletePrescriptionView(APIView):
         user = request.user
         deleted_count, _ = Med.objects.filter(UserID=user, PrescriptionID=prescription_id).delete()
         return Response({'message': '已刪除', 'deleted_count': deleted_count}, status=status.HTTP_200_OK)
+
+#用藥時間設定
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .serializers import MedTimeSettingSerializer
+from rest_framework import status
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_med_time_setting(request):
+    data = request.data.copy()
+    data['UserID'] = request.user.pk  # ✅ 自動加入登入者的 ID
+    print("📩 接收到資料（含使用者）：", data)
+
+    serializer = MedTimeSettingSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    print("❌ 錯誤訊息：", serializer.errors)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import MedTimeSetting
+from .serializers import MedTimeSettingSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_med_time_setting(request):
+    try:
+        setting = MedTimeSetting.objects.get(UserID=request.user)
+        serializer = MedTimeSettingSerializer(setting)
+        return Response(serializer.data)
+    except MedTimeSetting.DoesNotExist:
+        return Response({'detail': '尚未設定時間'}, status=404)
+
 #----------------------------------------------------------------
 #健康
 #新增步數

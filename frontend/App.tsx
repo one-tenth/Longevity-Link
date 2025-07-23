@@ -22,6 +22,7 @@ import Setting from './screens/Setting';
 import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import Health from './screens/Health';
+import ElderMedRemind from './screens/ElderMedRemind';
 import CreateFamilyScreen from './screens/CreateFamilyScreen';
 import FamilyScreen from './screens/FamilyScreen';
 
@@ -44,6 +45,7 @@ export type RootStackParamList = {
   LoginScreen: undefined;
   RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
+  ElderMedRemind: undefined;
   CreateFamilyScreen: undefined;
   FamilyScreen: undefined;
 };
@@ -70,9 +72,9 @@ const App: React.FC = () => (
       <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
+      <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
       <Stack.Screen name="CreateFamilyScreen" component={CreateFamilyScreen} />
       <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
-      
     </Stack.Navigator>
   </NavigationContainer>
 );
