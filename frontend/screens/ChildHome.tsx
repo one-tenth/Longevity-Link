@@ -31,6 +31,7 @@ export default function ChildHome() {
         <Feather name="edit-2" size={18} color="#F0F8FF" />
       </View>
 
+
       {/* Function Buttons */}
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Location')}>
         <Entypo name="location-pin" size={28} color="#fff" />

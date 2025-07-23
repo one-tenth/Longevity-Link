@@ -1,19 +1,57 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 type NavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+  const [steps, setSteps] = useState<number | null>(null);
+  const [bpData, setBpData] = useState<{ systolic: number; diastolic: number; pulse: number } | null>(null);
+
+  const fetchData = async (date: Date) => {
+    const token = await AsyncStorage.getItem('access');
+    if (!token) return;
+
+    const dateStr = date.toLocaleDateString('sv-SE');
+
+    try {
+      const stepRes = await axios.get(`http://172.20.10.2:8000/api/fitdata/by-date/?date=${dateStr}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSteps(stepRes.data.steps);
+    } catch (e) {
+      setSteps(null);
+    }
+
+    try {
+      const bpRes = await axios.get(`http://172.20.10.2:8000/api/healthcare/by-date/?date=${dateStr}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setBpData({
+        systolic: bpRes.data.systolic,
+        diastolic: bpRes.data.diastolic,
+        pulse: bpRes.data.pulse,
+      });
+    } catch (e) {
+      setBpData(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchData(selectedDate);
+  }, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('ChildHome')}>
-        </TouchableOpacity>
         <Text style={styles.title}>CareMate</Text>
         <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
       </View>
@@ -26,23 +64,45 @@ export default function HealthStatus() {
         <Text style={styles.sectionTitle}>用藥資訊</Text>
       </View>
 
+
+      <TouchableOpacity onPress={() => setShowPicker(true)}>
+        <Text style={{ textAlign: 'center', marginTop: 5 }}>
+          📅 選擇日期（目前：{selectedDate.toLocaleDateString('sv-SE')}）
+        </Text>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowPicker(false);
+            if (date) {
+              setSelectedDate(date);
+              fetchData(date);
+            }
+          }}
+        />
+      )}
+
       <View style={styles.card}>
-        <Text style={styles.cardText}>3,820步</Text>
+        <Image source={require('../img/health/foot.png')} style={styles.cardIcon} />
+        <Text style={styles.cardText}>{steps !== null ? `${steps} 步` : '查無紀錄'}</Text>
+
       </View>
 
       <View style={styles.card}>
         <View>
-          <Text style={styles.cardText}>收縮壓：120</Text>
-          <Text style={styles.cardText}>舒張壓：80</Text>
-          <Text style={styles.cardText}>脈搏：80</Text>
+          <Text style={styles.cardText}>收縮壓：{bpData ? bpData.systolic : '未紀錄'}</Text>
+          <Text style={styles.cardText}>舒張壓：{bpData ? bpData.diastolic : '未紀錄'}</Text>
+          <Text style={styles.cardText}>脈搏：{bpData ? bpData.pulse : '未紀錄'}</Text>
         </View>
       </View>
 
-  
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('ChildHome')}
-      >
+
+      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('ChildHome')}>
+
         <Text style={styles.buttonText}>回首頁</Text>
       </TouchableOpacity>
     </View>
@@ -72,11 +132,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 60,
     height: 60,
-    marginTop: 15
-  },
-  home: {
-    width: 50,
-    height: 50,
     marginTop: 15
   },
   profileRow: {
@@ -150,5 +205,3 @@ const styles = StyleSheet.create({
     color: '#000',
   },
 });
-
-

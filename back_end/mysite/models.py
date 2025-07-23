@@ -3,6 +3,8 @@ from django.core.validators import RegexValidator
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 import uuid
+from django.utils import timezone
+
 
 class Family(models.Model):
     FamilyID = models.AutoField(primary_key=True)
@@ -97,22 +99,31 @@ class HealthCare(models.Model):
     Diastolic=models.IntegerField(
         validators=[MinValueValidator(40), MaxValueValidator(150)],
     )
-    Pulse = models.CharField(max_length=5)
+
+    Pulse = models.IntegerField(
+        validators=[MinValueValidator(30), MaxValueValidator(200)],
+    )
     Date = models.DateTimeField()
 
     class Meta:
         verbose_name = "Health care"
         verbose_name_plural = "Health care"
 
+
+
 class Med(models.Model):
-    MedId = models.AutoField(primary_key=True)
     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
-    Disease = models.CharField(max_length=10)
-    MedName = models.CharField(max_length=10)
-    MedNote = models.CharField(max_length=50)
-    MedTime = models.DateTimeField()
-    # ✅ 新增這行
-    PrescriptionID = models.UUIDField(default=uuid.uuid4, editable=False)
+    MedId = models.AutoField(primary_key=True)
+    Disease = models.CharField(max_length=50)
+    MedName = models.CharField(max_length=50)
+    AdministrationRoute = models.CharField(max_length=10)  # oral / topical
+    DosageFrequency = models.CharField(max_length=50)
+    Effect = models.CharField(max_length=100)
+    SideEffect = models.CharField(max_length=100)
+    PrescriptionID = models.UUIDField(default=uuid.uuid4)
+    created_at = models.DateTimeField(default=timezone.now)  # ✅ 新增這行
+
+
     class Meta:
         verbose_name = "Med"
         verbose_name_plural = "Med"

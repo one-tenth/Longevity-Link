@@ -1,14 +1,48 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import { RootStackParamList } from '../App';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ElderHome 頁面的 navigation 型別
-type MedicineInfoNavProp = StackNavigationProp<RootStackParamList, 'MedInfo_1'>;
+type MedInfoNavProp = StackNavigationProp<RootStackParamList, 'MedInfo_1'>;
+type MedInfoRouteProp = RouteProp<RootStackParamList, 'MedInfo_1'>;
+
+type MedItem = {
+  MedId: number;
+  MedName: string;
+  DosageFrequency: string;
+  AdministrationRoute: string;
+};
 
 export default function MedicineInfo() {
-  const navigation = useNavigation<MedicineInfoNavProp>();
+  const navigation = useNavigation<MedInfoNavProp>();
+  const route = useRoute<MedInfoRouteProp>();
+  const { prescriptionId } = route.params;
+
+  const [medList, setMedList] = useState<MedItem[]>([]);
+
+  const fetchMedDetails = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      const response = await axios.get(
+        `http://172.20.10.2:8000/api/meds/${prescriptionId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setMedList(response.data);
+    } catch (err) {
+      console.error('❌ 撈詳細藥單失敗:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedDetails();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -30,47 +64,29 @@ export default function MedicineInfo() {
         <Text style={styles.sectionTitle}>用藥資訊</Text>
       </View>
 
-      {/* Illness label */}
-      <View style={styles.illnessBox}>
-        <Image source={require('../img/medicine/illness.png')} style={styles.illnessIcon} />
-        <Text style={styles.illnessText}>高血壓</Text>
-      </View>
-
-      {/* Medicine Cards */}
       <ScrollView style={styles.scrollContainer}>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/medicine.png')} style={styles.icon} />
-            <Text style={styles.cardText}>Diovan 得安穩{"\n"}每次使用一顆</Text>
+        {medList.map((med) => (
+          <View key={med.MedId} style={styles.card}>
+            <View style={styles.row}>
+              <Image source={require('../img/medicine/medicine.png')} style={styles.icon} />
+              <Text style={styles.cardText}>
+                {med.MedName}{"\n"}每次使用 {med.AdministrationRoute}
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Image source={require('../img/medicine/clock.png')} style={styles.icon} />
+              <Text style={styles.cardText}>{med.DosageFrequency}</Text>
+            </View>
+            <View style={styles.actionRow}>
+              <Image source={require('../img/medicine/edit.png')} style={styles.actionIcon} />
+              <Image source={require('../img/medicine/delete.png')} style={styles.actionIcon} />
+            </View>
           </View>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/clock.png')} style={styles.icon} />
-            <Text style={styles.cardText}>三餐飯後</Text>
-          </View>
-          <View style={styles.actionRow}>
-            <Image source={require('../img/medicine/edit.png')} style={styles.actionIcon} />
-            <Image source={require('../img/medicine/delete.png')} style={styles.actionIcon} />
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/medicine.png')} style={styles.icon} />
-            <Text style={styles.cardText}>Fluitran{"\n"}服爾伊得安{"\n"}每次使用半顆</Text>
-          </View>
-          <View style={styles.row}>
-            <Image source={require('../img/medicine/clock.png')} style={styles.icon} />
-            <Text style={styles.cardText}>睡前</Text>
-          </View>
-          <View style={styles.actionRow}>
-            <Image source={require('../img/medicine/edit.png')} style={styles.actionIcon} />
-            <Image source={require('../img/medicine/delete.png')} style={styles.actionIcon} />
-          </View>
-        </View>
+        ))}
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: '#F58402' }]}
-          onPress={() => navigation.navigate('MedInfo')}>
+          onPress={() => navigation.goBack()}>
           <Text style={styles.buttonText}>回前頁</Text>
         </TouchableOpacity>
       </ScrollView>
