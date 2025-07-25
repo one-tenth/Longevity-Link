@@ -35,52 +35,61 @@ export default function RegisterScreen() {
     day: '01',
     Phone: '',
     Password: '',
+    confirmPassword: '',
   });
-  async function register(data: RegisterData) {
-  const response = await fetch('http://192.168.0.91:8000/api/register/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-}
 
   const handleRegister = async () => {
-  const Borndate = `${form.year}-${form.month}-${form.day}`;
+    if (form.Password.length < 6) {
+      Alert.alert('錯誤', '密碼長度需至少6碼');
+      return;
+    }
 
-  const dataToSend: RegisterData = {
-    Name: form.Name,
-    Gender: form.Gender as 'M' | 'F',
-    Borndate,
-    Phone: form.Phone,
-    password: form.Password,
-    ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
+    if (form.Password !== form.confirmPassword) {
+      Alert.alert('錯誤', '兩次密碼不一致');
+      return;
+    }
+
+    const Borndate = `${form.year}-${form.month}-${form.day}`;
+    const dataToSend: RegisterData = {
+      Name: form.Name,
+      Gender: form.Gender as 'M' | 'F',
+      Borndate,
+      Phone: form.Phone,
+      password: form.Password,
+      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
+    };
+
+    try {
+      const res = await fetch('http://192.168.0.19:8000/api/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        if (errorText.includes('Duplicate entry')) {
+          Alert.alert('註冊失敗', '此電話號碼已被註冊，請改用其他號碼');
+        } else {
+          console.error('錯誤回應內容:', errorText);
+          Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+        }
+        return;
+      }
+
+      if (mode === 'addElder') {
+        Alert.alert('新增成功', '已成功將長者加入家庭');
+        navigation.navigate('ChildHome' as never);
+      } else {
+        Alert.alert('註冊成功', '請前往登入');
+        navigation.navigate('LoginScreen' as never);
+      }
+    } catch (error: any) {
+      console.error(error.message || error);
+      Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+    }
   };
 
-  try {
-    const res = await fetch('http://192.168.0.91:8000/api/register/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dataToSend),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('錯誤回應內容:', errText);
-      throw new Error(errText);
-    }
-
-    if (mode === 'addElder') {
-      Alert.alert('新增成功', '已成功將長者加入家庭');
-      navigation.navigate('ChildHome' as never); // ✅ 家人首頁
-    } else {
-      Alert.alert('註冊成功', '請前往登入');
-      navigation.navigate('LoginScreen' as never); // ✅ 一般註冊跳登入
-    }
-  } catch (error: any) {
-    console.error(error.message || error);
-    Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
-  }
-};
   return (
     <View style={styles.container}>
       <View style={styles.logoArea}>
@@ -140,9 +149,20 @@ export default function RegisterScreen() {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>密碼</Text>
         <TextInput
-          placeholder="Value"
+          placeholder="請輸入密碼"
           value={form.Password}
           onChangeText={(text) => setForm({ ...form, Password: text })}
+          secureTextEntry
+          style={styles.input}
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>確認密碼</Text>
+        <TextInput
+          placeholder="再次輸入密碼"
+          value={form.confirmPassword}
+          onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
           secureTextEntry
           style={styles.input}
         />
