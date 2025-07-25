@@ -66,7 +66,7 @@ export default function JoinFamily() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fffde8',
+    backgroundColor: '#FFFFF0',
     alignItems: 'center',
     paddingTop: 50,
   },

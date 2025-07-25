@@ -26,12 +26,9 @@ export default function Setting() {
           <Image source={require('../img/setting/user.png')} style={styles.menuIcon} />
           <Text style={styles.menuText}>個人設定</Text>
         </TouchableOpacity>
-
         {/* 家庭設定按鈕 */}
-        <TouchableOpacity
-          style={styles.menuItem} // 修正了這裡的樣式
-          onPress={() => navigation.navigate('CreateFamily')} // 跳轉到 CreateFamily 頁面
-        >
+        <TouchableOpacity style={styles.menuItem}
+        onPress={() => navigation.navigate('CreateFamily')}>
           <Image source={require('../img/setting/family.png')} style={styles.menuIcon} />
           <Text style={styles.menuText}>家庭設定</Text>
         </TouchableOpacity>

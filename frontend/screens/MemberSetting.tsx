@@ -132,22 +132,36 @@ export default function MemberSetting() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fffde8',
+    flex: 1,
+    backgroundColor: '#FFFFF0',
     alignItems: 'center',
-    paddingVertical: 30,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#c8e3f9',
     width: '100%',
-    padding: 10,
+    height:70,
+    flexDirection: 'row', 
     justifyContent: 'space-between',
+    backgroundColor: '#65B6E4',
+    position: 'relative',
+    marginBottom:20,
+    paddingLeft:10,
+    paddingRight:10,
   },
-  icon: { width: 30, height: 30 },
-  logo: { width: 35, height: 35 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-
+    icon: {
+    width: 40, 
+    height: 40,
+    marginTop:15,
+  },
+  title: {
+    fontSize: 50, 
+    fontWeight:'900', 
+    color: '#000', 
+  },
+  logo: {
+    width: 60, 
+    height: 60,
+    marginTop:15,
+  },
   inputGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -156,7 +170,11 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
   },
-  inputIcon: { width: 30, height: 30, marginRight: 10 },
+  inputIcon: {
+  width: 26,
+  height: 26,
+},
+
   inputBox: {
     backgroundColor: '#fff',
     borderRadius: 6,

@@ -50,7 +50,6 @@ export type RootStackParamList = {
   JoinFamily: undefined;
   AddMember: undefined;
   MemberSetting: undefined;
-
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
