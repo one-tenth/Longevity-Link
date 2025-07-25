@@ -1,0 +1,13 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/DelaGothicOne-Regular.ttf",
+      "sha1": "aa4fe2ff09693803f5665c6596480f2f911f8540"
+    },
+    {
+      "path": "assets/fonts/FascinateInline-Regular.ttf",
+      "sha1": "0bd08b1ac6798874023857044c0e9145d1c06d77"
+    }
+  ]
+}

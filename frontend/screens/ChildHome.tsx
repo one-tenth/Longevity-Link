@@ -1,237 +1,155 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ChildHome 頁面的 navigation 型別
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Entypo from 'react-native-vector-icons/Entypo';
+
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+
+interface Member {
+  UserID: number;
+  Name: string;
+}
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+
+  useEffect(() => {
+    const loadSelectedMember = async () => {
+      const stored = await AsyncStorage.getItem('selectedMember');
+      if (stored) setSelectedMember(JSON.parse(stored));
+    };
+    const unsubscribe = navigation.addListener('focus', loadSelectedMember);
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
+        <Text style={styles.headerText}>CareMate</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Setting')}>
-          <Image source={require('../img/childhome/13866.png')} style={styles.setting} />
+          <Feather name="settings" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>CareMate</Text>
-        <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
       </View>
 
-      <View style={styles.userBox}>
-        <Image source={require('../img/childhome/image.png')} style={styles.userIconLarge} />
-        <Text style={styles.userText}>爺爺</Text>
-        <Image source={require('../img/childhome/61456.png')} style={styles.edit} />
-      </View>
-
-      <View style={styles.alertBox}> 
-        <Image source={require('../img/childhome/2058160.png')} style={styles.alertIcon} />
-        <View>
-          <Text style={styles.alertText}>時間：20:00</Text>
-          <Text style={styles.alertText}>來電號碼：</Text>
-          <Text style={styles.alertText}>0900-123-456</Text>
+      {/* User Info 可點擊切換 */}
+      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')}>
+        <View style={styles.userCard}>
+          <FontAwesome name="user-circle" size={50} color="#F0F8FF" />
+          <Text style={styles.userName}>{selectedMember?.Name || '請選擇成員'}</Text>
+          <Feather name="edit-2" size={18} color="#F0F8FF" />
         </View>
-      </View>
-
-      <View style={styles.gridRow}>
-        <TouchableOpacity style={[styles.gridBox, { backgroundColor: '#549D77' }]}> 
-          <Image source={require('../img/childhome/Group.png')} style={styles.locate} />
-          <Text style={styles.gridText1}>即時位置</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}
-          onPress={() => navigation.navigate('Health')}> 
-          <Image source={require('../img/childhome/Vector.png')} style={styles.health} />
-          <Text style={styles.gridText}>健康狀況</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.gridRow}>
-        <TouchableOpacity 
-          style={[styles.gridBox1, { backgroundColor: '#F58402' }]} 
-          onPress={() => navigation.navigate('Medicine')}>
-          <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
-          <Text style={styles.gridText}>用藥</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.gridBox1, { backgroundColor: '#65B6E4' }]}
-          onPress={() => navigation.navigate('HospitalRecord')}       >
-          <Image source={require('../img/childhome/4320350.png')} style={styles.hospital} />
-          <Text style={styles.gridText}>看診</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={[styles.callBox, { backgroundColor: '#F4C80B' }]}> 
-        <Image source={require('../img/childhome/image-1.png')} style={styles.phone} />
-        <Text style={styles.callText}>通話紀錄</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('index')}>
-        <Text style={styles.alertText2}>切換使用者</Text>
+      {/* 功能按鈕 */}
+      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Location')}>
+        <Entypo name="location-pin" size={28} color="#fff" />
+        <Text style={styles.featureText}>即時位置</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Health')}>
+        <MaterialIcons name="favorite" size={28} color="#fff" />
+        <Text style={styles.featureText}>健康狀況</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Medicine')}>
+        <MaterialIcons name="medical-services" size={28} color="#fff" />
+        <Text style={styles.featureText}>用藥資訊</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('HospitalRecord')}>
+        <MaterialIcons name="local-hospital" size={28} color="#fff" />
+        <Text style={styles.featureText}>看診記錄</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('CallRecord')}>
+        <Feather name="phone-call" size={28} color="#fff" />
+        <Text style={styles.featureText}>通話紀錄</Text>
+      </TouchableOpacity>
+
+      {/* 底部按鈕 */}
+      <TouchableOpacity onPress={() => navigation.navigate('index')} style={styles.switchBox}>
+        <Feather name="user" size={20} color="#3a111c" />
+        <Text style={styles.switchText}>切換使用者</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')} style={styles.switchBox}>
+        <Feather name="user" size={20} color="#3a111c" />
+        <Text style={styles.switchText}>家庭</Text>
+      </TouchableOpacity>
     </View>
-
-    
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#FCFEED', 
-    alignItems: 'center' 
+  container: {
+    flex: 1,
+    backgroundColor: '#F0F8FF',
   },
   header: {
-    width: '100%',
-    height:70,
-    flexDirection: 'row', 
+    backgroundColor: '#E6C3C3',
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#65B6E4',
-    position: 'relative',
-    marginBottom:20,
-    paddingLeft:10,
-    paddingRight:10,
+    alignItems: 'center',
+    padding: 14,
   },
-  logo: { 
-    width: 60, 
-    height: 60,
-    marginTop:15,
+  headerText: {
+    color: '#800000',
+    fontSize: 44,
+    fontFamily: 'FascinateInline-Regular',
   },
-  setting:{
-    width: 40, 
-    height: 40,
-    marginTop:15,
-  },
-  title: { 
-    fontSize: 50, 
-    fontWeight:'900', 
-    color: '#000', 
-  },
-  userBox: {
-    width: '90%', 
-    height:65,
-    borderRadius: 10,
+  userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 3,
+    backgroundColor: '#6495ED',
+    padding: 10,
+    margin: 10,
+    borderRadius: 10,
+    marginTop: 20,
+    gap: 12,
   },
-  userIconLarge: { 
-    width: 62, 
-    height: 62, 
-    textAlign:'center',
-    marginTop:2,
+  userName: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#F0F8FF',
+    fontFamily: 'DelaGothicOne-Regular',
+    flex: 1,
   },
-  userText: { 
-    fontSize: 36, 
-    fontWeight: '900', 
-    marginLeft:50,
-    marginTop:5,
+  featureBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#24368e',
+    padding: 16,
+    borderRadius: 10,
+    marginTop: 5,
+    marginLeft: 20,
+    marginRight: 20,
+    justifyContent: 'flex-start',
+    gap: 14,
   },
-  edit:{
-    width: 20, 
-    height: 20, 
-    marginLeft:100,
-    marginTop:20,
-  },
-  alertBox: {
-    width: '90%',
-    height:100,
-    marginTop:20,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 10, 
-    borderWidth: 3, 
-    paddingLeft:5,
-    paddingRight:10,
-  },
-  alertIcon: { 
-    width: 60, 
-    height: 60, 
-    marginRight:20,
-    marginLeft:5, 
-  },
-  alertText: { 
-    fontSize: 20, 
-    fontWeight: '900' 
-  },
-  gridRow: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    width: '90%',
-    marginTop:10,
-  },
-  gridBox: {
-    width: '45%', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    borderWidth: 3, 
-  },
-  gridBox1: {
-    width: '45%', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    borderWidth: 3, 
-  },
-  gridText: { 
-    fontSize: 20, 
-    fontWeight: '900',  
-    marginTop: 6, 
-    textAlign: 'center',
-  },
-  gridText1: { 
-    fontSize: 20, 
-    fontWeight: '900',  
+  featureText: {
     color: '#fff',
-    marginTop: 6, 
-    textAlign: 'center',
-  },
-  locate: {
-    width: 50, 
-    height: 50, 
-    marginTop:5
-  },
-  hospital: {
-    width: 55, 
-    height: 55, 
-    marginTop:5
-  },
-  medcine: {
-    width: 50, 
-    height: 50, 
-    marginTop:5
-  },
-  health: {
-    width: 54, 
-    height: 50,
-    marginTop:5 
-  },
-  phone: {
-    width: 54, 
-    height: 50, 
-  },
-  callBox: {
-    width: '90%',
-    height:70,
-    marginTop:20,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 10, 
-    borderWidth: 3, 
-    paddingLeft:5,
-    paddingRight:10,
-  },
-  callText: { 
-    fontSize: 20, 
+    fontSize: 18,
     fontWeight: '900',
-    marginLeft: 10 
   },
-
-  alertText2: {
-    fontSize: 20, 
-    fontWeight: '900',
-    marginLeft:220,
-    marginTop:30
-  }
+  switchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 30,
+    justifyContent: 'center',
+    gap: 10,
+  },
+  switchText: {
+    color: '#3a111c',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
-// export default ChildHome;

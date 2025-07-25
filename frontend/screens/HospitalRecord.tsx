@@ -30,7 +30,6 @@ export default function HospitalRecord() {
 
       <View style={styles.recordBox}>
         <View style={styles.recordItem}>
-          <Image source={require('../img/hospital/clock.png')} style={styles.recordIcon} />
           <Text style={styles.recordText}>早上8:00</Text>
         </View>
         <View style={styles.recordItem}>
