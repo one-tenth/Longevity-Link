@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
@@ -11,8 +12,23 @@ import Entypo from 'react-native-vector-icons/Entypo';
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
+interface Member {
+  UserID: number;
+  Name: string;
+}
+
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+
+  useEffect(() => {
+    const loadSelectedMember = async () => {
+      const stored = await AsyncStorage.getItem('selectedMember');
+      if (stored) setSelectedMember(JSON.parse(stored));
+    };
+    const unsubscribe = navigation.addListener('focus', loadSelectedMember);
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
@@ -24,25 +40,24 @@ export default function ChildHome() {
         </TouchableOpacity>
       </View>
 
-      {/* User Info */}
-      <View style={styles.userCard}>
-        <FontAwesome name="user-circle" size={50} color="#F0F8FF" />
-        <Text style={styles.userName}>爺爺</Text>
-        <Feather name="edit-2" size={18} color="#F0F8FF" />
-      </View>
+      {/* User Info 可點擊切換 */}
+      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')}>
+        <View style={styles.userCard}>
+          <FontAwesome name="user-circle" size={50} color="#F0F8FF" />
+          <Text style={styles.userName}>{selectedMember?.Name || '請選擇成員'}</Text>
+          <Feather name="edit-2" size={18} color="#F0F8FF" />
+        </View>
+      </TouchableOpacity>
 
-
-      {/* Function Buttons */}
+      {/* 功能按鈕 */}
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Location')}>
         <Entypo name="location-pin" size={28} color="#fff" />
         <Text style={styles.featureText}>即時位置</Text>
       </TouchableOpacity>
 
-
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Health')}>
         <MaterialIcons name="favorite" size={28} color="#fff" />
         <Text style={styles.featureText}>健康狀況</Text>
-
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Medicine')}>
@@ -60,14 +75,13 @@ export default function ChildHome() {
         <Text style={styles.featureText}>通話紀錄</Text>
       </TouchableOpacity>
 
-      {/* Switch Account */}
+      {/* 底部按鈕 */}
       <TouchableOpacity onPress={() => navigation.navigate('index')} style={styles.switchBox}>
         <Feather name="user" size={20} color="#3a111c" />
         <Text style={styles.switchText}>切換使用者</Text>
       </TouchableOpacity>
 
-
-    <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')} style={styles.switchBox}>
+      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')} style={styles.switchBox}>
         <Feather name="user" size={20} color="#3a111c" />
         <Text style={styles.switchText}>家庭</Text>
       </TouchableOpacity>
@@ -87,27 +101,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
   },
-headerText: {
-  color: '#800000',
-  fontSize: 44,
-  fontFamily: 'FascinateInline-Regular', 
-},
-
+  headerText: {
+    color: '#800000',
+    fontSize: 44,
+    fontFamily: 'FascinateInline-Regular',
+  },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#6495ED',
     padding: 10,
-    margin:10,
+    margin: 10,
     borderRadius: 10,
     marginTop: 20,
     gap: 12,
   },
   userName: {
     fontSize: 36,
-    fontWeight:'900',
+    fontWeight: '900',
     color: '#F0F8FF',
-    fontFamily:'DelaGothicOne-Regular',
+    fontFamily: 'DelaGothicOne-Regular',
     flex: 1,
   },
   featureBox: {
@@ -117,7 +130,7 @@ headerText: {
     padding: 16,
     borderRadius: 10,
     marginTop: 5,
-    marginLeft:20,
+    marginLeft: 20,
     marginRight: 20,
     justifyContent: 'flex-start',
     gap: 14,
@@ -125,7 +138,7 @@ headerText: {
   featureText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight:'900',
+    fontWeight: '900',
   },
   switchBox: {
     flexDirection: 'row',

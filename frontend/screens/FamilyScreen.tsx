@@ -56,13 +56,21 @@ const FamilyScreen = () => {
 
       <ScrollView contentContainerStyle={styles.memberContainer}>
         {members.map((m, index) => (
-          <View key={index} style={styles.card}>
-            <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
-            <Text style={styles.name}>{m.Name}</Text>
-            <Text style={[styles.status, m.RelatedID ? styles.elder : styles.family]}>
-              {m.RelatedID ? '長者' : '家人'}
-            </Text>
-          </View>
+          <TouchableOpacity
+            key={index}
+            onPress={async () => {
+              await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
+              navigation.navigate('ChildHome');
+            }}
+          >
+            <View style={styles.card}>
+              <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
+              <Text style={styles.name}>{m.Name}</Text>
+              <Text style={[styles.status, m.RelatedID ? styles.elder : styles.family]}>
+                {m.RelatedID ? '長者' : '家人'}
+              </Text>
+            </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
@@ -127,8 +135,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     fontWeight: 'bold',
   },
-  elder: { backgroundColor: '#FF8A65', color: 'white' }, // 長者標籤：橘色
-  family: { backgroundColor: '#4DB6AC', color: 'white' }, // 家人標籤：綠藍色
+  elder: { backgroundColor: '#FF8A65', color: 'white' },
+  family: { backgroundColor: '#4DB6AC', color: 'white' },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
