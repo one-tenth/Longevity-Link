@@ -24,56 +24,75 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
+  try {
+    const response = await fetch('http://192.168.0.19:8000/api/account/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Phone, password }),
+    });
+
+    const text = await response.text();
+    console.log('status:', response.status);
+    console.log('response text:', text);
+
+    let data;
     try {
-      const response = await fetch('http://192.168.0.91:8000/api/account/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Phone, password }),
-      });
-
-      const text = await response.text();
-      console.log('status:', response.status);
-      console.log('response text:', text);
-
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error('伺服器回傳格式錯誤');
-      }
-
-      if (response.ok) {
-        const { token, user } = data;
-
-        // 儲存資訊
-        await AsyncStorage.setItem('access', token.access);
-        await AsyncStorage.setItem('refresh', token.refresh);
-        await AsyncStorage.setItem('userName', user.Name);
-        await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
-        await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
-
-        // ✅ 儲存 userId
-        setUserId(user.UserID);
-
-        Alert.alert('登入成功', `歡迎 ${user.Name}`);
-
-        // ✅ 導向
-        if (!user.FamilyID) {
-          navigation.navigate('CreateFamilyScreen' as never);
-        } else if (user.RelatedID) {
-          navigation.navigate('ElderHome' as never);
-        } else {
-          navigation.navigate('ChildHome' as never);
-        }
-
-      } else {
-        Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
-      }
-    } catch (error: any) {
-      Alert.alert('發生錯誤', error?.message || '未知錯誤');
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error('伺服器回傳格式錯誤');
     }
-  };
+
+    if (response.ok) {
+      const { token, user } = data;
+
+      await AsyncStorage.setItem('access', token.access);
+      await AsyncStorage.setItem('refresh', token.refresh);
+      await AsyncStorage.setItem('userName', user.Name);
+      await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
+      await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
+      await AsyncStorage.setItem('userID', String(user.UserID));
+
+      Alert.alert('登入成功', `歡迎 ${user.Name}`);
+
+      if (!user.FamilyID) {
+        navigation.navigate('CreateFamilyScreen' as never);
+      } else if (user.RelatedID) {
+        navigation.navigate('ElderHome' as never);
+      } else {
+        navigation.navigate('ChildHome' as never);
+      }
+
+    } else {
+      let message = '登入失敗';
+
+      switch (response.status) {
+        case 400:
+          message = '請確認帳號與密碼格式是否正確';
+          break;
+        case 401:
+          message = '帳號或密碼錯誤';
+          break;
+        case 403:
+          message = '您無權登入此帳號';
+          break;
+        case 404:
+          message = '帳號不存在';
+          break;
+        case 500:
+          message = '伺服器發生錯誤，請稍後再試';
+          break;
+        default:
+          message = data.error || '發生未知錯誤';
+      }
+
+      Alert.alert('登入失敗', message);
+    }
+  } catch (error: any) {
+    console.error('登入錯誤:', error);
+    Alert.alert('無法登入', error?.message || '請檢查網路連線');
+  }
+};
+
 
   return (
     <View style={styles.container}>
