@@ -28,6 +28,8 @@ const FamilyScreen = () => {
         const resMe = await fetch('http://192.168.0.19:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
         setUserId(user.UserID);
         setFamilyName(`${user.Name}的家庭`);
@@ -35,10 +37,19 @@ const FamilyScreen = () => {
         const resMembers = await fetch('http://192.168.0.19:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (!resMembers.ok) throw new Error('取得成員失敗');
         const membersData = await resMembers.json();
-        setMembers(membersData);
+
+        if (Array.isArray(membersData)) {
+          setMembers(membersData);
+        } else {
+          console.warn('成員資料格式錯誤:', membersData);
+          setMembers([]);
+        }
       } catch (error) {
         console.error('取得家庭資料失敗:', error);
+        setMembers([]);
       }
     };
 
@@ -55,23 +66,27 @@ const FamilyScreen = () => {
       <Text style={styles.title}>{familyName}（{members.length}）</Text>
 
       <ScrollView contentContainerStyle={styles.memberContainer}>
-        {members.map((m, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={async () => {
-              await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
-              navigation.navigate('ChildHome');
-            }}
-          >
-            <View style={styles.card}>
-              <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
-              <Text style={styles.name}>{m.Name}</Text>
-              <Text style={[styles.status, m.RelatedID ? styles.elder : styles.family]}>
-                {m.RelatedID ? '長者' : '家人'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {Array.isArray(members) && members.length > 0 ? (
+          members.map((m, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={async () => {
+                await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
+                navigation.navigate('ChildHome');
+              }}
+            >
+              <View style={styles.card}>
+                <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
+                <Text style={styles.name}>{m.Name}</Text>
+                <Text style={[styles.status, m.RelatedID ? styles.elder : styles.family]}>
+                  {m.RelatedID ? '長者' : '家人'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text>尚未取得成員資料</Text>
+        )}
       </ScrollView>
 
       <View style={styles.buttonRow}>

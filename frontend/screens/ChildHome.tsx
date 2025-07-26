@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
@@ -15,16 +15,29 @@ type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 interface Member {
   UserID: number;
   Name: string;
+  RelatedID?: number | null;
 }
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [hasElder, setHasElder] = useState<boolean>(true);
 
   useEffect(() => {
     const loadSelectedMember = async () => {
       const stored = await AsyncStorage.getItem('selectedMember');
-      if (stored) setSelectedMember(JSON.parse(stored));
+      if (stored) {
+        const parsed: Member = JSON.parse(stored);
+        if (!parsed.RelatedID) {
+          Alert.alert('錯誤', '請選擇一位長者，才能進行操作。');
+          setHasElder(false);
+        } else {
+          setSelectedMember(parsed);
+        }
+      } else {
+        setHasElder(false);
+        Alert.alert('尚未選擇長者', '請先至家庭頁面選擇一位長者。');
+      }
     };
     const unsubscribe = navigation.addListener('focus', loadSelectedMember);
     return unsubscribe;
@@ -50,27 +63,27 @@ export default function ChildHome() {
       </TouchableOpacity>
 
       {/* 功能按鈕 */}
-      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Location')}>
+      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Location')}>
         <Entypo name="location-pin" size={28} color="#fff" />
         <Text style={styles.featureText}>即時位置</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Health')}>
+      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Health')}>
         <MaterialIcons name="favorite" size={28} color="#fff" />
         <Text style={styles.featureText}>健康狀況</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('Medicine')}>
+      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Medicine')}>
         <MaterialIcons name="medical-services" size={28} color="#fff" />
         <Text style={styles.featureText}>用藥資訊</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('HospitalRecord')}>
+      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('HospitalRecord')}>
         <MaterialIcons name="local-hospital" size={28} color="#fff" />
         <Text style={styles.featureText}>看診記錄</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => navigation.navigate('CallRecord')}>
+      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('CallRecord')}>
         <Feather name="phone-call" size={28} color="#fff" />
         <Text style={styles.featureText}>通話紀錄</Text>
       </TouchableOpacity>
