@@ -18,23 +18,27 @@ export default function HealthStatus() {
 
   const fetchData = async (date: Date) => {
     const token = await AsyncStorage.getItem('access');
-    if (!token) return;
+    const selected = await AsyncStorage.getItem('selectedMember');
+    if (!token || !selected) return;
 
+    const member = JSON.parse(selected); // 👈 這就是你選的老人
     const dateStr = date.toLocaleDateString('sv-SE');
 
     try {
-      const stepRes = await axios.get(`http://192.168.0.91:8000/api/fitdata/by-date/?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const stepRes = await axios.get(
+        `http://192.168.0.91:8000/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setSteps(stepRes.data.steps);
     } catch (e) {
       setSteps(null);
     }
 
     try {
-      const bpRes = await axios.get(`http://192.168.0.91:8000/api/healthcare/by-date/?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const bpRes = await axios.get(
+        `http://192.168.0.91:8000/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setBpData({
         systolic: bpRes.data.systolic,
         diastolic: bpRes.data.diastolic,
@@ -44,6 +48,7 @@ export default function HealthStatus() {
       setBpData(null);
     }
   };
+
 
   useEffect(() => {
     fetchData(selectedDate);

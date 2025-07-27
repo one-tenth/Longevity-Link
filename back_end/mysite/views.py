@@ -85,15 +85,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils.timezone import get_current_timezone
-from datetime import datetime, time, timezone as dt_timezone # ✅ 要用 datetime 的 timezone
+from datetime import datetime, time, timezone as dt_timezone
 from .models import HealthCare
+from mysite.models import User  # ✅ 根據你的 User 模型位置修改
 
 class HealthCareByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        date_str = request.query_params.get('date')  # 格式應為 yyyy-mm-dd
+        date_str = request.query_params.get('date')
+        user_id = request.query_params.get('user_id')
 
         if not date_str:
             return Response({'error': '缺少日期參數'}, status=400)
@@ -103,13 +105,26 @@ class HealthCareByDateAPI(APIView):
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        # 🔧 正確的 timezone 處理
+        # 🔧 時區處理
         tz = get_current_timezone()
         start = datetime.combine(target_date, time.min).replace(tzinfo=tz).astimezone(dt_timezone.utc)
         end = datetime.combine(target_date, time.max).replace(tzinfo=tz).astimezone(dt_timezone.utc)
 
+        # ✅ 支援 user_id 查詢其他成員
+        if user_id:
+            try:
+                user_id = int(user_id)
+                target_user = User.objects.get(UserID=user_id)  # ✅ 用 UserID
+            except (ValueError, TypeError):
+                return Response({'error': 'user_id 格式錯誤'}, status=400)
+            except User.DoesNotExist:
+                return Response({'error': '查無此使用者'}, status=404)
+        else:
+            target_user = user
+
+        # 🔍 查詢資料
         record = HealthCare.objects.filter(
-            UserID=user,
+            UserID=target_user,
             Date__range=(start, end)
         ).order_by('-Date').first()
 
@@ -122,7 +137,6 @@ class HealthCareByDateAPI(APIView):
             })
         else:
             return Response({'message': '當日無血壓資料'}, status=404)
-
 
 #----------------------------------------------------------------
 #藥單
@@ -402,13 +416,15 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils.timezone import make_aware
 from datetime import datetime, time
 from .models import FitData
+from mysite.models import User  # ⚠️ 修改為你實際的 User 模型位置
 
 class FitDataByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        date_str = request.query_params.get('date')  # 期待格式為 YYYY-MM-DD
+        date_str = request.query_params.get('date')  # YYYY-MM-DD
+        user_id = request.query_params.get('user_id')  # 前端傳入的
 
         if not date_str:
             return Response({'error': '缺少日期參數'}, status=400)
@@ -421,7 +437,19 @@ class FitDataByDateAPI(APIView):
         start = make_aware(datetime.combine(target_date, time.min))
         end = make_aware(datetime.combine(target_date, time.max))
 
-        record = FitData.objects.filter(UserID=user, timestamp__range=(start, end)).order_by('-timestamp').first()
+        # 🔍 若有 user_id 就查指定長者，否則查登入者
+        if user_id:
+            try:
+                user_id = int(user_id)
+                target_user = User.objects.get(UserID=user_id)
+            except (ValueError, TypeError):
+                return Response({'error': 'user_id 需為整數'}, status=400)
+            except User.DoesNotExist:
+                return Response({'error': '查無此使用者'}, status=404)
+        else:
+            target_user = request.user
+
+        record = FitData.objects.filter(UserID=target_user, timestamp__range=(start, end)).order_by('-timestamp').first()
 
         if record:
             return Response({
