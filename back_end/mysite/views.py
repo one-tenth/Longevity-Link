@@ -190,16 +190,25 @@ class OcrAnalyzeView(APIView):
                 print("❌ GPT 原始回傳：", gpt_result)  # ⬅️ 新增這行
                 return Response({'error': 'GPT 回傳非有效 JSON', 'raw': gpt_result}, status=400)
 
+            # 3️⃣ 判斷是否有指定 user_id，否則預設為 request.user
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    from mysite.models import User  # ⚠️ 根據你的 User 模型路徑
+                    target_user = User.objects.get(UserID=int(user_id))
+                except (User.DoesNotExist, ValueError):
+                    return Response({'error': '查無此使用者'}, status=404)
+            else:
+                target_user = request.user
 
-
-            # 3️⃣ 存入資料庫（先準備要新增的清單）
+            # 4️⃣ 存入資料庫（先準備要新增的清單）
             prescription_id = uuid.uuid4()
             count = 0
 
             disease = parsed.get("diseaseNames", ["未知"])[0]  # 避免空陣列錯誤
             for med in parsed.get("medications", []):
                 Med.objects.create(
-                    UserID=request.user,
+                    UserID=target_user,
                     Disease=disease[:50],
                     MedName=med.get("medicationName", "未知")[:50],
                     AdministrationRoute=med.get("administrationRoute", "未知")[:10],
@@ -282,17 +291,27 @@ diseaseNames 必須是一個字串陣列
 #藥單查詢
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from .models import Med
 from .serializers import MedNameSerializer
+from mysite.models import User  # ⚠️ 根據你的 User model 所在位置修改
 
 class MedNameListView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self, request):
-        user_id = request.user
-        if not user_id:
-            return Response({'error': '缺少 user_id'}, status=400)
 
-        queryset = Med.objects.filter(UserID=user_id)
+    def get(self, request):
+        user_id_param = request.query_params.get('user_id')
+
+        # ✅ 如果有帶 user_id 就查指定長者，否則預設查自己
+        if user_id_param:
+            try:
+                user = User.objects.get(UserID=int(user_id_param))
+            except (User.DoesNotExist, ValueError):
+                return Response({'error': '查無此使用者'}, status=404)
+        else:
+            user = request.user
+
+        queryset = Med.objects.filter(UserID=user)
         grouped = {}
 
         for med in queryset:
@@ -323,8 +342,15 @@ class DeletePrescriptionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, prescription_id):
-        user = request.user
-        deleted_count, _ = Med.objects.filter(UserID=user, PrescriptionID=prescription_id).delete()
+        user_id = request.query_params.get('user_id')
+        print('🔍 前端傳來的 user_id:', user_id)
+
+        target_user = User.objects.get(UserID=user_id) if user_id else request.user
+        print('🔍 目標使用者:', target_user)
+
+        deleted_count, _ = Med.objects.filter(PrescriptionID=prescription_id, UserID=target_user).delete()
+        print(f'✅ 刪除了 {deleted_count} 筆資料')
+        
         return Response({'message': '已刪除', 'deleted_count': deleted_count}, status=status.HTTP_200_OK)
 
 #用藥時間設定

@@ -12,7 +12,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../App';
-import { launchCamera } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+
+import { Alert } from 'react-native'; // 加上這行
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'MedInfo'>;
 
@@ -34,12 +36,15 @@ export default function MedicationInfoScreen() {
   const fetchData = async () => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        console.warn('⚠️ 找不到 JWT token');
+      const selected = await AsyncStorage.getItem('selectedMember');
+      if (!token || !selected) {
+        console.warn('⚠️ 找不到 JWT 或 selectedMember');
         return;
       }
 
-      const response = await axios.get('http://192.168.0.91:8000/api/mednames/', {
+      const member = JSON.parse(selected);
+
+      const response = await axios.get(`http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -56,15 +61,25 @@ export default function MedicationInfoScreen() {
   const handleDelete = async (prescriptionID: string) => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) return;
+      const selected = await AsyncStorage.getItem('selectedMember');
+      if (!token || !selected) {
+        console.warn('⚠️ 找不到 JWT 或 selectedMember');
+        return;
+      }
+
+      const member = JSON.parse(selected);
+      console.log('🧪 刪除藥單：selectedMember:', member); // ✅ 印出來看清楚
 
       await axios.delete(
-        `http://192.168.0.91:8000/api/delete-prescription/${prescriptionID}/`,
+        `http://192.168.0.55:8000/api/delete-prescription/${prescriptionID}/`,
         {
           headers: { Authorization: `Bearer ${token}` },
+          params: { user_id: member.UserID },
         }
       );
 
+      console.log('🧪 要刪的成員：', member);
+      
       setGroupedData(prev =>
         prev.filter(group => group.PrescriptionID !== prescriptionID)
       );
@@ -73,13 +88,43 @@ export default function MedicationInfoScreen() {
     }
   };
 
-  const handleTakePhoto = async () => {
+  const handleTakePhoto = () => {
+    Alert.alert(
+      '新增用藥資訊',
+      '請選擇來源',
+      [
+        {
+          text: '相機拍照',
+          onPress: () => handleCameraUpload(), // 👉 拍照
+        },
+        {
+          text: '從相簿選擇',
+          onPress: () => handleGalleryUpload(), // 👉 相簿
+        },
+        { text: '取消', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleCameraUpload = async () => {
     const result = await launchCamera({
       mediaType: 'photo',
       cameraType: 'back',
       quality: 0.8,
     });
+    await uploadImage(result);
+  };
 
+  const handleGalleryUpload = async () => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      quality: 0.8,
+    });
+    await uploadImage(result);
+  };
+
+  const uploadImage = async (result) => {
     if (result.didCancel || result.errorCode) {
       console.log('❌ 使用者取消或出錯:', result.errorMessage);
       return;
@@ -93,10 +138,13 @@ export default function MedicationInfoScreen() {
 
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        console.warn('⚠️ 找不到 JWT token');
+      const selected = await AsyncStorage.getItem('selectedMember');
+      if (!token || !selected) {
+        console.warn('⚠️ 找不到 JWT 或 selectedMember');
         return;
       }
+
+      const member = JSON.parse(selected);
 
       const formData = new FormData();
       formData.append('image', {
@@ -104,9 +152,10 @@ export default function MedicationInfoScreen() {
         name: 'photo.jpg',
         type: photo.type || 'image/jpeg',
       });
+      formData.append('user_id', member.UserID);
 
       const response = await axios.post(
-        'http://192.168.0.91:8000/ocr-analyze/',
+        'http://192.168.0.55:8000/ocr-analyze/',
         formData,
         {
           headers: {
@@ -118,6 +167,7 @@ export default function MedicationInfoScreen() {
 
       console.log('✅ 圖片上傳成功:', response.data);
       alert('圖片上傳成功');
+      fetchData(); // 上傳成功後刷新資料
     } catch (error) {
       console.error('❌ 圖片上傳失敗:', error);
       alert('圖片上傳失敗');
