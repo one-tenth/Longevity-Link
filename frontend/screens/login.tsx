@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: '#555',
   },
   inputGroup: {
