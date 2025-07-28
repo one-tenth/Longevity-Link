@@ -70,7 +70,7 @@ export default function ChildHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#b0cfc1',
   },
   header: {
     backgroundColor: '#E6C3C3',
