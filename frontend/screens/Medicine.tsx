@@ -34,10 +34,10 @@ export default function Medicine() {
       </TouchableOpacity>
 
       <View style={styles.rowButtons}>
-        <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]} onPress={() => navigation.navigate('MedRemind')}>
+        {/* <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]} onPress={() => navigation.navigate('MedRemind')}>
           <Image source={require('../img/medicine/med.png')} style={styles.gridIcon} />
           <Text style={styles.featureText}>用藥提醒</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]} onPress={() => navigation.navigate('MedInfo')}>
           <Image source={require('../img/medicine/information.png')} style={styles.gridIcon1} />
           <Text style={styles.featureText}>用藥資訊</Text>

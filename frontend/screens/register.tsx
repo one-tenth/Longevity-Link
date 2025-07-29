@@ -71,6 +71,7 @@ export default function RegisterScreen() {
     confirmPassword: '',
   });
 
+
   const handleRegister = async () => {
     if (!form.Password || !form.confirmPassword) {
       Alert.alert('錯誤', '請輸入密碼與確認密碼');
@@ -127,6 +128,7 @@ export default function RegisterScreen() {
       Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
     }
   };
+
 
   return (
     <>
