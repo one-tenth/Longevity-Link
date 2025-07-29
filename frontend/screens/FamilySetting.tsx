@@ -117,7 +117,7 @@ inputBoxTop: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
-  backgroundColor: '#77A88D',
+  backgroundColor: '#549D77',
   paddingHorizontal: 12,
   paddingVertical: 10,
 },

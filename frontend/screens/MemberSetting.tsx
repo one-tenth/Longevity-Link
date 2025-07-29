@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ScrollView 
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確保你在 App.tsx 定義了 index 頁面
+import { RootStackParamList } from '../App';
 
 type NavProp = StackNavigationProp<RootStackParamList, 'MemberSetting'>;
 
@@ -22,83 +22,65 @@ export default function MemberSetting() {
   const months = Array.from({ length: 12 }, (_, i) => `${(i + 1).toString().padStart(2, '0')}`);
   const days = Array.from({ length: 31 }, (_, i) => `${(i + 1).toString().padStart(2, '0')}`);
 
-  const handleSubmit = () => {
-    console.log({ name, gender, birthYear, birthMonth, birthDay, phone, password });
-    // 將來可串接 API，現在直接跳轉
-  };
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Image source={require('../img/family/member.png')} style={styles.icon} />
         <Text style={styles.title}>CareMate</Text>
         <Image source={require('../img/family/logo.png')} style={styles.logo} />
       </View>
 
-      {/* 姓名 */}
-      <View style={styles.inputGroup}>
-        <Image source={require('../img/family/name.png')} style={styles.inputIcon} />
-        <View style={styles.inputBox}>
-          <Text style={styles.label}>姓名</Text>
+      {/* 姓名輸入欄 */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputBoxTop}>
+          <Image source={require('../img/family/name.png')} style={styles.inputIcon} />
+          <Text style={styles.inputLabel}>姓名</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.inputOuterBox}>
           <TextInput
-            style={styles.input}
-            placeholder="Value"
+            style={styles.inputInnerBox}
+            placeholder="請輸入姓名"
             value={name}
             onChangeText={setName}
           />
         </View>
       </View>
 
-      {/* 性別 */}
+      {/* 性別選擇 */}
       <View style={styles.genderContainer}>
-        <Text style={styles.label}>性別</Text>
+        <Text style={styles.genderLabel}>性別</Text>
         <View style={styles.genderButtons}>
-          <TouchableOpacity
-            style={[styles.genderButton, gender === '男' && styles.selectedGender]}
-            onPress={() => setGender('男')}
-          >
+          <TouchableOpacity style={[styles.genderButton, gender === '男' && styles.selectedGender]} onPress={() => setGender('男')}>
             <Text style={styles.genderText}>男</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.genderButton, gender === '女' && styles.selectedGender]}
-            onPress={() => setGender('女')}
-          >
+          <TouchableOpacity style={[styles.genderButton, gender === '女' && styles.selectedGender]} onPress={() => setGender('女')}>
             <Text style={styles.genderText}>女</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 生日 */}
+      {/* 生日選擇 */}
       <View style={styles.birthContainer}>
-        <Text style={styles.label}>生日</Text>
+        <Text style={styles.genderLabel}>生日</Text>
         <View style={styles.pickerRow}>
-          <Picker selectedValue={birthYear} style={styles.picker} onValueChange={setBirthYear}>
-            {years.map((year) => (
-              <Picker.Item key={year} label={year} value={year} />
-            ))}
-          </Picker>
-          <Picker selectedValue={birthMonth} style={styles.picker} onValueChange={setBirthMonth}>
-            {months.map((month) => (
-              <Picker.Item key={month} label={month} value={month} />
-            ))}
-          </Picker>
-          <Picker selectedValue={birthDay} style={styles.picker} onValueChange={setBirthDay}>
-            {days.map((day) => (
-              <Picker.Item key={day} label={day} value={day} />
-            ))}
-          </Picker>
+          <View style={styles.pickerWrapper}><Picker selectedValue={birthYear} onValueChange={setBirthYear} style={styles.picker}>{years.map(year => <Picker.Item key={year} label={year} value={year} />)}</Picker></View>
+          <View style={styles.pickerWrapper}><Picker selectedValue={birthMonth} onValueChange={setBirthMonth} style={styles.picker}>{months.map(month => <Picker.Item key={month} label={month} value={month} />)}</Picker></View>
+          <View style={styles.pickerWrapper}><Picker selectedValue={birthDay} onValueChange={setBirthDay} style={styles.picker}>{days.map(day => <Picker.Item key={day} label={day} value={day} />)}</Picker></View>
         </View>
       </View>
 
-      {/* 帳號 */}
-      <View style={styles.inputGroup}>
-        <Image source={require('../img/family/phone.png')} style={styles.inputIcon} />
-        <View style={styles.inputBox}>
-          <Text style={styles.label}>帳號（電話號碼）</Text>
+      {/* 帳號輸入欄 */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputBoxTop}>
+          <Image source={require('../img/family/phone.png')} style={styles.inputIcon} />
+          <Text style={styles.inputLabel}>帳號（電話號碼）</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.inputOuterBox}>
           <TextInput
-            style={styles.input}
-            placeholder="Value"
+            style={styles.inputInnerBox}
+            placeholder="請輸入電話"
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
@@ -106,14 +88,19 @@ export default function MemberSetting() {
         </View>
       </View>
 
-      {/* 密碼 */}
-      <View style={styles.inputGroup}>
-        <Image source={require('../img/family/lock.png')} style={styles.inputIcon} />
-        <View style={styles.inputBox}>
-          <Text style={styles.label}>密碼</Text>
+      {/* 密碼輸入欄 */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputBoxTop}>
+          <Image source={require('../img/family/lock.png')} 
+          style={styles.inputIcon}
+          resizeMode="contain" />
+          <Text style={styles.inputLabel}>密碼</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.inputOuterBox}>
           <TextInput
-            style={styles.input}
-            placeholder="Value"
+            style={styles.inputInnerBox}
+            placeholder="請輸入密碼"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -121,9 +108,7 @@ export default function MemberSetting() {
         </View>
       </View>
 
-      {/* 新增按鈕 */}
-      <TouchableOpacity style={styles.submitButton} 
-      onPress={() => navigation.navigate('index')}>
+      <TouchableOpacity style={styles.submitButton} onPress={() => navigation.navigate('index')}>
         <Text style={styles.submitText}>新增</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -132,86 +117,144 @@ export default function MemberSetting() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: '#FFFFF0',
     alignItems: 'center',
   },
   header: {
     width: '100%',
-    height:70,
-    flexDirection: 'row', 
+    height: 70,
+    flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: '#65B6E4',
-    position: 'relative',
-    marginBottom:20,
-    paddingLeft:10,
-    paddingRight:10,
+    paddingHorizontal: 10,
+    marginBottom: 20,
   },
-    icon: {
+  icon: { 
     width: 40, 
-    height: 40,
-    marginTop:15,
+    height: 40, 
+    marginTop: 15 
   },
-  title: {
+  title: { 
     fontSize: 50, 
-    fontWeight:'900', 
-    color: '#000', 
+    fontWeight: '900', 
+    color: '#000' 
   },
-  logo: {
+  logo: { 
     width: 60, 
-    height: 60,
-    marginTop:15,
+    height: 60, 
+    marginTop: 15 
   },
-  inputGroup: {
+
+  inputContainer: {
+    width: '75%',
+    alignSelf: 'center',
+    marginVertical: 16,
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: '#000',
+    overflow: 'hidden',
+  },
+  inputBoxTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#a6d5a7',
-    marginTop: 20,
-    padding: 10,
-    borderRadius: 10,
+    backgroundColor: '#549D77',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  inputIcon: {
-  width: 26,
-  height: 26,
-},
-
-  inputBox: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    width: 220,
+  inputIcon: { 
+    width: 24, 
+    height: 24 
   },
-  label: { fontSize: 14, color: '#333', marginBottom: 2 },
-  input: { fontSize: 16, color: '#000', paddingVertical: 4 },
+  inputLabel: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginLeft: 'auto',
+  },
+  divider: { 
+    height: 3, 
+    backgroundColor: '#000' 
+  },
+  inputOuterBox: { 
+    backgroundColor: '#77A88D', 
+    padding: 3
+  },
+  inputInnerBox: {
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontWeight: '900',
+    borderRadius: 8,
+  },
 
-  genderContainer: { marginTop: 20, alignItems: 'center' },
-  genderButtons: { flexDirection: 'row', marginTop: 5 },
+  genderContainer: { 
+    width: '75%', 
+    marginTop: 10, 
+    alignSelf: 'flex-start', 
+    paddingLeft: '12.5%' 
+  },
+  genderLabel: { 
+    fontSize: 18, 
+    fontWeight: '900', 
+    color: '#000' 
+  },
+  genderButtons: { 
+    flexDirection: 'row', 
+    marginTop: 8 
+  },
   genderButton: {
     backgroundColor: '#f2c94c',
-    paddingVertical: 8,
-    paddingHorizontal: 30,
-    marginHorizontal: 5,
-    borderRadius: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 57,
+    borderRadius: 6,
+    marginRight: 15,
+    borderWidth: 3,
+    borderColor: '#000',
   },
-  selectedGender: {
-    backgroundColor: '#f7941d',
+  selectedGender: { 
+    backgroundColor: '#f7941d' 
   },
-  genderText: { fontSize: 16, fontWeight: 'bold' },
+  genderText: { 
+    fontSize: 20, 
+    fontWeight: '900' 
+  },
 
-  birthContainer: { marginTop: 20, alignItems: 'center' },
-  pickerRow: { flexDirection: 'row' },
-  picker: { width: 80, backgroundColor: '#fff', marginHorizontal: 5 },
+  birthContainer: { 
+    width: '75%', 
+    marginTop: 20, 
+    alignSelf: 'flex-start', 
+    paddingLeft: '12.5%' 
+  },
+  pickerRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between' 
+  },
+  pickerWrapper: {
+    backgroundColor: '#f2c94c',
+    borderWidth: 3,
+    borderColor: '#000',
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    marginRight: 10,
+  },
+  picker: { 
+    width: 80, 
+    backgroundColor: '#fff' 
+  },
 
   submitButton: {
     backgroundColor: '#f7941d',
     borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 60,
-    marginTop: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 80,
+    marginVertical: 30,
+    borderWidth: 3,
   },
-  submitText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
+  submitText: { 
+    fontSize: 18, 
+    fontWeight: '900', 
+    color: '#000' 
   },
 });

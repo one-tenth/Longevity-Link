@@ -28,30 +28,44 @@ export default function JoinFamily() {
 
       {/* 家庭名稱 */}
       <View style={styles.inputGroup}>
+        <View style={styles.inputBoxTop}>
         <Image source={require('../img/family/familyName.png')} style={styles.inputIcon} />
-        <View style={styles.inputBox}>
-          <Text style={styles.label}>家庭名稱</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Value"
-            value={familyName}
-            onChangeText={setFamilyName}
-          />
+          <Text style={styles.inputLabel}>家庭名稱</Text>
+        </View>
+
+        {/* 中間的黑線 */}
+          <View style={styles.divider} />
+
+        {/* 綠框包住白色輸入框 */}
+          <View style={styles.inputOuterBox}>
+            <TextInput
+              style={styles.inputInnerBox}
+              placeholder="Value"
+              value={familyName}
+              onChangeText={setFamilyName}
+            />
         </View>
       </View>
 
       {/* 家庭代碼 */}
       <View style={styles.inputGroup}>
+      <View style={styles.inputBoxTop}>
         <Image source={require('../img/family/familyName.png')} style={styles.inputIcon} />
-        <View style={styles.inputBox}>
-          <Text style={styles.label}>家庭代碼</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Value"
-            value={familyCode}
-            onChangeText={setFamilyCode}
-            keyboardType="numeric"
-          />
+          <Text style={styles.inputLabel}>家庭代碼</Text>
+      </View>
+
+      {/* 中間的黑線 */}
+        <View style={styles.divider} />
+
+      {/* 綠框包住白色輸入框 */}
+          <View style={styles.inputOuterBox}>
+            <TextInput
+              style={styles.inputInnerBox}
+              placeholder="Value"
+              value={familyCode}
+              onChangeText={setFamilyCode}
+              keyboardType="numeric"
+            />
         </View>
       </View>
 
@@ -68,69 +82,93 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFF0',
     alignItems: 'center',
-    paddingTop: 50,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#c8e3f9',
     width: '100%',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    height:70,
+    flexDirection: 'row', 
     justifyContent: 'space-between',
+    backgroundColor: '#65B6E4',
+    position: 'relative',
+    marginBottom:20,
+    paddingLeft:10,
+    paddingRight:10,
   },
   icon: {
-    width: 30,
-    height: 30,
+    width: 40, 
+    height: 40,
+    marginTop:15,
   },
   logo: {
-    width: 35,
-    height: 35,
+    width: 60, 
+    height: 60,
+    marginTop:15,
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 50, 
+    fontWeight:'900', 
+    color: '#000', 
   },
   inputGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#a6d5a7',
-    marginTop: 30,
-    padding: 10,
-    borderRadius: 10,
+    width: '75%', // ✅ 縮短整體寬度
+    alignSelf: 'center',
+    marginVertical: 16,
+    borderRadius: 12,
+    borderWidth: 4,
+    borderColor: '#000',
+    overflow: 'hidden',
+    backgroundColor: '#0000',
   },
-  inputIcon: {
-    width: 30,
-    height: 30,
-    marginRight: 10,
-  },
-  inputBox: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    width: 220,
-  },
-  label: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 2,
-  },
-  input: {
-    fontSize: 16,
-    color: '#000',
-    paddingVertical: 4,
-  },
+inputBoxTop: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  backgroundColor: '#549D77',
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+},
+
+inputIcon: {
+  width: 26,
+  height: 26,
+},
+
+inputLabel: {
+  color: '#FFF',
+  fontSize: 18,
+  fontWeight: '900',
+  marginLeft: 'auto',
+},
+
+divider: {
+  height: 4,
+  backgroundColor: '#000',
+},
+
+inputOuterBox: {
+  backgroundColor: '#77A88D', // ✅ 綠色外框
+  padding: 8, // ✅ 裡面白色輸入框與邊框有間距
+},
+
+inputInnerBox: {
+  backgroundColor: '#FFF',
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  fontSize: 17,
+  fontWeight: '900',
+  borderRadius: 8,
+},
   joinButton: {
     backgroundColor: '#f7941d',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 60,
     marginTop: 40,
+    borderWidth: 4,
   },
   joinText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '900',
     color: '#000',
   },
 });
