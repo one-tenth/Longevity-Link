@@ -26,7 +26,7 @@ const CreateFamilyScreen: React.FC = () => {
       if (!token) return;
 
       try {
-        const res = await fetch('http://192.168.0.55:8000/account/me/', {
+        const res = await fetch('http://192.168.0.19:8000/account/me/', {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -68,7 +68,11 @@ const CreateFamilyScreen: React.FC = () => {
       const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
       setFcode(generatedCode); // 更新畫面代碼
 
+<<<<<<< HEAD
       const response = await fetch('http://192.168.0.55:8000/api/family/create/', {
+=======
+      const response = await fetch('http://192.168.0.19:8000/api/family/create/', {
+>>>>>>> origin/dev
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
