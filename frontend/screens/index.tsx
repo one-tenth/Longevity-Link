@@ -31,7 +31,7 @@ const HomeScreen: React.FC = () => {
       if (!token) return;
 
       try {
-        const res = await fetch('http://192.168.0.55:8000/account/me/', {
+        const res = await fetch('http://172.20.10.26:8000/account/me/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -87,9 +87,7 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {fcode && (
-            <Text style={styles.familyCodeText}>家庭代碼：{fcode}</Text>
-          )}
+          
         </>
       )}
 

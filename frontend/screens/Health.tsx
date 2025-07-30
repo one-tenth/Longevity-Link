@@ -35,7 +35,7 @@ export default function HealthStatus() {
 
     try {
       const stepRes = await axios.get(
-        `http://192.168.0.55:8000/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        `http://172.20.10.26:8000/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSteps(stepRes.data.steps);
@@ -45,7 +45,7 @@ export default function HealthStatus() {
 
     try {
       const bpRes = await axios.get(
-        `http://192.168.0.55:8000/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        `http://172.20.10.26:8000/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setBpData({

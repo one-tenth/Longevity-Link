@@ -52,7 +52,7 @@ export default function TimeSettingInput() {
       }
 
       const response = await axios.get(
-        'http://192.168.0.91:8000/api/get-med-time/',
+        'http://172.20.10.26:8000/api/get-med-time/',
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -97,7 +97,7 @@ export default function TimeSettingInput() {
       }
 
       const response = await axios.post(
-        'http://192.168.0.91:8000/api/create-med-time/',
+        'http://172.20.10.26:8000/api/create-med-time/',
         {
           MorningTime: times[0].time,
           NoonTime: times[1].time,

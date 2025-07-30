@@ -21,7 +21,7 @@ export default function CreateFamily() {
       if (!token) return;
 
       try {
-        const res = await fetch('http://172.20.10.3:8000/account/me/', {
+        const res = await fetch('http://172.20.10.26:8000/account/me/', {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -59,7 +59,7 @@ export default function CreateFamily() {
     setFamilyCode(code);
 
     try {
-      const response = await fetch('http://172.20.10.3:8000/api/family/create/', {
+      const response = await fetch('http://172.20.10.26:8000/api/family/create/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
