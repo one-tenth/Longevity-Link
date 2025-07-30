@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
+type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
 
 interface Member {
   UserID: number;
@@ -15,20 +16,31 @@ interface Member {
 
 const FamilyScreen = () => {
   const navigation = useNavigation<FamilyNavProp>();
+  const route = useRoute<FamilyRouteProp>();
+  const mode = route.params?.mode || 'full'; // ← 'select' 或 'full'
+
   const [familyName, setFamilyName] = useState('家族名稱');
   const [userId, setUserId] = useState<number | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
+      // ✅ 清除 selectedMember
+      await AsyncStorage.removeItem('selectedMember');
+
       const token = await AsyncStorage.getItem('access');
-      if (!token) return;
+      if (!token) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'LoginScreen' }],
+        });
+        return;
+      }
 
       try {
         const resMe = await fetch('http://192.168.0.19:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
         setUserId(user.UserID);
@@ -37,12 +49,15 @@ const FamilyScreen = () => {
         const resMembers = await fetch('http://192.168.0.19:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!resMembers.ok) throw new Error('取得成員失敗');
-        const membersData = await resMembers.json();
 
+        const membersData = await resMembers.json();
         if (Array.isArray(membersData)) {
-          setMembers(membersData);
+          // ✅ 根據模式決定要顯示誰
+          const filtered = mode === 'select'
+            ? membersData.filter((m: Member) => m.RelatedID !== null) // 只顯示長者
+            : membersData; // 顯示全部
+          setMembers(filtered);
         } else {
           console.warn('成員資料格式錯誤:', membersData);
           setMembers([]);
@@ -54,7 +69,7 @@ const FamilyScreen = () => {
     };
 
     fetchUserAndMembers();
-  }, []);
+  }, [mode, navigation]);
 
   return (
     <View style={styles.container}>
@@ -66,7 +81,7 @@ const FamilyScreen = () => {
       <Text style={styles.title}>{familyName}（{members.length}）</Text>
 
       <ScrollView contentContainerStyle={styles.memberContainer}>
-        {Array.isArray(members) && members.length > 0 ? (
+        {members.length > 0 ? (
           members.map((m, index) => (
             <TouchableOpacity
               key={index}

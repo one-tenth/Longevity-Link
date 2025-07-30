@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,8 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-
-import { RootStackParamList } from '../App'; // 如果你有定義 RootStackParamList 在 App.tsx
+import { RootStackParamList } from '../App';
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
@@ -31,24 +29,24 @@ export default function ChildHome() {
   const [hasElder, setHasElder] = useState<boolean>(true);
 
   useEffect(() => {
-    const loadSelectedMember = async () => {
-      const stored = await AsyncStorage.getItem('selectedMember');
-      if (stored) {
-        const parsed: Member = JSON.parse(stored);
-        if (!parsed.RelatedID) {
-          Alert.alert('錯誤', '請選擇一位長者，才能進行操作。');
-          setHasElder(false);
-        } else {
-          setSelectedMember(parsed);
-        }
-      } else {
+  const loadSelectedMember = async () => {
+    const stored = await AsyncStorage.getItem('selectedMember');
+    if (stored) {
+      const parsed: Member = JSON.parse(stored);
+      if (!parsed.RelatedID) {
         setHasElder(false);
-        Alert.alert('尚未選擇長者', '請先至家庭頁面選擇一位長者。');
+      } else {
+        setSelectedMember(parsed);
+        setHasElder(true);
       }
-    };
-    const unsubscribe = navigation.addListener('focus', loadSelectedMember);
-    return unsubscribe;
-  }, [navigation]);
+    } else {
+      setHasElder(false);
+    }
+  };
+  const unsubscribe = navigation.addListener('focus', loadSelectedMember);
+  return unsubscribe;
+}, [navigation]);
+
 
   return (
     <View style={styles.container}>
@@ -59,20 +57,25 @@ export default function ChildHome() {
         </TouchableOpacity>
       </View>
 
-
       {/* User Info */}
-      <View style={styles.userCard}>
+      <TouchableOpacity style={styles.userCard} onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}>
         <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
         <View style={styles.nameRow}>
-          <Text style={styles.userName}>爺爺</Text>
-          <View style={{ flex: 1 }} />
-          <Feather name="edit-2" size={18} color="#000" style={styles.editIcon} />
-        </View>
-      </View>
+      <Text style={styles.userName}>
+        {selectedMember?.Name || '尚未選擇'}
+      </Text>
+      <View style={{ flex: 1 }} />
+      <Feather name="edit-2" size={18} color="#000" style={styles.editIcon} />
+    </View>
+</TouchableOpacity>
+
 
       {/* 健康狀況卡片 */}
       <View style={styles.featureCardWrapper}>
-        <TouchableOpacity style={styles.featureCard} onPress={() => navigation.navigate('Health')}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('Health')}
+        >
           <MaterialIcons name="favorite" size={28} color="#FFF" />
           <Text style={styles.featureText}>健康狀況</Text>
         </TouchableOpacity>
@@ -81,7 +84,10 @@ export default function ChildHome() {
 
       {/* 用藥資訊卡片 */}
       <View style={styles.featureCardWrapper}>
-        <TouchableOpacity style={styles.featureCard} onPress={() => navigation.navigate('Medicine')}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('Medicine')}
+        >
           <MaterialIcons name="medical-services" size={28} color="#FFF" />
           <Text style={styles.featureText}>用藥資訊</Text>
         </TouchableOpacity>
@@ -94,7 +100,7 @@ export default function ChildHome() {
           <FontAwesome name="user" size={28} color="#fff" />
           <Text style={styles.settingLabel}>個人</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen')}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
         </TouchableOpacity>
@@ -103,7 +109,6 @@ export default function ChildHome() {
           <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
-
     </View>
   );
 }
@@ -111,7 +116,6 @@ export default function ChildHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-
     backgroundColor: '#FFF',
   },
   header: {
@@ -121,7 +125,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
   },
-
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -142,14 +145,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-
   },
   userName: {
     fontSize: 36,
     fontWeight: '900',
     color: '#000',
     fontFamily: 'DelaGothicOne-Regular',
-
   },
   editIcon: {
     marginLeft: 8,
@@ -166,8 +167,7 @@ const styles = StyleSheet.create({
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding:10,
-
+    padding: 10,
     justifyContent: 'flex-start',
     backgroundColor: '#004B97',
     gap: 14,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     color: '#FFF',
-    fontSize:24,
+    fontSize: 24,
     fontWeight: '900',
   },
   settingBox: {

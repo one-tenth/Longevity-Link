@@ -49,7 +49,7 @@ export type RootStackParamList = {
   RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
   ElderMedRemind: undefined;
-  FamilyScreen: undefined;
+  FamilyScreen: { mode?: 'select' | 'full' };
   CreateFamily: undefined;
   FamilySetting: undefined;
   JoinFamily: undefined;
