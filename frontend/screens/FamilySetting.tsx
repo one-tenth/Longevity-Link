@@ -1,27 +1,92 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
+import {
+  View, Text, StyleSheet, Image, TextInput, TouchableOpacity, Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確保有定義 AddMember 頁面
+import { RootStackParamList } from '../App';
 
-type NavProp = StackNavigationProp<RootStackParamList, 'FamilySetting'>;
+type NavProp = StackNavigationProp<RootStackParamList, 'index'>;
 
-export default function FamilySetting() {
+export default function CreateFamily() {
   const navigation = useNavigation<NavProp>();
   const [familyName, setFamilyName] = useState('');
   const [familyCode, setFamilyCode] = useState('');
 
-  // 自動產生 4 碼家庭代碼
+  // ✅ 檢查是否已有家庭（若有則導回首頁）
   useEffect(() => {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    setFamilyCode(code);
+    const checkFamily = async () => {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) return;
+
+      try {
+        const res = await fetch('http://172.20.10.3:8000/account/me/', {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const text = await res.text();
+        if (text.startsWith('<')) return;
+        const userData = JSON.parse(text);
+        if (userData.FamilyID) {
+          navigation.navigate('index');
+        }
+      } catch (err) {
+        console.log('⚠️ 取得使用者資料失敗:', err);
+      }
+    };
+
+    checkFamily();
   }, []);
 
-  const handleCreate = () => {
-    // 這裡可以串接 API 發送 familyName 和 familyCode
-    console.log('家庭名稱:', familyName);
-    console.log('家庭代碼:', familyCode);
-    navigation.navigate('AddMember');
+  // ✅ 建立家庭流程
+  const handleCreate = async () => {
+    if (!familyName.trim()) {
+      Alert.alert('錯誤', '請輸入家庭名稱');
+      return;
+    }
+
+    const token = await AsyncStorage.getItem('access');
+    if (!token) {
+      Alert.alert('錯誤', '尚未登入，請先登入');
+      return;
+    }
+
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setFamilyCode(code);
+
+    try {
+      const response = await fetch('http://172.20.10.3:8000/api/family/create/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ FamilyName: familyName, Fcode: code }),
+      });
+
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.log('⚠️ 無法解析回應:', text);
+        throw new Error('後端格式錯誤');
+      }
+
+      if (response.ok) {
+        Alert.alert('成功', `家庭建立成功，代碼為 ${code}`, [
+          { text: '確定', onPress: () => navigation.navigate('FamilyScreen') },
+        ]);
+      } else {
+        Alert.alert('建立失敗', data.error || '請稍後再試');
+      }
+    } catch (err: any) {
+      Alert.alert('錯誤', err.message || '無法建立家庭');
+    }
   };
 
   return (
@@ -33,36 +98,38 @@ export default function FamilySetting() {
         <Image source={require('../img/family/logo.png')} style={styles.logo} />
       </View>
 
-      {/* 輸入區 */}
-    <View style={styles.inputContainer}>
-    {/* 上方綠底區塊 */}
-    <View style={styles.inputBoxTop}>
-        <Image source={require('../img/family/familyName.png')} style={styles.inputIcon} />
-        <Text style={styles.inputLabel}>家庭名稱</Text>
-    </View>
+      {/* 輸入區塊 */}
+      <View style={styles.inputContainer}>
+        {/* 上方綠底區塊 */}
+        <View style={styles.inputBoxTop}>
+          <Image source={require('../img/family/familyName.png')} style={styles.inputIcon} />
+          <Text style={styles.inputLabel}>家庭名稱</Text>
+        </View>
 
-    {/* 中間的黑線 */}
-    <View style={styles.divider} />
+        {/* 黑線 */}
+        <View style={styles.divider} />
 
-    {/* 綠框包住白色輸入框 */}
-    <View style={styles.inputOuterBox}>
-        <TextInput
-        style={styles.inputInnerBox}
-        placeholder="Value"
-        value={familyName}
-        onChangeText={setFamilyName}
-        placeholderTextColor="#888"
-        />
-    </View>
-    </View>
-
-      {/* 家庭代碼顯示 */}
-      <View style={styles.codeContainer}>
-        <Text style={styles.codeLabel}>您的家庭代碼為</Text>
-        <Text style={styles.codeText}>{familyCode}</Text>
+        {/* 白底框 */}
+        <View style={styles.inputOuterBox}>
+          <TextInput
+            style={styles.inputInnerBox}
+            placeholder="請輸入家庭名稱"
+            value={familyName}
+            onChangeText={setFamilyName}
+            placeholderTextColor="#888"
+          />
+        </View>
       </View>
 
-      {/* 創建按鈕 */}
+      {/* 家庭代碼顯示 */}
+      {familyCode ? (
+        <View style={styles.codeContainer}>
+          <Text style={styles.codeLabel}>您的家庭代碼為</Text>
+          <Text style={styles.codeText}>{familyCode}</Text>
+        </View>
+      ) : null}
+
+      {/* 建立按鈕 */}
       <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
         <Text style={styles.createText}>創建</Text>
       </TouchableOpacity>
@@ -78,81 +145,71 @@ const styles = StyleSheet.create({
   },
   header: {
     width: '100%',
-    height:70,
-    flexDirection: 'row', 
+    height: 70,
+    flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: '#65B6E4',
-    position: 'relative',
-    marginBottom:20,
-    paddingLeft:10,
-    paddingRight:10,
+    marginBottom: 20,
+    paddingLeft: 10,
+    paddingRight: 10,
   },
   icon: {
-    width: 40, 
+    width: 40,
     height: 40,
-    marginTop:15,
+    marginTop: 15,
   },
   title: {
-    fontSize: 50, 
-    fontWeight:'900', 
-    color: '#000', 
+    fontSize: 50,
+    fontWeight: '900',
+    color: '#000',
   },
   logo: {
-    width: 60, 
+    width: 60,
     height: 60,
-    marginTop:15,
+    marginTop: 15,
   },
-inputContainer: {
-  width: '75%', // ✅ 縮短整體寬度
-  alignSelf: 'center',
-  marginVertical: 16,
-  borderRadius: 12,
-  borderWidth: 4,
-  borderColor: '#000',
-  overflow: 'hidden',
-  backgroundColor: '#0000',
-},
-
-inputBoxTop: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  backgroundColor: '#549D77',
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-},
-
-inputIcon: {
-  width: 26,
-  height: 26,
-},
-
-inputLabel: {
-  color: '#FFF',
-  fontSize: 18,
-  fontWeight: '900',
-  marginLeft: 'auto',
-},
-
-divider: {
-  height: 4,
-  backgroundColor: '#000',
-},
-
-inputOuterBox: {
-  backgroundColor: '#77A88D', // ✅ 綠色外框
-  padding: 8, // ✅ 裡面白色輸入框與邊框有間距
-},
-
-inputInnerBox: {
-  backgroundColor: '#FFF',
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-  fontSize: 17,
-  fontWeight: '900',
-  borderRadius: 8,
-},
-
+  inputContainer: {
+    width: '75%',
+    marginVertical: 16,
+    borderRadius: 12,
+    borderWidth: 4,
+    borderColor: '#000',
+    overflow: 'hidden',
+  },
+  inputBoxTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#549D77',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  inputIcon: {
+    width: 26,
+    height: 26,
+  },
+  inputLabel: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginLeft: 'auto',
+  },
+  divider: {
+    height: 4,
+    backgroundColor: '#000',
+  },
+  inputOuterBox: {
+    backgroundColor: '#77A88D',
+    padding: 8,
+  },
+  inputInnerBox: {
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    fontSize: 17,
+    fontWeight: '900',
+    borderRadius: 8,
+  },
   codeContainer: {
     marginTop: 27,
     backgroundColor: '#fff4a3',

@@ -13,7 +13,7 @@ export default function ElderHome() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Setting')}>
+        <TouchableOpacity>
           <Image source={require('../img/elderlyhome/home.png')} style={styles.settingIcon} />
         </TouchableOpacity>
         <Text style={styles.title}>CareMate</Text>

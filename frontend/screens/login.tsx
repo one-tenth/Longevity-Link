@@ -44,7 +44,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://192.168.0.19:8000/api/account/login/', {
+      const response = await fetch('http://172.20.10.3:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
@@ -74,7 +74,7 @@ export default function LoginScreen() {
         Alert.alert('登入成功', `歡迎 ${user.Name}`);
 
         if (!user.FamilyID) {
-          navigation.navigate('CreateFamilyScreen' as never);
+          navigation.navigate('CreateFamily' as never);
         } else if (user.RelatedID) {
           navigation.navigate('ElderHome' as never);
         } else {
