@@ -1,153 +1,109 @@
 import React, { useEffect, useState } from 'react';
-import { View,Text,StyleSheet,TouchableOpacity,Dimensions,Alert,ActivityIndicator,} from 'react-native';
-import { useNavigation,DrawerActions,NavigationProp,} from '@react-navigation/native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import moment from 'moment';
-import {requestLocationPermission,getCurrentCoords,reverseGeocode,} from '../src/services/location';
+import {
+  View,
+  Text,
+  Alert,
+  StyleSheet,
+  Dimensions,
+  ActivityIndicator,
+} from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { reverseGeocode } from '../hooks/locationUtils.ts';
+import { StackScreenProps } from '@react-navigation/stack';
+import { RootStackParamList } from '../App';
 
-const { width } = Dimensions.get('window');
 
-export default function LocationScreen() {
-  const navigation = useNavigation<NavigationProp<Record<string, object | undefined>>>();
+const { width, height } = Dimensions.get('window');
+type Props = StackScreenProps<RootStackParamList, 'Location'>;
+// 定義 BASE_URL，確保在此檔案可使用
+const BASE_URL = 'http://192.168.196.180:8000'; // 換成後端位址
 
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+const Location: React.FC<Props> = ({ route }) => {
+  const [coord, setCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [address, setAddress] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const elderId = route.params.elderId;
 
   useEffect(() => {
-    (async () => {
-      //先請求定位權限
-      const granted = await requestLocationPermission();
-      if (!granted) {
-        Alert.alert('定位權限未開啟', '請至系統設定中允許定位後再試');
-        setLoading(false);
-        return;
-      }
-
+    const fetchLocation = async () => {
       try {
-        // 經緯度和反編碼
-        const c = await getCurrentCoords();
-        setCoords(c);
-        const addr = await reverseGeocode(c.lat, c.lng);
+        const token = await AsyncStorage.getItem('accessToken');
+        if (!token) throw new Error('Token 不存在');
+
+        const res = await axios.get(
+          `${BASE_URL}/api/location/latest/${elderId}/`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const { latitude, longitude } = res.data;
+        setCoord({ latitude, longitude });
+
+        const addr = await reverseGeocode(latitude, longitude);
         setAddress(addr);
-      } catch (e: any) {
-        Alert.alert('定位失敗', e.message);
+      } catch (err) {
+        console.error('❌ 取得長者位置失敗', err);
+        Alert.alert('錯誤', '無法取得長者位置');
       } finally {
         setLoading(false);
       }
-    })();
-  }, []);
+    };
 
-  const timeStr = moment().format('HH:mm');
+    fetchLocation();
+  }, [elderId]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text>載入中...</Text>
+      </View>
+    );
+  }
+
+  if (!coord) {
+    return (
+      <View style={styles.center}>
+        <Text>找不到位置資料</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header：純文字選單按鈕 */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-        >
-          <Text style={styles.headerButton}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>CareMate</Text>
-        <View style={styles.headerPlaceholder} />
-      </View>
-
-      {/* 主內容 */}
-      <View style={styles.content}>
-        <Text style={styles.pageTitle}>即時位置</Text>
-
-        {/* 資訊卡片 */}
-        <View style={styles.card}>
-          <Text style={styles.cardTime}>🕒 時間：{timeStr}</Text>
-          <Text style={styles.cardAddr}>
-            📍 現在位置：{loading ? '取得中…' : address}
-          </Text>
-        </View>
-
-        {/* 地圖 or 載入指示 */}
-        {loading ? (
-          <ActivityIndicator
-            style={{ marginTop: 20 }}
-            size="large"
-            color="#65B6E4"
-          />
-        ) : coords ? (
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            initialRegion={{
-              latitude: coords.lat,
-              longitude: coords.lng,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-          >
-            <Marker
-              coordinate={{ latitude: coords.lat, longitude: coords.lng }}
-              pinColor="blue"
-            />
-            <Polyline
-              coordinates={[
-                { latitude: coords.lat - 0.0003, longitude: coords.lng - 0.0003 },
-                { latitude: coords.lat, longitude: coords.lng },
-              ]}
-              strokeWidth={4}
-            />
-          </MapView>
-        ) : null}
-
-        {/* 回首頁按鈕 */}
-        <TouchableOpacity
-          style={styles.btnBack}
-          onPress={() => navigation.navigate('ElderHome')}
-        >
-          <Text style={styles.btnText}>回首頁</Text>
-        </TouchableOpacity>
+      <MapView
+        style={styles.map}
+        initialRegion={{ latitude: coord.latitude, longitude: coord.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
+      >
+        <Marker coordinate={coord} title="長者位置" />
+      </MapView>
+      <View style={styles.infoPanel}>
+        <Text style={styles.infoText}>經度: {coord.longitude.toFixed(6)}{"\n"}緯度: {coord.latitude.toFixed(6)}</Text>
+        {address.length > 0 && <Text style={styles.addressText}>{address}</Text>}
       </View>
     </View>
   );
-}
+};
+
+export default Location;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FCFEED' },
-  header: {
-    height: 70,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    backgroundColor: '#65B6E4',
+  container: { flex: 1 },
+  map: { width, height: height * 0.7 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  infoPanel: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderColor: '#ddd',
   },
-  headerButton: {
-    fontSize: 24,
-    color: '#000',
+  infoText: {
+    fontSize: 16,
+    marginBottom: 8,
   },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000' },
-  headerPlaceholder: { width: 24 },
-  content: { flex: 1, alignItems: 'center', paddingTop: 16 },
-  pageTitle: { fontSize: 28, fontWeight: '900', marginBottom: 12 },
-  card: {
-    width: width * 0.9,
-    backgroundColor: '#F58402',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+  addressText: {
+    fontSize: 14,
+    color: '#555',
   },
-  cardTime: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  cardAddr: { color: '#fff', fontSize: 16, marginTop: 8 },
-  map: {
-    width: width * 0.9,
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  btnBack: {
-    backgroundColor: '#65B6E4',
-    paddingVertical: 14,
-    width: width * 0.6,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnText: { color: '#fff', fontSize: 20, fontWeight: '700' },
 });

@@ -10,8 +10,8 @@ type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
-  const parentNav = navigation.getParent<StackNavigationProp<RootStackParamList>>();
 
+  
 
   return (
     <View style={styles.container}>
@@ -41,7 +41,7 @@ export default function ChildHome() {
       <View style={styles.gridRow}>
         <TouchableOpacity
           style={[styles.gridBox, { backgroundColor: '#549D77' }]}
-          onPress={() => navigation.navigate('Location')}>
+          onPress={() => navigation.navigate('Location', { elderId})}>
           <Image
             source={require('../img/childhome/Group.png')}
             style={styles.locate}/>

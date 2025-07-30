@@ -1,6 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+
 // fcm
 // apply plugin: 'com.google.gms.google-services' // ← 加這行
 /**
@@ -110,15 +111,26 @@ android {
         }
     }
 }
-// apply plugin: 'com.google.gms.google-services' // ✅ 最底部加這行
+
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    implementation "com.google.android.gms:play-services-auth:20.7.0"
+    implementation "com.google.android.gms:play-services-location:21.0.1"
+    //确保 base 版本
+    implementation 'com.google.android.gms:play-services-base:18.2.0'
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
+
+    implementation project(':react-native-maps')
+
 }
+
+//apply plugin: 'com.google.gms.google-services' // ✅ 最底部加這行
+ 
+
