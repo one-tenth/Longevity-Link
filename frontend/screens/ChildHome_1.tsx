@@ -57,7 +57,7 @@ export default function ChildHome() {
         <View style={styles.nameRow}>
           <Text style={styles.userName}>爺爺</Text>
           <View style={{ flex: 1 }} />
-          <Feather name="edit-2" size={18} color="#000" style={styles.editIcon} />
+          <Feather name="edit-2" size={18} color="#FFF" style={styles.editIcon} />
         </View>
       </View>
 
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#272727',
+    backgroundColor: '#003D79',
     margin: 10,
     padding: 12,
     borderRadius: 30,

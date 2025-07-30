@@ -17,7 +17,6 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 type NavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
-// ...（import 區不變）
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
@@ -65,10 +64,10 @@ export default function HealthStatus() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('ChildHome_1')}>
           <FontAwesome name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>.CareMate.</Text>
+        <Text style={{ fontFamily: 'FascinateInline-Regular', fontSize: 40, color: '#FFF' }}>.CareMate.</Text>
       </View>
 
       {/* 日期選擇 */}
@@ -187,8 +186,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   labelTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '900',
     marginBottom: 6,
     color: '#005757',
   },
