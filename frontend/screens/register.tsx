@@ -1,3 +1,5 @@
+// RegisterScreen.tsx
+
 import React, { useState } from 'react';
 import {
   View,
@@ -11,7 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
 
 function ArcText() {
@@ -38,8 +40,26 @@ const years = Array.from({ length: 60 }, (_, i) => (1930 + i).toString());
 const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 
+type RootStackParamList = {
+  RegisterScreen: { mode: 'register' | 'addElder'; creatorId?: number };
+};
+
+type RegisterRouteProp = RouteProp<RootStackParamList, 'RegisterScreen'>;
+
+interface RegisterData {
+  Name: string;
+  Gender: 'M' | 'F';
+  Borndate: string;
+  Phone: string;
+  password: string;
+  creator_id?: number;
+}
+
 export default function RegisterScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RegisterRouteProp>();
+  const { mode, creatorId } = route.params || { mode: 'register' };
+
   const [form, setForm] = useState({
     Name: '',
     Gender: 'M',
@@ -48,37 +68,67 @@ export default function RegisterScreen() {
     day: '01',
     Phone: '',
     Password: '',
+    confirmPassword: '',
   });
 
+
   const handleRegister = async () => {
+    if (!form.Password || !form.confirmPassword) {
+      Alert.alert('錯誤', '請輸入密碼與確認密碼');
+      return;
+    }
+
+    if (form.Password.length < 6) {
+      Alert.alert('錯誤', '密碼長度需至少6碼');
+      return;
+    }
+
+    if (form.Password !== form.confirmPassword) {
+      Alert.alert('錯誤', '兩次密碼不一致');
+      return;
+    }
+
     const Borndate = `${form.year}-${form.month}-${form.day}`;
-    const dataToSend = {
+    const dataToSend: RegisterData = {
       Name: form.Name,
-      Gender: form.Gender,
+      Gender: form.Gender as 'M' | 'F',
       Borndate,
       Phone: form.Phone,
       password: form.Password,
+      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
     };
 
     try {
-      const response = await fetch('http://172.20.10.2:8000/api/register/', {
+      const res = await fetch('http://172.20.10.3:8000/api/register/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSend),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(JSON.stringify(errorData));
+      if (!res.ok) {
+        const errorText = await res.text();
+        if (errorText.includes('Duplicate entry')) {
+          Alert.alert('註冊失敗', '此電話號碼已被註冊，請改用其他號碼');
+        } else {
+          console.error('錯誤回應內容:', errorText);
+          Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+        }
+        return;
       }
 
-      Alert.alert('註冊成功', '請前往登入');
-      navigation.navigate('LoginScreen');
-    } catch (error) {
+      if (mode === 'addElder') {
+        Alert.alert('新增成功', '已成功將長者加入家庭');
+        navigation.navigate('ChildHome' as never);
+      } else {
+        Alert.alert('註冊成功', '請前往登入');
+        navigation.navigate('LoginScreen' as never);
+      }
+    } catch (error: any) {
       console.error(error.message || error);
       Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
     }
   };
+
 
   return (
     <>
@@ -109,7 +159,9 @@ export default function RegisterScreen() {
                   style={[styles.genderBtn, form.Gender === g && styles.genderSelected]}
                   onPress={() => setForm({ ...form, Gender: g })}
                 >
-                  <Text style={[styles.genderText, form.Gender === g && { color: '#FFF' }]}> {g === 'M' ? '男' : '女'} </Text>
+                  <Text style={[styles.genderText, form.Gender === g && { color: '#FFF' }]}>
+                    {g === 'M' ? '男' : '女'}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -119,7 +171,6 @@ export default function RegisterScreen() {
               <View style={styles.pickerWrapperYear}>
                 <Picker
                   selectedValue={form.year}
-                  mode="dropdown"
                   onValueChange={(value) => setForm({ ...form, year: value })}
                   style={styles.picker}
                 >
@@ -131,7 +182,6 @@ export default function RegisterScreen() {
               <View style={styles.pickerWrapper}>
                 <Picker
                   selectedValue={form.month}
-                  mode="dropdown"
                   onValueChange={(value) => setForm({ ...form, month: value })}
                   style={styles.picker}
                 >
@@ -143,7 +193,6 @@ export default function RegisterScreen() {
               <View style={styles.pickerWrapper}>
                 <Picker
                   selectedValue={form.day}
-                  mode="dropdown"
                   onValueChange={(value) => setForm({ ...form, day: value })}
                   style={styles.picker}
                 >
@@ -171,6 +220,17 @@ export default function RegisterScreen() {
                 placeholder="請輸入密碼"
                 value={form.Password}
                 onChangeText={(text) => setForm({ ...form, Password: text })}
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>確認密碼</Text>
+              <TextInput
+                placeholder="請再次輸入密碼"
+                value={form.confirmPassword}
+                onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
                 secureTextEntry
                 style={styles.input}
               />
@@ -227,26 +287,10 @@ const styles = StyleSheet.create({
   },
   genderSelected: { backgroundColor: '#4E6E62' },
   genderText: { fontWeight: 'bold', fontSize: 18, color: '#4E6E62' },
-  birthdayRow: {
-  flexDirection: 'row',
-  marginBottom: 12,
-},
-pickerWrapperYear: {
-  width: '36%',
-  backgroundColor: '#B3CAD8',
-  marginRight: 4,
-},
-pickerWrapper: {
-  width: '30%',
-  backgroundColor: '#B3CAD8',
-
-  marginLeft: 4,
-},
-picker: {
-  height: 50,
-  color: '#2E2E2E',
-  fontWeight: 'bold',
-},
+  birthdayRow: { flexDirection: 'row', marginBottom: 12 },
+  pickerWrapperYear: { width: '36%', backgroundColor: '#B3CAD8', marginRight: 4 },
+  pickerWrapper: { width: '30%', backgroundColor: '#B3CAD8', marginLeft: 4 },
+  picker: { height: 50, color: '#2E2E2E', fontWeight: 'bold' },
   btn: { backgroundColor: '#4E6E62', borderRadius: 10, alignItems: 'center', padding: 14, marginTop: 20 },
   btnText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
 });

@@ -44,13 +44,16 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
+      const response = await fetch('http://172.20.10.3:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
       });
 
       const text = await response.text();
+      console.log('status:', response.status);
+      console.log('response text:', text);
+
       let data;
       try {
         data = JSON.parse(text);
@@ -59,15 +62,50 @@ export default function LoginScreen() {
       }
 
       if (response.ok) {
-        await AsyncStorage.setItem('access', data.token.access);
-        await AsyncStorage.setItem('refresh', data.token.refresh);
-        Alert.alert('登入成功', `歡迎 ${data.user.Name}`);
-        navigation.navigate('index');
+        const { token, user } = data;
+
+        await AsyncStorage.setItem('access', token.access);
+        await AsyncStorage.setItem('refresh', token.refresh);
+        await AsyncStorage.setItem('userName', user.Name);
+        await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
+        await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
+        await AsyncStorage.setItem('userID', String(user.UserID));
+
+        Alert.alert('登入成功', `歡迎 ${user.Name}`);
+
+        if (!user.FamilyID) {
+          navigation.navigate('CreateFamily' as never);
+        } else if (user.RelatedID) {
+          navigation.navigate('ElderHome' as never);
+        } else {
+          navigation.navigate('ChildHome' as never);
+        }
       } else {
-        Alert.alert('登入失敗', data.error || '帳號或密碼錯誤');
+        let message = '登入失敗';
+        switch (response.status) {
+          case 400:
+            message = '請確認帳號與密碼格式是否正確';
+            break;
+          case 401:
+            message = '帳號或密碼錯誤';
+            break;
+          case 403:
+            message = '您無權登入此帳號';
+            break;
+          case 404:
+            message = '帳號不存在';
+            break;
+          case 500:
+            message = '伺服器發生錯誤，請稍後再試';
+            break;
+          default:
+            message = data.error || '發生未知錯誤';
+        }
+        Alert.alert('登入失敗', message);
       }
     } catch (error: any) {
-      Alert.alert('發生錯誤', error?.message || '未知錯誤');
+      console.error('登入錯誤:', error);
+      Alert.alert('無法登入', error?.message || '請檢查網路連線');
     }
   };
 
@@ -115,14 +153,20 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>登入</Text>
         </TouchableOpacity>
 
-        {/* 註冊連結 */}
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+        {/* 註冊導向 */}
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen', { mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
+        </TouchableOpacity>
+
+        {/* 返回首頁 */}
+        <TouchableOpacity onPress={() => navigation.navigate('index')}>
+          <Text style={styles.homeText}>返回首頁</Text>
         </TouchableOpacity>
       </View>
     </>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -192,5 +236,12 @@ const styles = StyleSheet.create({
     color: '#00288c',
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  homeText: {
+    marginTop: 12,
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

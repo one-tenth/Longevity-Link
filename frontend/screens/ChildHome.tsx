@@ -1,17 +1,55 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
+import { RootStackParamList } from '../App'; // 如果你有定義 RootStackParamList 在 App.tsx
+
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+
+interface Member {
+  UserID: number;
+  Name: string;
+  RelatedID?: number | null;
+}
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [hasElder, setHasElder] = useState<boolean>(true);
+
+  useEffect(() => {
+    const loadSelectedMember = async () => {
+      const stored = await AsyncStorage.getItem('selectedMember');
+      if (stored) {
+        const parsed: Member = JSON.parse(stored);
+        if (!parsed.RelatedID) {
+          Alert.alert('錯誤', '請選擇一位長者，才能進行操作。');
+          setHasElder(false);
+        } else {
+          setSelectedMember(parsed);
+        }
+      } else {
+        setHasElder(false);
+        Alert.alert('尚未選擇長者', '請先至家庭頁面選擇一位長者。');
+      }
+    };
+    const unsubscribe = navigation.addListener('focus', loadSelectedMember);
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
@@ -21,6 +59,7 @@ export default function ChildHome() {
           <Feather name="settings" size={24} color="#000" />
         </TouchableOpacity>
       </View>
+
 
       {/* User Info */}
       <View style={styles.userCard}>
@@ -65,6 +104,7 @@ export default function ChildHome() {
           <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
+
     </View>
   );
 }
@@ -81,6 +121,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
   },
+
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -101,12 +142,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+
   },
   userName: {
     fontSize: 36,
     fontWeight: '900',
     color: '#000',
     fontFamily: 'DelaGothicOne-Regular',
+
   },
   editIcon: {
     marginLeft: 8,
@@ -124,6 +167,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding:10,
+
     justifyContent: 'flex-start',
     backgroundColor: '#004B97',
     gap: 14,

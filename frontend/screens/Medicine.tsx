@@ -23,12 +23,14 @@ export default function Medicine() {
       </View>
 
 
+
       {/* 藥物功能卡片 */}
       <View style={styles.labelCard}>
         <View style={styles.sideBar} />
         <TouchableOpacity style={styles.cardContent} onPress={() => navigation.navigate('MedTimeSetting')}>
           <MaterialCommunityIcons name="alarm" size={26} color="#005757" />
           <Text style={styles.labelText}>用藥時間設定</Text>
+
         </TouchableOpacity>
       </View>
 

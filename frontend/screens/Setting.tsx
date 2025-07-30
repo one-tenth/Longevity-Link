@@ -2,9 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import { RootStackParamList } from '../App'; // 確認這裡包含 CreateFamily 頁面
 
-// ElderHome 頁面的 navigation 型別
 type SettingNavProp = StackNavigationProp<RootStackParamList, 'Setting'>;
 
 export default function Setting() {
@@ -27,16 +26,18 @@ export default function Setting() {
           <Image source={require('../img/setting/user.png')} style={styles.menuIcon} />
           <Text style={styles.menuText}>個人設定</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        {/* 家庭設定按鈕 */}
+        <TouchableOpacity style={styles.menuItem}
+        onPress={() => navigation.navigate('CreateFamily')}>
           <Image source={require('../img/setting/family.png')} style={styles.menuIcon} />
           <Text style={styles.menuText}>家庭設定</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Back Button - 中間右側 */}
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => navigation.navigate('ChildHome')}
+        onPress={() => navigation.navigate('ChildHome')} // 跳轉回 ChildHome 頁面
       >
         <Image source={require('../img/setting/back.png')} style={styles.backIcon} />
       </TouchableOpacity>
