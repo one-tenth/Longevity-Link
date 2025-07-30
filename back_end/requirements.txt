@@ -38,7 +38,7 @@ openai==1.97.0
 opencv-python==4.11.0.86
 packaging==25.0
 pandas==2.3.1
-pillow==10.2.0
+pillow==10.1.0
 proto-plus==1.26.1
 protobuf==6.31.1
 psutil==7.0.0
