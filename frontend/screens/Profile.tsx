@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
@@ -10,6 +18,7 @@ interface UserProfile {
   Gender: string;
   Borndate: string;
   FamilyID: string;
+  Fcode: string;
 }
 
 const ProfileScreen = () => {
@@ -20,7 +29,11 @@ const ProfileScreen = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       const token = await AsyncStorage.getItem('access');
-      if (!token) return;
+      if (!token) {
+        Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
+        navigation.navigate('LoginScreen' as never);
+        return;
+      }
 
       try {
         const res = await fetch('http://192.168.0.19:8000/account/me/', {
@@ -62,11 +75,8 @@ const ProfileScreen = () => {
         <Text style={styles.label}>生日</Text>
         <Text style={styles.value}>{profile.Borndate}</Text>
 
-        <Text style={styles.label}>家庭代碼</Text>
-        <Text style={styles.value}>{profile.FamilyID}</Text>
       </View>
 
-      {/* 返回首頁按鈕 */}
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
         <Text style={styles.backButtonText}>返回首頁</Text>
       </TouchableOpacity>

@@ -17,15 +17,15 @@ interface Member {
 const FamilyScreen = () => {
   const navigation = useNavigation<FamilyNavProp>();
   const route = useRoute<FamilyRouteProp>();
-  const mode = route.params?.mode || 'full'; // ← 'select' 或 'full'
+  const mode = route.params?.mode || 'full';
 
   const [familyName, setFamilyName] = useState('家族名稱');
+  const [familyCode, setFamilyCode] = useState<string | null>(null); // ✅ 新增
   const [userId, setUserId] = useState<number | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
-      // ✅ 清除 selectedMember
       await AsyncStorage.removeItem('selectedMember');
 
       const token = await AsyncStorage.getItem('access');
@@ -43,8 +43,10 @@ const FamilyScreen = () => {
         });
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
+        console.log('✅ 取得使用者資訊:', user); 
         setUserId(user.UserID);
         setFamilyName(`${user.Name}的家庭`);
+        setFamilyCode(user.Fcode); // ✅ 設定 Fcode
 
         const resMembers = await fetch('http://192.168.0.19:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
@@ -53,10 +55,9 @@ const FamilyScreen = () => {
 
         const membersData = await resMembers.json();
         if (Array.isArray(membersData)) {
-          // ✅ 根據模式決定要顯示誰
           const filtered = mode === 'select'
-            ? membersData.filter((m: Member) => m.RelatedID !== null) // 只顯示長者
-            : membersData; // 顯示全部
+            ? membersData.filter((m: Member) => m.RelatedID !== null)
+            : membersData;
           setMembers(filtered);
         } else {
           console.warn('成員資料格式錯誤:', membersData);
@@ -79,6 +80,13 @@ const FamilyScreen = () => {
       </View>
 
       <Text style={styles.title}>{familyName}（{members.length}）</Text>
+
+      {/* ✅ 顯示家庭代碼 */}
+      {familyCode && (
+        <Text style={{ textAlign: 'center', marginBottom: 10 }}>
+          家庭代碼：{familyCode}
+        </Text>
+      )}
 
       <ScrollView contentContainerStyle={styles.memberContainer}>
         {members.length > 0 ? (
