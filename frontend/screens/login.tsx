@@ -155,7 +155,7 @@ export default function LoginScreen() {
 
 
         {/* 註冊連結 */}
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
 
