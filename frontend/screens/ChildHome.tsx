@@ -11,7 +11,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -95,7 +94,7 @@ export default function ChildHome() {
           <FontAwesome name="user" size={28} color="#fff" />
           <Text style={styles.settingLabel}>個人</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen')}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
         </TouchableOpacity>
