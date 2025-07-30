@@ -157,3 +157,14 @@ class FitData(models.Model):
     class Meta:
         verbose_name = "FitData"
         verbose_name_plural = "FitData"
+
+class LocaRecord(models.Model):
+    LocationID = models.AutoField(primary_key=True)
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    Latitude = models.FloatField()
+    Longitude = models.FloatField()
+    Timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "LocaRecord"
+        verbose_name_plural = "LocaRecords"

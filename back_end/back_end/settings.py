@@ -5,7 +5,6 @@ load_dotenv()
 import os
 
 
-
 """
 Django settings for back_end project.
 
@@ -118,12 +117,13 @@ SIMPLE_JWT = {
 #         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'Ab950630',   # ← 登入用的密碼
+        'PASSWORD': 'root1234',  # ← 請重新貼上確認 
         'HOST': 'localhost',
         'PORT': '3306',
     }

@@ -488,3 +488,40 @@ def login(request):
             "Phone": user.Phone,
         }
     }, status=status.HTTP_200_OK)
+
+
+
+#定位
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import LocaRecord, User
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upload_location(request):
+    user = request.user
+    lat = request.data.get('latitude')
+    lng = request.data.get('longitude')
+    
+    if lat is None or lng is None:
+        return Response({'error': '缺少座標'}, status=400)
+
+    LocaRecord.objects.create(UserID=user, Latitude=lat, Longitude=lng)
+    return Response({'status': 'success'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_latest_location(request, user_id):
+    try:
+        record = LocaRecord.objects.filter(UserID=user_id).order_by('-Timestamp').first()
+        if record:
+            return Response({
+                'latitude': record.Latitude,
+                'longitude': record.Longitude,
+                'timestamp': record.Timestamp
+            })
+        else:
+            return Response({'error': '找不到定位資料'}, status=404)
+    except User.DoesNotExist:
+        return Response({'error': '使用者不存在'}, status=404)

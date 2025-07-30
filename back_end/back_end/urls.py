@@ -31,4 +31,8 @@ urlpatterns = [
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
+    path('api/location/upload/', views.upload_location),
+    path('api/location/latest/<int:user_id>/', views.get_latest_location)
+
+
 ]

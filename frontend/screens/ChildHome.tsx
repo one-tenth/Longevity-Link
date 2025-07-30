@@ -9,6 +9,9 @@ type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
+  const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
+  const parentNav = navigation.getParent<StackNavigationProp<RootStackParamList>>();
+
 
   return (
     <View style={styles.container}>
