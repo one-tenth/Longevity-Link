@@ -54,7 +54,7 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
-      <Stack.Screen name="ChildHome_1" component={ChildHome} />
+      <Stack.Screen name="ChildHome_1" component={ChildHome_1} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
