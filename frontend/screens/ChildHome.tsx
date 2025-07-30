@@ -1,14 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import Entypo from 'react-native-vector-icons/Entypo';
+
+import { RootStackParamList } from '../App'; // 如果你有定義 RootStackParamList 在 App.tsx
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
@@ -47,57 +55,56 @@ export default function ChildHome() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerText}>CareMate</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Setting')}>
-          <Feather name="settings" size={24} color="#fff" />
+          <Feather name="settings" size={24} color="#000" />
         </TouchableOpacity>
       </View>
 
-      {/* User Info 可點擊切換 */}
-      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')}>
-        <View style={styles.userCard}>
-          <FontAwesome name="user-circle" size={50} color="#F0F8FF" />
-          <Text style={styles.userName}>{selectedMember?.Name || '請選擇成員'}</Text>
-          <Feather name="edit-2" size={18} color="#F0F8FF" />
+
+      {/* User Info */}
+      <View style={styles.userCard}>
+        <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
+        <View style={styles.nameRow}>
+          <Text style={styles.userName}>爺爺</Text>
+          <View style={{ flex: 1 }} />
+          <Feather name="edit-2" size={18} color="#000" style={styles.editIcon} />
         </View>
-      </TouchableOpacity>
+      </View>
 
-      {/* 功能按鈕 */}
-      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Location')}>
-        <Entypo name="location-pin" size={28} color="#fff" />
-        <Text style={styles.featureText}>即時位置</Text>
-      </TouchableOpacity>
+      {/* 健康狀況卡片 */}
+      <View style={styles.featureCardWrapper}>
+        <TouchableOpacity style={styles.featureCard} onPress={() => navigation.navigate('Health')}>
+          <MaterialIcons name="favorite" size={28} color="#FFF" />
+          <Text style={styles.featureText}>健康狀況</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
+      </View>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Health')}>
-        <MaterialIcons name="favorite" size={28} color="#fff" />
-        <Text style={styles.featureText}>健康狀況</Text>
-      </TouchableOpacity>
+      {/* 用藥資訊卡片 */}
+      <View style={styles.featureCardWrapper}>
+        <TouchableOpacity style={styles.featureCard} onPress={() => navigation.navigate('Medicine')}>
+          <MaterialIcons name="medical-services" size={28} color="#FFF" />
+          <Text style={styles.featureText}>用藥資訊</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
+      </View>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('Medicine')}>
-        <MaterialIcons name="medical-services" size={28} color="#fff" />
-        <Text style={styles.featureText}>用藥資訊</Text>
-      </TouchableOpacity>
+      {/* 底部功能列 */}
+      <View style={styles.settingBox}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
+          <FontAwesome name="user" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>個人</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
+          <FontAwesome name="home" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>家庭</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('index')}>
+          <FontAwesome name="exchange" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>切換</Text>
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('HospitalRecord')}>
-        <MaterialIcons name="local-hospital" size={28} color="#fff" />
-        <Text style={styles.featureText}>看診記錄</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.featureBox} onPress={() => hasElder && navigation.navigate('CallRecord')}>
-        <Feather name="phone-call" size={28} color="#fff" />
-        <Text style={styles.featureText}>通話紀錄</Text>
-      </TouchableOpacity>
-
-      {/* 底部按鈕 */}
-      <TouchableOpacity onPress={() => navigation.navigate('index')} style={styles.switchBox}>
-        <Feather name="user" size={20} color="#3a111c" />
-        <Text style={styles.switchText}>切換使用者</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => navigation.navigate('FamilyScreen')} style={styles.switchBox}>
-        <Feather name="user" size={20} color="#3a111c" />
-        <Text style={styles.switchText}>家庭</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -105,64 +112,97 @@ export default function ChildHome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#b0cfc1',
+
+    backgroundColor: '#FFF',
   },
   header: {
-    backgroundColor: '#E6C3C3',
+    backgroundColor: '#FFF',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 14,
   },
-  headerText: {
-    color: '#800000',
-    fontSize: 44,
-    fontFamily: 'FascinateInline-Regular',
-  },
+
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6495ED',
-    padding: 10,
+    backgroundColor: '#F0F0F0',
     margin: 10,
-    borderRadius: 10,
-    marginTop: 20,
-    gap: 12,
+    padding: 12,
+    borderRadius: 30,
+  },
+  userIcon: {
+    width: 80,
+    height: 80,
+    borderWidth: 3,
+    borderColor: '#000',
+    borderRadius: 50,
+    marginRight: 10,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+
   },
   userName: {
     fontSize: 36,
     fontWeight: '900',
-    color: '#F0F8FF',
+    color: '#000',
     fontFamily: 'DelaGothicOne-Regular',
-    flex: 1,
+
   },
-  featureBox: {
+  editIcon: {
+    marginLeft: 8,
+  },
+  featureCardWrapper: {
+    backgroundColor: '#ECF5FF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: '#C0D8F0',
+    overflow: 'hidden',
+  },
+  featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#24368e',
-    padding: 16,
-    borderRadius: 10,
-    marginTop: 5,
-    marginLeft: 20,
-    marginRight: 20,
+    padding:10,
+
     justifyContent: 'flex-start',
+    backgroundColor: '#004B97',
     gap: 14,
   },
+  cardBottomBlank: {
+    height: 100,
+    backgroundColor: '#ECF5FF',
+  },
   featureText: {
-    color: '#fff',
-    fontSize: 18,
+    color: '#FFF',
+    fontSize:24,
     fontWeight: '900',
   },
-  switchBox: {
+  settingBox: {
+    position: 'absolute',
+    bottom: 0,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    marginTop: 30,
-    justifyContent: 'center',
-    gap: 10,
+    backgroundColor: '#000',
+    paddingVertical: 5,
+    borderRadius: 50,
+    borderColor: '#fff',
+    borderWidth: 2,
   },
-  switchText: {
-    color: '#3a111c',
-    fontSize: 16,
-    fontWeight: 'bold',
+  settingItem: {
+    alignItems: 'center',
+  },
+  settingLabel: {
+    color: '#fff',
+    fontSize: 14,
+    marginTop: 2,
+    fontWeight: '900',
   },
 });

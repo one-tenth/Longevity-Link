@@ -104,9 +104,12 @@ const HomeScreen: React.FC = () => {
 
         <TouchableOpacity
           style={[styles.gridBox, { backgroundColor: '#F58402' }]}
-          onPress={() => navigation.navigate('ChildHome')}
-        >
-          <Image source={require('../img/setting/young.png')} style={styles.young} />
+          onPress={() => navigation.navigate('ChildHome_1')}>
+          <Image
+            source={require('../img/setting/young.png')}
+            style={styles.young}
+          />
+
           <Text style={styles.gridText}>家人首頁</Text>
         </TouchableOpacity>
       </View>
