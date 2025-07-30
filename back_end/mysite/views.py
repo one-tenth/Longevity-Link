@@ -678,3 +678,11 @@ def get_family_members(request):
     members = User.objects.filter(FamilyID=family_id)
     serializer = UserPublicSerializer(members, many=True)
     return Response(serializer.data)
+
+from .serializers import UserMeSerializer
+#取個人資料
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_me(request):
+    serializer = UserMeSerializer(request.user)
+    return Response(serializer.data)
