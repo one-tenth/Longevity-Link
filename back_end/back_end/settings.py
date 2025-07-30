@@ -59,13 +59,10 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    #0622
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny'
+        'rest_framework.permissions.IsAuthenticated'
     ]
 }
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
@@ -123,7 +120,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'chei0515',   # ← 登入用的密碼
+        'PASSWORD': 'J1040immy',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }
