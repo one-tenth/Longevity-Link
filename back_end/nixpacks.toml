@@ -1,8 +1,14 @@
 [phases.setup]
-nixPkgs = ["python311", "pip"]
+# 確保安裝 python311 和 pip
+nixPkgs = ["python311" "pip"]
 
 [phases.build]
-cmds = ["pip install -r requirements-lite.txt"]
+cmds = [
+  # 確保 pip 更新並安裝依賴
+  "python3 -m ensurepip --upgrade",  # 確保 pip 正確安裝
+  "pip install --upgrade pip",       # 更新 pip 至最新版本
+  "pip install -r requirements-lite.txt"  # 安裝項目所需的依賴
+]
 
 [phases.start]
 cmd = "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
