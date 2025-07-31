@@ -1,9 +1,0 @@
-[phases.setup]
-nixPkgs = ["python311", "pip"]
-
-[phases.build]
-cmds = ["pip install -r back_end/requirements.txt"]
-
-[phases.start]
-cmd = "cd back_end && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-
