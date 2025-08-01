@@ -39,4 +39,4 @@ openai==1.97.0
 
 
 
-ultralytics==8.1.24
+# ultralytics==8.1.24
