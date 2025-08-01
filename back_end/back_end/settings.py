@@ -115,10 +115,10 @@ SIMPLE_JWT = {
 DATABASES = {
     'default': {
         'ENGINE': 'mysql.connector.django',
-        'NAME': 'caremate_db',
+        'NAME': 'railway',
         'USER': 'root',
-        'PASSWORD': 'eric264859',
-        'HOST': 'localhost',
+        'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
+        'HOST': 'mysql.railway.internal',
         'PORT': '3306',
     }
 }
