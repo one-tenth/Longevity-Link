@@ -7,6 +7,69 @@ import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
 # 血壓功能
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser
+from django.core.files.storage import default_storage
+import os
+import uuid
+from datetime import datetime
+from .models import HealthCare
+from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
+
+class BloodOCRView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        print("🔐 目前登入的使用者：", request.user)
+
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response({"error": "未收到圖片"}, status=400)
+
+        # 暫存圖片
+        filename = f"temp_{uuid.uuid4()}.jpg"
+        file_path = os.path.join('temp', filename)
+        full_path = default_storage.save(file_path, image_file)
+
+        try:
+            # ✅ 模擬 YOLO + OCR 假資料
+            result = {
+                "systolic": 120,
+                "diastolic": 80,
+                "pulse": 72,
+            }
+
+            systolic = result["systolic"]
+            diastolic = result["diastolic"]
+            pulse = result["pulse"]
+
+            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
+            local_now = timezone.localtime(timezone.now())
+            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
+
+            HealthCare.objects.create(
+                UserID=request.user,
+                Systolic=systolic,
+                Diastolic=diastolic,
+                Pulse=pulse,
+                Date=local_now
+            )
+
+            return Response({
+                "message": "✅ 模擬分析完成",
+                "data": {
+                    "systolic": systolic,
+                    "diastolic": diastolic,
+                    "pulse": pulse
+                }
+            })
+
+        finally:
+            default_storage.delete(full_path)  # 清除暫存圖片
+
 # from rest_framework.views import APIView
 # from rest_framework.response import Response
 # from rest_framework.permissions import IsAuthenticated
