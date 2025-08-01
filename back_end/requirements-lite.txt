@@ -35,3 +35,8 @@ opencv-python==4.11.0.86
 
 # OpenAI（如果有用 chat/gpt）
 openai==1.97.0
+
+
+
+
+ultralytics==8.1.24
