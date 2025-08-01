@@ -7,78 +7,78 @@ import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
 # 血壓功能
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser
-from django.core.files.storage import default_storage
-import os
-import uuid
-from datetime import datetime
-from ocr_modules.bp_ocr_yolo import run_yolo_ocr
-from .models import HealthCare
-from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.parsers import MultiPartParser
+# from django.core.files.storage import default_storage
+# import os
+# import uuid
+# from datetime import datetime
+# from ocr_modules.bp_ocr_yolo import run_yolo_ocr
+# from .models import HealthCare
+# from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
 
 
-class BloodOCRView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser]
+# class BloodOCRView(APIView):
+#     permission_classes = [IsAuthenticated]
+#     parser_classes = [MultiPartParser]
 
-    def post(self, request):
-        print("🔐 目前登入的使用者：", request.user)
+#     def post(self, request):
+#         print("🔐 目前登入的使用者：", request.user)
 
-        image_file = request.FILES.get('image')
-        if not image_file:
-            return Response({"error": "未收到圖片"}, status=400)
+#         image_file = request.FILES.get('image')
+#         if not image_file:
+#             return Response({"error": "未收到圖片"}, status=400)
 
-        # 暫存圖片
-        filename = f"temp_{uuid.uuid4()}.jpg"
-        file_path = os.path.join('temp', filename)
-        full_path = default_storage.save(file_path, image_file)
+#         # 暫存圖片
+#         filename = f"temp_{uuid.uuid4()}.jpg"
+#         file_path = os.path.join('temp', filename)
+#         full_path = default_storage.save(file_path, image_file)
 
-        try:
-            # 🧠 執行 YOLO + OCR 辨識
-            result = run_yolo_ocr(default_storage.path(full_path))
+#         try:
+#             # 🧠 執行 YOLO + OCR 辨識
+#             result = run_yolo_ocr(default_storage.path(full_path))
 
-            def safe_int(val):
-                try:
-                    return int(val)
-                except:
-                    return None
+#             def safe_int(val):
+#                 try:
+#                     return int(val)
+#                 except:
+#                     return None
 
-            systolic = safe_int(result.get('systolic'))
-            diastolic = safe_int(result.get('diastolic'))
-            pulse = safe_int(result.get('pulse'))
+#             systolic = safe_int(result.get('systolic'))
+#             diastolic = safe_int(result.get('diastolic'))
+#             pulse = safe_int(result.get('pulse'))
 
-            if systolic is None or diastolic is None or pulse is None:
-                return Response({"error": "OCR 辨識失敗，請再試一次"}, status=400)
+#             if systolic is None or diastolic is None or pulse is None:
+#                 return Response({"error": "OCR 辨識失敗，請再試一次"}, status=400)
 
-            if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
-                return Response({"error": "數值異常，請確認圖片品質"}, status=400)
+#             if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
+#                 return Response({"error": "數值異常，請確認圖片品質"}, status=400)
 
-            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-            local_now = timezone.localtime(timezone.now())
-            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
+#             # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
+#             local_now = timezone.localtime(timezone.now())
+#             print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
 
-            HealthCare.objects.create(
-                UserID=request.user,
-                Systolic=systolic,
-                Diastolic=diastolic,
-                Pulse=pulse,
-                Date=local_now  # timezone-aware datetime
-            )
+#             HealthCare.objects.create(
+#                 UserID=request.user,
+#                 Systolic=systolic,
+#                 Diastolic=diastolic,
+#                 Pulse=pulse,
+#                 Date=local_now  # timezone-aware datetime
+#             )
 
-            return Response({
-                "message": "分析完成",
-                "data": {
-                    "systolic": systolic,
-                    "diastolic": diastolic,
-                    "pulse": pulse
-                }
-            })
+#             return Response({
+#                 "message": "分析完成",
+#                 "data": {
+#                     "systolic": systolic,
+#                     "diastolic": diastolic,
+#                     "pulse": pulse
+#                 }
+#             })
 
-        finally:
-            default_storage.delete(full_path)  # 清除暫存圖片
+#         finally:
+#             default_storage.delete(full_path)  # 清除暫存圖片
 
 #查血壓
 from rest_framework.views import APIView
