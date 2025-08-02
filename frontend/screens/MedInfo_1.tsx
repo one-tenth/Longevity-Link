@@ -27,7 +27,7 @@ export default function MedicineInfo() {
     try {
       const token = await AsyncStorage.getItem('access');
       const response = await axios.get(
-        `http://172.20.10.26:8000/api/meds/${prescriptionId}/`,
+        `http://192.168.0.55:8000/api/meds/${prescriptionId}/`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
