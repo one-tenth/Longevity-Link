@@ -42,6 +42,7 @@ export default function MedicationInfoScreen() {
         return;
       }
 
+
       const member = JSON.parse(selected);
 
       const response = await axios.get(`http://172.20.10.26:8000/api/mednames/?user_id=${member.UserID}`, {

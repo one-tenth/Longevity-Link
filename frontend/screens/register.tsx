@@ -129,7 +129,6 @@ export default function RegisterScreen() {
     }
   };
 
-
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
