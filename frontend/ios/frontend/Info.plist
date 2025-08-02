@@ -50,7 +50,6 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>FascinateInline-Regular.ttf</string>
-		<string>DelaGothicOne-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

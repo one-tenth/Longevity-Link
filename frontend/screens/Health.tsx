@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 type NavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
@@ -18,32 +27,37 @@ export default function HealthStatus() {
 
   const fetchData = async (date: Date) => {
     const token = await AsyncStorage.getItem('access');
-    if (!token) return;
+    const selected = await AsyncStorage.getItem('selectedMember');
+    if (!token || !selected) return;
 
+    const member = JSON.parse(selected); // 👈 這就是你選的老人
     const dateStr = date.toLocaleDateString('sv-SE');
 
     try {
-      const stepRes = await axios.get(`http://172.20.10.3:8000/api/fitdata/by-date/?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const stepRes = await axios.get(
+        `http://192.168.0.55:8000/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setSteps(stepRes.data.steps);
-    } catch (e) {
+    } catch {
       setSteps(null);
     }
 
     try {
-      const bpRes = await axios.get(`http://172.20.10.3:8000/api/healthcare/by-date/?date=${dateStr}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const bpRes = await axios.get(
+        `http://192.168.0.55:8000/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setBpData({
         systolic: bpRes.data.systolic,
         diastolic: bpRes.data.diastolic,
         pulse: bpRes.data.pulse,
       });
-    } catch (e) {
+    } catch {
       setBpData(null);
     }
   };
+
 
   useEffect(() => {
     fetchData(selectedDate);
@@ -51,24 +65,20 @@ export default function HealthStatus() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#005757" />
+      
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>CareMate</Text>
-        <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('ChildHome_1')}>
+          <FontAwesome name="arrow-left" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={{ fontFamily: 'FascinateInline-Regular', fontSize: 40, color: '#FFF' }}>.CareMate.</Text>
       </View>
 
-      <View style={styles.profileRow}>
-        <View style={styles.profileBox}>
-          <Image source={require('../img/medicine/elderly.png')} style={styles.profileIcon} />
-          <Text style={styles.profileText}>爺爺</Text>
-        </View>
-        <Text style={styles.sectionTitle}>用藥資訊</Text>
-      </View>
-
-
-      <TouchableOpacity onPress={() => setShowPicker(true)}>
-        <Text style={{ textAlign: 'center', marginTop: 5 }}>
-          📅 選擇日期（目前：{selectedDate.toLocaleDateString('sv-SE')}）
-        </Text>
+      {/* 日期選擇 */}
+      <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.dateWrapper}>
+        <FontAwesome name="calendar" size={18} color="#333" />
+        <Text style={styles.dateText}>選擇日期（{selectedDate.toLocaleDateString('sv-SE')}）</Text>
       </TouchableOpacity>
 
       {showPicker && (
@@ -86,122 +96,127 @@ export default function HealthStatus() {
         />
       )}
 
-      <View style={styles.card}>
-        <Image source={require('../img/health/foot.png')} style={styles.cardIcon} />
-        <Text style={styles.cardText}>{steps !== null ? `${steps} 步` : '查無紀錄'}</Text>
-
-      </View>
-
-      <View style={styles.card}>
-        <View>
-          <Text style={styles.cardText}>收縮壓：{bpData ? bpData.systolic : '未紀錄'}</Text>
-          <Text style={styles.cardText}>舒張壓：{bpData ? bpData.diastolic : '未紀錄'}</Text>
-          <Text style={styles.cardText}>脈搏：{bpData ? bpData.pulse : '未紀錄'}</Text>
+      {/* 步數卡片 */}
+      <View style={styles.labelCard}>
+        <View style={styles.sideBar} />
+        <View style={styles.cardContent}>
+          <Text style={styles.labelTitle}>步數</Text>
+          <Text style={styles.labelValue}>{steps !== null ? `${steps} 步` : '查無紀錄'}</Text>
         </View>
       </View>
 
+      {/* 血壓卡片 */}
+      <View style={styles.labelCard}>
+        <View style={styles.sideBar} />
+        <View style={styles.cardContent}>
+          <Text style={styles.labelTitle}>血壓</Text>
+          {bpData ? (
+            <>
+              <Text style={styles.labelValue}>收縮壓：{bpData.systolic}</Text>
+              <Text style={styles.labelValue}>舒張壓：{bpData.diastolic}</Text>
+              <Text style={styles.labelValue}>脈搏：{bpData.pulse}</Text>
+            </>
+          ) : (
+            <Text style={styles.labelValue}>查無紀錄</Text>
+          )}
+        </View>
+      </View>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('ChildHome')}>
-
-        <Text style={styles.buttonText}>回首頁</Text>
-      </TouchableOpacity>
+      {/* 底部按鈕列 */}
+      <View style={styles.bottomBox}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
+          <FontAwesome name="user" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>個人</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
+          <FontAwesome name="home" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>家庭</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('index')}>
+          <FontAwesome name="exchange" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>切換</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFEF4',
-  },
+  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center' },
   header: {
     width: '100%',
     height: 70,
+    backgroundColor: '#005757',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#65B6E4',
-    paddingLeft: 10,
-    paddingRight: 10,
-    alignItems: 'center'
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
   },
+  backButton: { position: 'absolute', left: 10 },
   title: {
-    fontSize: 50,
-    fontWeight: '900',
-    color: '#000'
+    fontSize: 34,
+    fontWeight: 'bold',
+    color: '#FFF',
+    fontFamily: 'FascinateInline-Regular',
   },
-  logo: {
-    width: 60,
-    height: 60,
-    marginTop: 15
-  },
-  profileRow: {
-    marginTop: 20,
-    flexDirection: 'row',
-    marginBottom: 10,
-    marginLeft: 5
-  },
-  profileBox: {
-    width: '40%',
-    marginLeft: 10,
+  dateWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#000',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    padding: 1
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 16,
   },
-  profileIcon: {
-    width: 55,
-    height: 55,
-    marginRight: 10
+  dateText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
-  profileText: {
-    fontSize: 30,
-    fontWeight: '900'
-  },
-  sectionTitle: {
-    fontSize: 30,
-    fontWeight: '900',
-    textAlign: 'center',
-    paddingLeft: 10,
-    marginTop: 20
-  },
-  card: {
+
+  // 新增標籤樣式
+  labelCard: {
     flexDirection: 'row',
-    backgroundColor: '#F4C80B',
-    marginTop: 20,
-    marginHorizontal: 20,
-    padding: 15,
+    backgroundColor: '#F0F8FF',
     borderRadius: 12,
-    borderWidth: 3,
-    borderColor: '#000',
-    alignItems: 'center',
+    width: '90%',
+    height: 120,
+    marginTop: 20,
+    overflow: 'hidden',
+    elevation: 3,
   },
-  cardIcon: {
-    width: 50,
-    height: 50,
-    marginRight: 15,
+  sideBar: {
+    width: 10,
+    backgroundColor: '#007979',
   },
-  cardText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#000',
-    marginBottom: 5,
+  cardContent: {
+    flex: 1,
+    padding: 12,
   },
-  button: {
-    marginTop: 30,
-    alignSelf: 'center',
-    backgroundColor: '#F58402',
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: '#000',
-  },
-  buttonText: {
+  labelTitle: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#000',
+    marginBottom: 6,
+    color: '#005757',
+  },
+  labelValue: {
+    fontSize: 16,
+    color: '#333',
+  },
+
+  bottomBox: {
+    position: 'absolute',
+    bottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    paddingVertical: 10,
+    borderRadius: 50,
+    width: '90%',
+  },
+  settingItem: { alignItems: 'center' },
+  settingLabel: {
+    color: '#fff',
+    fontSize: 14,
+    marginTop: 2,
+    fontWeight: '900',
   },
 });

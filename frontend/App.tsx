@@ -23,8 +23,11 @@ import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import Health from './screens/Health';
 import ElderMedRemind from './screens/ElderMedRemind';
-import CreateFamilyScreen from './screens/CreateFamilyScreen';
 import FamilyScreen from './screens/FamilyScreen';
+import CreateFamily from './screens/CreateFamily';
+import FamilySetting from './screens/FamilySetting';
+import JoinFamily from './screens/JoinFamily';
+
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -46,8 +49,10 @@ export type RootStackParamList = {
   RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
   ElderMedRemind: undefined;
-  CreateFamilyScreen: undefined;
   FamilyScreen: undefined;
+  CreateFamily: undefined;
+  FamilySetting: undefined;
+  JoinFamily: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -60,7 +65,7 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
       <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
       <Stack.Screen name="ChildHome" component={ChildHome} />
-      <Stack.Screen name="ChildHome_1" component={ChildHome} />
+      <Stack.Screen name="ChildHome_1" component={ChildHome_1} />
       <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
       <Stack.Screen name="Medicine" component={Medicine} />
       <Stack.Screen name="MedInfo" component={MedInfo} />
@@ -73,8 +78,10 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
       <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
-      <Stack.Screen name="CreateFamilyScreen" component={CreateFamilyScreen} />
       <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
+      <Stack.Screen name="CreateFamily" component={CreateFamily} />
+      <Stack.Screen name="FamilySetting" component={FamilySetting} />
+      <Stack.Screen name="JoinFamily" component={JoinFamily} />
     </Stack.Navigator>
   </NavigationContainer>
 );

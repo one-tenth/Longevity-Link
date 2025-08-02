@@ -1,4 +1,4 @@
-import mysql.connector.django  # ⬅️ 加在 settings.py 開頭
+# import mysql.connector.django  # ⬅️ 加在 settings.py 開頭
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -61,13 +61,10 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    #0622
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny'
+        'rest_framework.permissions.IsAuthenticated'
     ]
 }
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
@@ -112,14 +109,24 @@ SIMPLE_JWT = {
 }
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'mysql.connector.django',
+#         'NAME': 'railway',
+#         'USER': 'root',
+#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
+#         'HOST': 'mysql.railway.internal',
+#         'PORT': '3306',
+#     }
+# }
 DATABASES = {
     'default': {
-        'ENGINE': 'mysql.connector.django',
-        'NAME': 'railway',
-        'USER': 'root',
-        'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
-        'HOST': 'mysql.railway.internal',
-        'PORT': '3306',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'caremate_db',         # 你自己建立的資料庫名稱
+        'USER': 'root',                # 本地 MySQL 使用者
+        'PASSWORD': 'eric264859',        # 你的密碼
+        'HOST': 'localhost',           # 本地端主機
+        'PORT': '3306',                # 預設 MySQL 埠號
     }
 }
 
