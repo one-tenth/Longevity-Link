@@ -675,15 +675,21 @@ class CreateFamilyView(APIView):
             'FamilyName': family.FamilyName,
         })
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_me(request):
     user = request.user
+    family_obj = user.FamilyID  
+
     return Response({
         "UserID": user.UserID,
         "Name": user.Name,
         "Phone": user.Phone,
-        "FamilyID": FamilySerializer(user.FamilyID).data if user.FamilyID else None,
+        "Gender": user.Gender,
+        "Borndate": user.Borndate,
+        "FamilyID": family_obj.FamilyID if family_obj else None, 
+        "Fcode": family_obj.Fcode if family_obj else None,        
         "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
     })
 
@@ -740,4 +746,12 @@ def get_family_members(request):
 
     members = User.objects.filter(FamilyID=family_id)
     serializer = UserPublicSerializer(members, many=True)
+    return Response(serializer.data)
+
+from .serializers import UserMeSerializer
+#取個人資料
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_me(request):
+    serializer = UserMeSerializer(request.user)
     return Response(serializer.data)

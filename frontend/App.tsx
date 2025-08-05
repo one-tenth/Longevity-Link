@@ -27,7 +27,7 @@ import FamilyScreen from './screens/FamilyScreen';
 import CreateFamily from './screens/CreateFamily';
 import FamilySetting from './screens/FamilySetting';
 import JoinFamily from './screens/JoinFamily';
-
+import Profile from './screens/Profile';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -49,10 +49,11 @@ export type RootStackParamList = {
   RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
   ElderMedRemind: undefined;
-  FamilyScreen: undefined;
+  FamilyScreen: { mode?: 'select' | 'full' };
   CreateFamily: undefined;
   FamilySetting: undefined;
   JoinFamily: undefined;
+  Profile: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -82,6 +83,7 @@ const App: React.FC = () => (
       <Stack.Screen name="CreateFamily" component={CreateFamily} />
       <Stack.Screen name="FamilySetting" component={FamilySetting} />
       <Stack.Screen name="JoinFamily" component={JoinFamily} />
+      <Stack.Screen name="Profile" component={Profile} />
     </Stack.Navigator>
   </NavigationContainer>
 );

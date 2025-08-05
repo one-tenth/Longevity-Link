@@ -73,61 +73,75 @@ export default function RegisterScreen() {
 
 
   const handleRegister = async () => {
-    if (!form.Password || !form.confirmPassword) {
-      Alert.alert('錯誤', '請輸入密碼與確認密碼');
-      return;
-    }
+  if (!form.Name.trim()) {
+    Alert.alert('錯誤', '請輸入姓名');
+    return;
+  }
 
-    if (form.Password.length < 6) {
-      Alert.alert('錯誤', '密碼長度需至少6碼');
-      return;
-    }
+  if (!/^09\d{8}$/.test(form.Phone)) {
+    Alert.alert('錯誤', '請輸入正確的手機號碼格式 (09開頭，共10碼)');
+    return;
+  }
 
-    if (form.Password !== form.confirmPassword) {
-      Alert.alert('錯誤', '兩次密碼不一致');
-      return;
-    }
+  if (!form.Password || !form.confirmPassword) {
+    Alert.alert('錯誤', '請輸入密碼與確認密碼');
+    return;
+  }
 
-    const Borndate = `${form.year}-${form.month}-${form.day}`;
-    const dataToSend: RegisterData = {
-      Name: form.Name,
-      Gender: form.Gender as 'M' | 'F',
-      Borndate,
-      Phone: form.Phone,
-      password: form.Password,
-      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
-    };
+  if (form.Password.length < 6) {
+    Alert.alert('錯誤', '密碼長度需至少6碼');
+    return;
+  }
 
-    try {
-      const res = await fetch('http://192.168.0.55:8000/api/register/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataToSend),
-      });
+  if (form.Password !== form.confirmPassword) {
+    Alert.alert('錯誤', '兩次密碼不一致');
+    return;
+  }
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        if (errorText.includes('Duplicate entry')) {
-          Alert.alert('註冊失敗', '此電話號碼已被註冊，請改用其他號碼');
-        } else {
-          console.error('錯誤回應內容:', errorText);
-          Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
-        }
-        return;
-      }
 
-      if (mode === 'addElder') {
-        Alert.alert('新增成功', '已成功將長者加入家庭');
-        navigation.navigate('ChildHome' as never);
-      } else {
-        Alert.alert('註冊成功', '請前往登入');
-        navigation.navigate('LoginScreen' as never);
-      }
-    } catch (error: any) {
-      console.error(error.message || error);
-      Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
-    }
+  const Borndate = `${form.year}-${form.month}-${form.day}`;
+  const dataToSend: RegisterData = {
+    Name: form.Name,
+    Gender: form.Gender as 'M' | 'F',
+    Borndate,
+    Phone: form.Phone,
+    password: form.Password,
+    ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
   };
+
+  try {
+    const res = await fetch('http://172.20.10.4:8000/api/register/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dataToSend),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      if (errorText.includes('Duplicate entry')) {
+        Alert.alert('註冊失敗', '此電話號碼已被註冊，請改用其他號碼');
+      } else {
+        console.error('錯誤回應內容:', errorText);
+        Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+      }
+      return;
+    }
+
+    if (mode === 'addElder') {
+      Alert.alert('新增成功', '已成功將長者加入家庭');
+      navigation.navigate('ChildHome' as never);
+    } else {
+      Alert.alert('註冊成功', '請前往登入');
+      navigation.navigate('LoginScreen' as never);
+    }
+  } catch (error: any) {
+    console.error(error.message || error);
+    Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+  }
+};
+
+
+
 
   return (
     <>
@@ -238,6 +252,12 @@ export default function RegisterScreen() {
             <TouchableOpacity style={styles.btn} onPress={handleRegister}>
               <Text style={styles.btnText}>註冊</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: '#A0C334', marginTop: 10 }]}
+              onPress={() => navigation.navigate('index')}>
+              <Text style={styles.btnText}>返回主頁</Text>
+</TouchableOpacity>
           </View>
         </ScrollView>
       </View>
