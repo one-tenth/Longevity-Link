@@ -59,7 +59,7 @@ export default function CreateFamily() {
     setFamilyCode(code);
 
     try {
-      const response = await fetch('http://192.168.0.19:8000/api/family/create/', {
+      const response = await fetch('http://172.20.10.4:8000/api/family/create/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
