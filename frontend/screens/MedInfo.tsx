@@ -42,9 +42,10 @@ export default function MedicationInfoScreen() {
         return;
       }
 
+
       const member = JSON.parse(selected);
 
-      const response = await axios.get(`http://172.20.10.26:8000/api/mednames/?user_id=${member.UserID}`, {
+      const response = await axios.get(`http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -71,7 +72,7 @@ export default function MedicationInfoScreen() {
       console.log('🧪 刪除藥單：selectedMember:', member); // ✅ 印出來看清楚
 
       await axios.delete(
-        `http://172.20.10.26:8000/api/delete-prescription/${prescriptionID}/`,
+        `http://192.168.0.55:8000/api/delete-prescription/${prescriptionID}/`,
         {
           headers: { Authorization: `Bearer ${token}` },
           params: { user_id: member.UserID },
@@ -155,7 +156,7 @@ export default function MedicationInfoScreen() {
       formData.append('user_id', member.UserID);
 
       const response = await axios.post(
-        'http://172.20.10.26:8000/ocr-analyze/',
+        'http://192.168.0.55:8000/ocr-analyze/',
         formData,
         {
           headers: {

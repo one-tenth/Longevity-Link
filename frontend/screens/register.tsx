@@ -98,6 +98,7 @@ export default function RegisterScreen() {
     return;
   }
 
+
   const Borndate = `${form.year}-${form.month}-${form.day}`;
   const dataToSend: RegisterData = {
     Name: form.Name,
@@ -138,6 +139,7 @@ export default function RegisterScreen() {
     Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
   }
 };
+
 
 
 

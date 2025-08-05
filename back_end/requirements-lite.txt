@@ -1,0 +1,42 @@
+# 核心後端框架
+Django==5.2
+djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
+django-cors-headers==4.7.0
+python-dotenv==1.1.1
+python-decouple==3.8
+sqlparse==0.5.3
+pytz==2025.2
+
+# 資料庫（使用 mysql-connector）
+mysql-connector-python
+
+# API 工具
+requests==2.32.3
+httpx==0.28.1
+
+# JWT、驗證相關
+PyJWT==2.9.0
+
+# Google Cloud Vision API
+google-cloud-vision==3.10.2
+google-api-core==2.25.1
+google-auth==2.40.3
+googleapis-common-protos==1.70.0
+proto-plus==1.26.1
+protobuf==6.31.1
+grpcio==1.73.1
+grpcio-status==1.73.1
+
+# 基本科學與圖像處理
+pillow==10.2.0
+numpy==2.3.1
+opencv-python==4.11.0.86
+
+# OpenAI（如果有用 chat/gpt）
+openai==1.97.0
+
+
+
+
+# ultralytics==8.1.24
