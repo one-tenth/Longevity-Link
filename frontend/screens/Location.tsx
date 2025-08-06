@@ -1,3 +1,4 @@
+// Location.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -7,51 +8,75 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { reverseGeocode } from '../hooks/locationUtils.ts';
+import { reverseGeocode } from '../hooks/locationUtils';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
-
 const { width, height } = Dimensions.get('window');
 type Props = StackScreenProps<RootStackParamList, 'Location'>;
-// 定義 BASE_URL，確保在此檔案可使用
-const BASE_URL = 'http://192.168.196.180:8000'; // 換成後端位址
+const BASE_URL = 'http://192.168.1.84:8000';
 
-const Location: React.FC<Props> = ({ route }) => {
-  const [coord, setCoord] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [address, setAddress] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
+export default function Location({ route }: Props) {
+  const [coord,   setCoord]   = useState<{ latitude: number; longitude: number } | null>(null);
+  const [region,  setRegion]  = useState<Region | null>(null);
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const elderId = route.params.elderId;
 
   useEffect(() => {
-    const fetchLocation = async () => {
-      try {
-        const token = await AsyncStorage.getItem('accessToken');
-        if (!token) throw new Error('Token 不存在');
-
-        const res = await axios.get(
-          `${BASE_URL}/api/location/latest/${elderId}/`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const { latitude, longitude } = res.data;
-        setCoord({ latitude, longitude });
-
-        const addr = await reverseGeocode(latitude, longitude);
-        setAddress(addr);
-      } catch (err) {
-        console.error('❌ 取得長者位置失敗', err);
-        Alert.alert('錯誤', '無法取得長者位置');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLocation();
+    handleFetchLocation();
   }, [elderId]);
+
+  async function handleFetchLocation() {
+    try {
+      // 1. 取 token (key 'access')
+      const token = await AsyncStorage.getItem('access');
+      console.log('🔐 access:', token);
+      if (!token) throw new Error('Token 不存在，請先登入');
+
+      // 2. 呼叫 API
+       const resp = await fetch(
+         `http://192.168.1.84:8000/api/location/latest/${elderId}/`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const text = await resp.text();
+      let data: { latitude: number; longitude: number; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('伺服器回傳格式錯誤');
+      }
+
+      if (!resp.ok) {
+        throw new Error(data.error || '取得長者位置失敗');
+      }
+
+      // 3. 更新地圖座標
+      const { latitude, longitude } = data;
+      setCoord({ latitude, longitude });
+      setRegion({ latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+
+      // 4. 反查地址
+      const addr = await reverseGeocode(latitude, longitude);
+      setAddress(addr);
+
+    } catch (err: any) {
+      console.error('❌ 取得長者位置失敗', err);
+      Alert.alert('錯誤', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -61,32 +86,29 @@ const Location: React.FC<Props> = ({ route }) => {
       </View>
     );
   }
-
-  if (!coord) {
+  if (!coord || !region) {
     return (
       <View style={styles.center}>
-        <Text>找不到位置資料</Text>
+        <Text>無法讀取位置資料</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        initialRegion={{ latitude: coord.latitude, longitude: coord.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
-      >
+      <MapView style={styles.map} region={region}>
         <Marker coordinate={coord} title="長者位置" />
       </MapView>
       <View style={styles.infoPanel}>
-        <Text style={styles.infoText}>經度: {coord.longitude.toFixed(6)}{"\n"}緯度: {coord.latitude.toFixed(6)}</Text>
-        {address.length > 0 && <Text style={styles.addressText}>{address}</Text>}
+        <Text style={styles.infoText}>
+          經度: {coord.longitude.toFixed(6)}{"\n"}
+          緯度: {coord.latitude.toFixed(6)}
+        </Text>
+        {!!address && <Text style={styles.addressText}>{address}</Text>}
       </View>
     </View>
   );
-};
-
-export default Location;
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -98,12 +120,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#ddd',
   },
-  infoText: {
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  addressText: {
-    fontSize: 14,
-    color: '#555',
-  },
+  infoText: { fontSize: 16, marginBottom: 8 },
+  addressText: { fontSize: 14, color: '#555' },
 });

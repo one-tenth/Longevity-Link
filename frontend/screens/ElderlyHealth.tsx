@@ -48,7 +48,7 @@ export default function ElderlyHealth() {
     if (!token) return;
 
     try {
-      const response = await axios.post('http://172.20.10.2:8000/api/fitdata/', {
+      const response = await axios.post('http://192.168.1.84:8000/api/fitdata/', {
         steps,
         timestamp: timestamp.toISOString(),
       }, {

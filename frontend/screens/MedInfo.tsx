@@ -39,7 +39,7 @@ export default function MedicationInfoScreen() {
         return;
       }
 
-      const response = await axios.get('http://172.20.10.2:8000/api/mednames/', {
+      const response = await axios.get('http://192.168.196.18:8000/api/mednames/', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -103,10 +103,10 @@ export default function MedicationInfoScreen() {
         uri: photo.uri,
         name: 'photo.jpg',
         type: photo.type || 'image/jpeg',
-      });
+      }as any);
 
       const response = await axios.post(
-        'http://172.20.10.2:8000/ocr-analyze/',
+        'http://192.168.1.84:8000/ocr-analyze/',
         formData,
         {
           headers: {
