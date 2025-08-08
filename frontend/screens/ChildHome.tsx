@@ -94,6 +94,17 @@ export default function ChildHome() {
         <View style={styles.cardBottomBlank} />
       </View>
 
+      <View style={styles.featureCardWrapper}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('FamilyHospitalList')}
+        >
+          <MaterialIcons name="medical-services" size={28} color="#FFF" />
+          <Text style={styles.featureText}>回診資料</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
+      </View>
+
       {/* 底部功能列 */}
       <View style={styles.settingBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
