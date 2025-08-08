@@ -1,7 +1,7 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
 
-from .models import User,Med,FitData,Family,MedTimeSetting
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -71,3 +71,9 @@ class FamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = Family
         fields = ['id', 'Fcode'] 
+
+
+class HosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hos
+        fields = '__all__'

@@ -755,3 +755,22 @@ from .serializers import UserMeSerializer
 def get_me(request):
     serializer = UserMeSerializer(request.user)
     return Response(serializer.data)
+
+
+from rest_framework import generics, permissions
+from .models import Hos
+from .serializers import HosSerializer
+
+# 家人新增回診資料
+class HosCreateView(generics.CreateAPIView):
+    queryset = Hos.objects.all()
+    serializer_class = HosSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+# 老人查詢自己的回診資料
+class HosListView(generics.ListAPIView):
+    serializer_class = HosSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Hos.objects.filter(UserID=self.request.user)
