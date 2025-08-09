@@ -761,16 +761,28 @@ from rest_framework import generics, permissions
 from .models import Hos
 from .serializers import HosSerializer
 
-# 家人新增回診資料
-class HosCreateView(generics.CreateAPIView):
-    queryset = Hos.objects.all()
-    serializer_class = HosSerializer
-    permission_classes = [permissions.IsAuthenticated]
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_hospital_records(request):
+    user = request.user  
 
-# 老人查詢自己的回診資料
-class HosListView(generics.ListAPIView):
-    serializer_class = HosSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    if user.is_elder:
+        # 老人自己加 → 直接用自己的 UserID
+        target_user_id = user.UserID
+    else:
+        # 家人加 → 存到 RelatedID 指向的老人
+        if user.RelatedID:
+            target_user_id = user.RelatedID.UserID
+        else:
+            return Response({"error": "沒有指定老人"}, status=400)
 
-    def get_queryset(self):
-        return Hos.objects.filter(UserID=self.request.user)
+    data = request.data.copy()
+    data['UserID'] = target_user_id
+
+    serializer = HosSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
+
+    

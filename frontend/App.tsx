@@ -29,6 +29,7 @@ import FamilySetting from './screens/FamilySetting';
 import JoinFamily from './screens/JoinFamily';
 import Profile from './screens/Profile';
 import FamilyHospitalList from './screens/FamilyHospitalList';
+import FamilyAddHospital from './screens/FamilyAddHospital';
 
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
@@ -56,6 +57,7 @@ export type RootStackParamList = {
   JoinFamily: undefined;
   Profile: undefined;
   FamilyHospitalList: undefined;
+  FamilyAddHospital: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -87,6 +89,7 @@ const App: React.FC = () => (
       <Stack.Screen name="JoinFamily" component={JoinFamily} />
       <Stack.Screen name="Profile" component={Profile} />
       <Stack.Screen name="FamilyHospitalList" component={FamilyHospitalList} />
+      <Stack.Screen name="FamilyAddHospital" component={FamilyAddHospital} />
     </Stack.Navigator>
   </NavigationContainer>
 );
