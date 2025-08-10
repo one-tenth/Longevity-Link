@@ -3,6 +3,27 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App'; // 確保這裡定義了對應頁面名稱
+import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+
+function ArcText() {
+  return (
+    <Svg width={360} height={90} viewBox="0 0 360 90" style={{ alignSelf: 'center' }}>
+      <Defs>
+        <Path id="curve" d="M60,70 Q180,10 300,70" fill="none" />
+      </Defs>
+      <SvgText
+        fill="#000000"
+        fontSize="42"
+        fontWeight="bold"
+        fontFamily="FascinateInline-Regular"
+      >
+        <TextPath href="#curve" startOffset="0%" textAnchor="start">
+          .CareMate.
+        </TextPath>
+      </SvgText>
+    </Svg>
+  );
+}
 
 type CreateFamilyNavProp = StackNavigationProp<RootStackParamList, 'CreateFamily'>;
 
@@ -38,7 +59,7 @@ export default function CreateFamily() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFF0',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center' 
   },
   header: {
