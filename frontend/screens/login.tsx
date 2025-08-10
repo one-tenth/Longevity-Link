@@ -44,7 +44,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
+<<<<<<< HEAD
       const response = await fetch('http://192.168.0.55:8000/api/account/login/', {
+=======
+      const response = await fetch('http://192.168.0.19:8000/api/account/login/', {
+>>>>>>> b6c41bff7443eadf779ac264647219a2fa12df7b
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
@@ -155,10 +159,16 @@ export default function LoginScreen() {
 
 
         {/* 註冊連結 */}
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
- 69072b5a1a56c01bdc730629f53778265b646794
+
+        <TouchableOpacity
+          style={[styles.smallButton, { backgroundColor: '#37613C' }]} // 同登入顏色
+          onPress={() => navigation.navigate('index')}
+        >     
+        <Text style={styles.smallButtonText}>返回主頁</Text>
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -241,4 +251,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  smallButton: {
+  backgroundColor: '#A0C334',
+  paddingVertical: 10,
+  paddingHorizontal: 40,
+  borderRadius: 10,
+  marginTop: 12,
+  width: '60%', // 讓它比登入按鈕窄
+  alignItems: 'center',
+},
+smallButtonText: {
+  color: '#FFF',
+  fontWeight: '900',
+  fontSize: 16,
+  textAlign: 'center',
+},
 });

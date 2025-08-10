@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
+type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
 
 interface Member {
   UserID: number;
@@ -15,34 +16,49 @@ interface Member {
 
 const FamilyScreen = () => {
   const navigation = useNavigation<FamilyNavProp>();
+  const route = useRoute<FamilyRouteProp>();
+  const mode = route.params?.mode || 'full';
+
   const [familyName, setFamilyName] = useState('家族名稱');
+  const [familyCode, setFamilyCode] = useState<string | null>(null); // ✅ 新增
   const [userId, setUserId] = useState<number | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
+      await AsyncStorage.removeItem('selectedMember');
+
       const token = await AsyncStorage.getItem('access');
-      if (!token) return;
+      if (!token) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'LoginScreen' }],
+        });
+        return;
+      }
 
       try {
         const resMe = await fetch('http://192.168.0.55:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
+        console.log('✅ 取得使用者資訊:', user); 
         setUserId(user.UserID);
         setFamilyName(`${user.Name}的家庭`);
+        setFamilyCode(user.Fcode); // ✅ 設定 Fcode
 
         const resMembers = await fetch('http://192.168.0.55:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (!resMembers.ok) throw new Error('取得成員失敗');
-        const membersData = await resMembers.json();
 
+        const membersData = await resMembers.json();
         if (Array.isArray(membersData)) {
-          setMembers(membersData);
+          const filtered = mode === 'select'
+            ? membersData.filter((m: Member) => m.RelatedID !== null)
+            : membersData;
+          setMembers(filtered);
         } else {
           console.warn('成員資料格式錯誤:', membersData);
           setMembers([]);
@@ -54,7 +70,7 @@ const FamilyScreen = () => {
     };
 
     fetchUserAndMembers();
-  }, []);
+  }, [mode, navigation]);
 
   return (
     <View style={styles.container}>
@@ -65,8 +81,15 @@ const FamilyScreen = () => {
 
       <Text style={styles.title}>{familyName}（{members.length}）</Text>
 
+      {/* ✅ 顯示家庭代碼 */}
+      {familyCode && (
+        <Text style={{ textAlign: 'center', marginBottom: 10 }}>
+          家庭代碼：{familyCode}
+        </Text>
+      )}
+
       <ScrollView contentContainerStyle={styles.memberContainer}>
-        {Array.isArray(members) && members.length > 0 ? (
+        {members.length > 0 ? (
           members.map((m, index) => (
             <TouchableOpacity
               key={index}
