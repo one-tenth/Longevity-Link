@@ -6,206 +6,255 @@ import {
   Image,
   TouchableOpacity,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Feather from 'react-native-vector-icons/Feather';
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  cream: '#FFFCEC',
+  textDark: '#111',
+  textMid: '#333',
+  green: '#A6CFA1',
+};
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#005757" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* 使用者資訊 */}
-      <View style={styles.userCard}>
-        <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
-        <View style={styles.nameRow}>
-          <Text style={styles.userName}>爺爺</Text>
-          <View style={{ flex: 1 }} />
-          <Feather name="edit-2" size={24} color="#333" style={styles.editIcon} />
+      {/* 上半：使用者列 */}
+      <View style={styles.topArea}>
+        <View style={styles.userCard}>
+          <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>爺爺</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('Setting' as never)}>
+            <Feather name="edit-2" size={20} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 健康狀況卡片（上條縮 50%，下方不動） */}
-      <View style={styles.featureCardWrapper}>
-        <TouchableOpacity
-          style={[styles.featureCard, styles.featureCardShort]}
-          onPress={() => navigation.navigate('Health')}
-          activeOpacity={0.8}
+      {/* 下半：白色圓角面板 */}
+      <View style={styles.panel}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          style={{ flex: 1 }}
         >
-          <MaterialIcons name="favorite" size={28} color="#FFF" />
-          <Text style={styles.featureText}>健康狀況</Text>
-        </TouchableOpacity>
-        <View style={styles.cardBottom} />
-        <View style={styles.cardBottom_1} />
-        <View style={styles.cardBottomBlank} />
-      </View>
+          {/* 上方兩個方卡 */}
+          <View style={styles.topGrid}>
+            {/* 黑：健康狀況 */}
+            <TouchableOpacity
+              style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.black }]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('Health' as never)}
+            >
+              <Text style={[styles.squareTitle, { color: COLORS.white }]}>健康狀況</Text>
+              <View style={styles.squareBottomRow}>
+                <View style={[styles.iconCircle, { backgroundColor: COLORS.green }]}>
+                  <MaterialIcons name="favorite" size={22} color={COLORS.black} />
+                </View>
+              </View>
+            </TouchableOpacity>
 
-      {/* 用藥資訊卡片（已改成跟上面一樣的樣式與順序） */}
-      <View style={styles.featureCardWrapper}>
-        <TouchableOpacity
-          style={[styles.featureCard, styles.featureCardShort]}
-          onPress={() => navigation.navigate('Medicine')}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="medical-services" size={28} color="#FFF" />
-          <Text style={styles.featureText}>用藥資訊</Text>
-        </TouchableOpacity>
-        <View style={styles.cardBottom} />
-        <View style={styles.cardBottom_1} />
-        <View style={styles.cardBottomBlank} />
-      </View>
+            {/* 奶油黃：用藥資訊 */}
+            <TouchableOpacity
+              style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('Medicine' as never)}
+            >
+              <Text style={[styles.squareTitle, { color: COLORS.textDark }]}>用藥資訊</Text>
+              <View style={styles.squareBottomRow}>
+                <View style={[styles.iconCircle, { backgroundColor: '#E6F3E0' }]}>
+                  <MaterialIcons name="medical-services" size={22} color={COLORS.textDark} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
 
-      {/* 底部功能列 */}
-      <View style={styles.bottomBox}>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
-          <FontAwesome name="user" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>個人</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
-          <FontAwesome name="home" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>家庭</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('index')}>
-          <FontAwesome name="exchange" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>切換</Text>
-        </TouchableOpacity>
+          {/* 橫向卡 1：綠（即時位置） */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('Location' as never)}
+            style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
+          >
+            <View style={styles.rowTop}>
+              <Text style={[styles.rowTitle, { color: COLORS.white }]}>即時位置</Text>
+              <MaterialIcons name="location-on" size={22} color={COLORS.black} />
+            </View>
+            <View style={[styles.noteBox, { backgroundColor: '#E9F4E4' }]}>
+              <Text style={styles.notePlaceholder}></Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 橫向卡 2：黑（看診紀錄） */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('HospitalRecord' as never)}
+            style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.black }]}
+          >
+            <View style={styles.rowTop}>
+              <Text style={[styles.rowTitle, { color: COLORS.white }]}>看診紀錄</Text>
+              <MaterialIcons name="event-note" size={22} color={COLORS.white} />
+            </View>
+            <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
+              <Text style={[styles.notePlaceholder, { color: COLORS.textMid }]}></Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 橫向卡 3：奶油黃（通話紀錄） */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('CallRecord' as never)}
+            style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
+          >
+            <View style={styles.rowTop}>
+              <Text style={styles.rowTitle}>通話紀錄</Text>
+              <Feather name="phone-call" size={22} color={COLORS.black} />
+            </View>
+            <View style={[styles.noteBox, { backgroundColor: '#FFF6D9' }]}>
+              <Text style={styles.notePlaceholder}></Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 個人 / 家庭：一體化外觀，兩邊可分開點擊；寬度一致、不顯得分離 */}
+          <View style={[styles.unifiedButtons, { marginTop: 30 }]}>
+            {/* 個人（左半） */}
+            <TouchableOpacity
+              style={[styles.buttonHalf]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('Profile' as never)}
+            >
+              <FontAwesome name="user" size={24} color={COLORS.white} />
+              <Text style={styles.buttonText}>個人</Text>
+            </TouchableOpacity>
+
+            {/* 家庭（右半） */}
+            <TouchableOpacity
+              style={[styles.buttonHalf]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('FamilySetting' as never)}
+            >
+              <FontAwesome name="home" size={24} color={COLORS.white} />
+              <Text style={styles.buttonText}>家庭</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
     </View>
   );
 }
 
+const IMAGE_SIZE = 80;
+
 const styles = StyleSheet.create({
-  // 整體
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
+  // 整體背景：上半黑、下半白面板
+  container: { flex: 1, backgroundColor: COLORS.black },
 
-  // 使用者卡片
+  // 上半：使用者列
+  topArea: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.black },
   userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    marginTop: 24,
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.black,
+    borderRadius: 20,
+    paddingHorizontal: 4,
     paddingVertical: 8,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#0b095f',
-    width: '90%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
     elevation: 3,
-    borderBottomWidth: 6,
-    borderBottomColor: '#0b095f',
   },
-  userIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginRight: 12,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, borderRadius: IMAGE_SIZE / 2 },
+  userName: { color: COLORS.white, fontSize: 24, fontWeight: '900' },
+
+  // 下半：白色圓角面板
+  panel: {
     flex: 1,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 16,
+    paddingHorizontal: 16,
   },
-  userName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#333',
-  },
-  editIcon: { marginLeft: 10 },
 
-  // 外框：不設圓角，避免出現縫隙
-  featureCardWrapper: {
-    width: '90%',
-    backgroundColor: 'transparent',
-    marginTop: 16,
+  // 共用陰影
+  cardShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+
+  // 上方兩個方卡
+  topGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  squareCard: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 18,
+    height: 146,
+    justifyContent: 'space-between',
+  },
+  squareTitle: { fontSize: 20, fontWeight: '900' },
+  squareBottomRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  iconCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // 橫向卡
+  rowCard: {
+    borderRadius: 18,
+    padding: 14,
+    minHeight: 108,
+    marginBottom: 12,
+  },
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textDark },
+
+  // 非互動佔位框
+  noteBox: {
+    marginTop: 10,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  notePlaceholder: { fontSize: 14, fontWeight: '400', color: COLORS.textMid },
+
+  // 一體化並排按鈕（看起來一個整塊，但左右可分開）
+  unifiedButtons: {
+    flexDirection: 'row',
     alignSelf: 'center',
-  },
-
-  // 上方深色條（你上面改成黑色就跟著黑色）
-  featureCard: {
-    flexDirection: 'row',
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    justifyContent: 'flex-start',
-    backgroundColor: '#000',
-    gap: 14,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    marginBottom: 0,
-  },
-  // 縮 50%（兩張卡片都套用）
-  featureCardShort: {
-    width: '50%',
-    alignSelf: 'flex-start',
-  },
-
-  // 中間黑線（若有細縫可把 marginTop 改成 -2）
-  cardBottom: {
-    width: '100%',
-    height: 3,
-    backgroundColor: '#000000',
-    marginTop: -1,
-    marginBottom: 0,
-  },
-
-  // 白色細隔條
-  cardBottom_1: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    height: 10,
-  },
-
-  // 下方淡藍色區
-  cardBottomBlank: {
-    width: '100%',
-    height: 120,
-    backgroundColor: '#ECF5FF',
-    borderRadius: 16,
-    marginTop: 0,
-  },
-
-  featureText: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-
-  // 底部功能列
-  bottomBox: {
-    position: 'absolute',
-    bottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingVertical: 10,
+    width: '100%',                // 按鈕不要太大
+    backgroundColor: COLORS.black,
     borderRadius: 50,
-    width: '90%',
-    alignSelf: 'center',
+    overflow: 'hidden',          // 讓兩半貼齊，視覺上一體
   },
-  settingItem: { alignItems: 'center' },
-  settingLabel: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 2,
+  buttonHalf: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  buttonText: {
+    marginTop: 4,
+    fontSize: 16,
     fontWeight: '900',
+    color: COLORS.white,
   },
 });
