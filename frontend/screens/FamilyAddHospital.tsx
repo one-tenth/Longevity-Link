@@ -1,5 +1,4 @@
-// screens/FamilyAddHospital.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, Image
@@ -7,11 +6,13 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../App';
 
 const BASE = 'http://192.168.0.19:8000';
 
-// 自動帶 token；401 用 refresh 換新後重試一次
+// 自動帶 token；401 refresh 後重試一次
 async function authPost<T>(url: string, data: any) {
   let access = await AsyncStorage.getItem('access');
   try {
@@ -36,13 +37,60 @@ async function authPost<T>(url: string, data: any) {
 }
 
 export default function FamilyAddHospital() {
+  const route = useRoute<any>();
+  // ✅ 型別化 navigation，之後不需要 as never
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+
+  // 參數 + 狀態
+  const elderIdParam: number | undefined = route?.params?.elderId;
+  const elderNameParam: string | undefined = route?.params?.elderName;
+
+  const [elderId, setElderId] = useState<number | null>(
+    typeof elderIdParam === 'number' ? elderIdParam : null
+  );
+  const [displayName, setDisplayName] = useState<string>(elderNameParam ?? '');
+
   const [clinicDate, setClinicDate] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
   const [clinicPlace, setClinicPlace] = useState('');
   const [doctor, setDoctor] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigation = useNavigation();
+
+  // Fallback：只跑一次 + log + NaN 檢查
+  useEffect(() => {
+    (async () => {
+      try {
+        console.log('[Add] route.params =', JSON.stringify(route?.params ?? {}));
+
+        if (!displayName) {
+          const savedName = await AsyncStorage.getItem('elder_name');
+          if (savedName) {
+            setDisplayName(savedName);
+            console.log('[Add] fallback elder_name =', savedName);
+          } else {
+            console.log('[Add] no elder_name in storage');
+          }
+        }
+
+        if (elderId === null) {
+          const savedIdStr = await AsyncStorage.getItem('elder_id');
+          console.log('[Add] elder_id in storage =', savedIdStr);
+          const savedId = savedIdStr ? Number(savedIdStr) : NaN;
+          if (!Number.isNaN(savedId)) {
+            setElderId(savedId);
+            console.log('[Add] fallback elder_id =', savedId);
+          } else {
+            console.log('[Add] elder_id is NaN or missing');
+          }
+        } else {
+          console.log('[Add] elderId from params =', elderId);
+        }
+      } catch (e) {
+        console.log('[Add] fallback error', e);
+      }
+    })();
+  }, []); // ⬅ 只跑一次
 
   const openDate = () => setShowDate(true);
   const openTime = () => setShowTime(true);
@@ -51,21 +99,42 @@ export default function FamilyAddHospital() {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
+      console.log('[Add] submit elderId =', elderId, 'displayName =', displayName);
 
-      // 後端是 DateField → 只送日期
-      const d = clinicDate;
-      const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!token) {
+        Alert.alert('錯誤', '尚未登入');
+        return;
+      }
+
+      if (elderId === null || Number.isNaN(elderId)) {
+        Alert.alert('提醒', '尚未指定要寫入的長者，將帶您回去選擇', [
+          { text: '好', onPress: () => navigation.navigate('FamilyScreen', { mode: 'select' }) }
+        ]);
+        return;
+      }
+
+      if (!clinicPlace.trim()) {
+        Alert.alert('提醒', '請填寫地點');
+        return;
+      }
+      if (!doctor.trim()) {
+        Alert.alert('提醒', '請填寫醫師');
+        return;
+      }
+
+      const dateStr = clinicDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
       await authPost('/api/hospital/create/', {
+        // 若後端吃 UserID：把 ElderID 換成 UserID
+        ElderID: elderId,
         ClinicDate: dateStr,
-        ClinicPlace: clinicPlace,
-        Doctor: doctor,
+        ClinicPlace: clinicPlace.trim(),
+        Doctor: doctor.trim(),
         Num: 0
       });
 
       Alert.alert('成功', '新增成功');
-      navigation.goBack(); // 列表頁用 useFocusEffect 會自動刷新
+      navigation.goBack();
     } catch (e: any) {
       console.log('status=', e?.response?.status);
       console.log('data=', e?.response?.data);
@@ -75,33 +144,28 @@ export default function FamilyAddHospital() {
     }
   };
 
-  // 顯示用
   const dateLabel = clinicDate.toLocaleDateString();
   const hour = clinicDate.getHours().toString().padStart(2, '0');
   const minute = clinicDate.getMinutes().toString().padStart(2, '0');
 
   return (
     <View style={styles.container}>
-      {/* 頂部 Header */}
       <View style={styles.topbar}>
         <Text style={styles.brand}>CareMate</Text>
       </View>
 
-      {/* 標題列：頭像＋文字 */}
       <View style={styles.titleRow}>
         <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
         <View>
-          <View style={styles.badge}><Text style={styles.badgeText}>爺爺</Text></View>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{displayName || '未指定'}</Text>
+          </View>
           <Text style={styles.title}>看診紀錄</Text>
         </View>
       </View>
 
-      {/* 時間卡片 */}
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>時間</Text>
-        </View>
-
+        <View style={styles.cardHeader}><Text style={styles.cardTitle}>時間</Text></View>
         <View style={styles.timeRow}>
           <TouchableOpacity style={[styles.timeBox, styles.timeBoxWide]} onPress={openDate}>
             <Text style={styles.timeText}>{dateLabel}</Text>
@@ -115,35 +179,22 @@ export default function FamilyAddHospital() {
         </View>
       </View>
 
-      {/* 地點卡片 */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Image source={require('../img/hospital/hospital.png')} style={styles.cardIcon} />
           <Text style={styles.cardTitle}>地點</Text>
         </View>
-        <TextInput
-          style={styles.input}
-          placeholder="臺大醫院"
-          value={clinicPlace}
-          onChangeText={setClinicPlace}
-        />
+        <TextInput style={styles.input} placeholder="臺大醫院" value={clinicPlace} onChangeText={setClinicPlace} />
       </View>
 
-      {/* 醫師卡片 */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
           <Text style={styles.cardTitle}>醫師</Text>
         </View>
-        <TextInput
-          style={styles.input}
-          placeholder="XXX"
-          value={doctor}
-          onChangeText={setDoctor}
-        />
+        <TextInput style={styles.input} placeholder="XXX" value={doctor} onChangeText={setDoctor} />
       </View>
 
-      {/* 底部按鈕 */}
       {loading ? (
         <ActivityIndicator size="large" style={{ marginTop: 20 }} />
       ) : (
@@ -157,7 +208,6 @@ export default function FamilyAddHospital() {
         </>
       )}
 
-      {/* Date/Time Pickers */}
       {showDate && (
         <DateTimePicker
           value={clinicDate}

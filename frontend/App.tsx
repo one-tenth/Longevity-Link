@@ -34,7 +34,7 @@ import FamilyAddHospital from './screens/FamilyAddHospital';
 // 建立參數列表，key 為頁面名稱、value 為 params 型別（若無參數就用 undefined）
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
-  ChildHome: undefined;
+  ChildHome: { mode: 'select' | 'full' } | undefined;
   ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
@@ -57,7 +57,7 @@ export type RootStackParamList = {
   JoinFamily: undefined;
   Profile: undefined;
   FamilyHospitalList: { elderName?: string } | undefined;
-  FamilyAddHospital: undefined;
+  FamilyAddHospital: { elderId: number; elderName?: string };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
