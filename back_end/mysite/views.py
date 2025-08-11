@@ -757,32 +757,51 @@ def get_me(request):
     return Response(serializer.data)
 
 
-from rest_framework import generics, permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from .models import Hos
 from .serializers import HosSerializer
 
+def _get_target_user_id(user):
+    """回傳要操作的老人 UserID；家人→取 RelatedID，老人→取自己"""
+    if user.is_elder:
+        return user.UserID
+    if user.RelatedID:
+        return user.RelatedID.UserID
+    return None
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def hospital_list(request):
+    """查詢該老人（或其家人綁定的老人）的看診紀錄"""
+    target_id = _get_target_user_id(request.user)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+    ser = HosSerializer(qs, many=True)
+    return Response(ser.data)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def get_hospital_records(request):
-    user = request.user  
-
-    if user.is_elder:
-        # 老人自己加 → 直接用自己的 UserID
-        target_user_id = user.UserID
-    else:
-        # 家人加 → 存到 RelatedID 指向的老人
-        if user.RelatedID:
-            target_user_id = user.RelatedID.UserID
-        else:
-            return Response({"error": "沒有指定老人"}, status=400)
+def hospital_create(request):
+    """新增看診紀錄（自動套用目標老人 UserID）"""
+    target_id = _get_target_user_id(request.user)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
 
     data = request.data.copy()
-    data['UserID'] = target_user_id
 
-    serializer = HosSerializer(data=data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=201)
-    return Response(serializer.errors, status=400)
+    # 若模型是 DateField，確保只送 YYYY-MM-DD
+    if 'ClinicDate' in data and isinstance(data['ClinicDate'], str) and ' ' in data['ClinicDate']:
+        data['ClinicDate'] = data['ClinicDate'].split(' ')[0]
+
+    ser = HosSerializer(data=data)
+    if ser.is_valid():
+        # 用 _id 指派外鍵最安全
+        ser.save(UserID_id=target_id)
+        return Response(ser.data, status=201)
+    return Response(ser.errors, status=400)
 
     

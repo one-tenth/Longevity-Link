@@ -38,5 +38,6 @@ urlpatterns = [
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
     path('me/', views.get_me),
-    path('api/hospital/create/', views.get_hospital_records, name='hospital-create'),
+    path('api/hospital/list/', views.hospital_list),
+    path('api/hospital/create/', views.hospital_create),
 ]

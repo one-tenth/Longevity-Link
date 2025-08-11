@@ -56,7 +56,7 @@ export type RootStackParamList = {
   FamilySetting: undefined;
   JoinFamily: undefined;
   Profile: undefined;
-  FamilyHospitalList: undefined;
+  FamilyHospitalList: { elderName?: string } | undefined;
   FamilyAddHospital: undefined;
 };
 

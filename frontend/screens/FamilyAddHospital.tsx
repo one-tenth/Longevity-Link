@@ -9,6 +9,32 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
+const BASE = 'http://192.168.0.19:8000';
+
+// 自動帶 token；401 用 refresh 換新後重試一次
+async function authPost<T>(url: string, data: any) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    return await axios.post<T>(`${BASE}${url}`, data, {
+      headers: { Authorization: `Bearer ${access}` },
+      timeout: 10000,
+    });
+  } catch (err: any) {
+    if (err?.response?.status === 401) {
+      const refresh = await AsyncStorage.getItem('refresh');
+      if (!refresh) throw err;
+      const r = await axios.post(`${BASE}/api/account/token/refresh/`, { refresh });
+      access = r.data.access;
+      await AsyncStorage.setItem('access', access!);
+      return await axios.post<T>(`${BASE}${url}`, data, {
+        headers: { Authorization: `Bearer ${access}` },
+        timeout: 10000,
+      });
+    }
+    throw err;
+  }
+}
+
 export default function FamilyAddHospital() {
   const [clinicDate, setClinicDate] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
@@ -27,26 +53,22 @@ export default function FamilyAddHospital() {
       const token = await AsyncStorage.getItem('access');
       if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
 
+      // 後端是 DateField → 只送日期
       const d = clinicDate;
       const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
-      const hh = d.getHours().toString().padStart(2, '0');
-      const mm = d.getMinutes().toString().padStart(2, '0');
 
-      await axios.post(
-        'http://192.168.0.19:8000/api/hospital/create/',
-        {
-          ClinicDate: `${dateStr} ${hh}:${mm}`,
-          ClinicPlace: clinicPlace,
-          Doctor: doctor,
-          Num: 0
-        },
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
-      );
+      await authPost('/api/hospital/create/', {
+        ClinicDate: dateStr,
+        ClinicPlace: clinicPlace,
+        Doctor: doctor,
+        Num: 0
+      });
 
       Alert.alert('成功', '新增成功');
       navigation.goBack(); // 列表頁用 useFocusEffect 會自動刷新
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.log('status=', e?.response?.status);
+      console.log('data=', e?.response?.data);
       Alert.alert('錯誤', '新增失敗，請稍後再試');
     } finally {
       setLoading(false);
@@ -102,7 +124,6 @@ export default function FamilyAddHospital() {
         <TextInput
           style={styles.input}
           placeholder="臺大醫院"
-          
           value={clinicPlace}
           onChangeText={setClinicPlace}
         />
@@ -171,7 +192,6 @@ export default function FamilyAddHospital() {
 
 const black = '#111';
 const yellow = '#FFC928';
-const pale = '#FFF7E6';
 const blue = '#7EC8FF';
 const orange = '#FFA948';
 
@@ -183,7 +203,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, borderWidth: 2, borderColor: black, marginBottom: 8
   },
   brand: { fontSize: 18, fontWeight: 'bold', color: black },
-  topIcon: { width: 20, height: 20, resizeMode: 'contain' },
 
   titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   avatar: { width: 56, height: 56, borderRadius: 8, borderWidth: 2, borderColor: black, marginRight: 10 },
