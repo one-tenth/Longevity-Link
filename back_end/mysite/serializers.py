@@ -1,6 +1,6 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-from .models import User,Med,FitData
+from .models import User,Med,FitData,LocaRecord
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     Phone = serializers.CharField(max_length=10)
@@ -44,3 +44,9 @@ class MedSerializer(serializers.ModelSerializer):  # ✅ 正確
     class Meta:
         model = Med
         fields = '__all__'
+
+class LocaRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LocaRecord
+        fields = ['LocationID', 'Latitude', 'Longitude', 'Timestamp']
+        read_only_fields = ['LocationID', 'Timestamp']
