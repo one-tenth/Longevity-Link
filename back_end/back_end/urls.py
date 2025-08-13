@@ -29,8 +29,15 @@ urlpatterns = [
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
     path('api/meds/<uuid:prescription_id>/', views.get_med_by_prescription),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
+    path('api/create-med-time/', views.create_med_time_setting, name='create_med_time'),
+    path('api/get-med-time/', views.get_med_time_setting),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
+    path('api/family/create/', views.CreateFamilyView.as_view(), name='create_family'),
+    path('account/me/', views.get_me,name='get_me'),
+    path('update_related/', views.update_related),
+    path('family/members/', views.get_family_members),
+     path('me/', views.get_me),
     path('api/location/upload/',  views.upload_location, name='upload-location'),
     path('api/location/latest/<int:user_id>/', views.get_latest_location, name='latest-location'),
 

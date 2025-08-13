@@ -1,3 +1,5 @@
+# import mysql.connector.django  # ⬅️ 加在 settings.py 開頭
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -58,13 +60,10 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    #0622
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny'
+        'rest_framework.permissions.IsAuthenticated'
     ]
 }
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',#讓你的後端願意「接受來自不同來源的前端請求」
@@ -108,13 +107,15 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',# JWT token 中的 key 名稱
 }
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'ENGINE': 'mysql.connector.django',
+#         'NAME': 'railway',
+#         'USER': 'root',
+#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
+#         'HOST': 'mysql.railway.internal',
+#         'PORT': '3306',
 #     }
 # }
 

@@ -1,43 +1,92 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App'; // 確認 App.tsx 裡定義了這個
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { RootStackParamList } from '../App';
 
-// ChildHome 頁面的 navigation 型別
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+
+interface Member {
+  UserID: number;
+  Name: string;
+  RelatedID?: number | null;
+}
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [hasElder, setHasElder] = useState<boolean>(true);
+
+  useEffect(() => {
+  const loadSelectedMember = async () => {
+    const stored = await AsyncStorage.getItem('selectedMember');
+    if (stored) {
+      const parsed: Member = JSON.parse(stored);
+      if (!parsed.RelatedID) {
+        setHasElder(false);
+      } else {
+        setSelectedMember(parsed);
+        setHasElder(true);
+      }
+    } else {
+      setHasElder(false);
+    }
+  };
+  const unsubscribe = navigation.addListener('focus', loadSelectedMember);
+  return unsubscribe;
+}, [navigation]);
+
   const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
 
   
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('Setting')}>
-          <Image source={require('../img/childhome/13866.png')} style={styles.setting} />
+          <Feather name="settings" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.title}>CareMate</Text>
-        <Image source={require('../img/childhome/logo.png')} style={styles.logo} />
       </View>
 
-      <View style={styles.userBox}>
-        <Image source={require('../img/childhome/image.png')} style={styles.userIconLarge} />
-        <Text style={styles.userText}>爺爺</Text>
-        <Image source={require('../img/childhome/61456.png')} style={styles.edit} />
+      {/* User Info */}
+      <TouchableOpacity style={styles.userCard} onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}>
+        <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
+        <View style={styles.nameRow}>
+      <Text style={styles.userName}>
+        {selectedMember?.Name || '尚未選擇'}
+      </Text>
+      <View style={{ flex: 1 }} />
+      <Feather name="edit-2" size={18} color="#000" style={styles.editIcon} />
+    </View>
+</TouchableOpacity>
+
+
+      {/* 健康狀況卡片 */}
+      <View style={styles.featureCardWrapper}>
+        <TouchableOpacity
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('Health')}
+        >
+          <MaterialIcons name="favorite" size={28} color="#FFF" />
+          <Text style={styles.featureText}>健康狀況</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
       </View>
 
-      <View style={styles.alertBox}> 
-        <Image source={require('../img/childhome/2058160.png')} style={styles.alertIcon} />
-        <View>
-          <Text style={styles.alertText}>時間：20:00</Text>
-          <Text style={styles.alertText}>來電號碼：</Text>
-          <Text style={styles.alertText}>0900-123-456</Text>
-        </View>
-      </View>
-
+      {/* 用藥資訊卡片 */}
+      <View style={styles.featureCardWrapper}>
       <View style={styles.gridRow}>
         <TouchableOpacity
           style={[styles.gridBox, { backgroundColor: '#549D77' }]}
@@ -49,197 +98,123 @@ export default function ChildHome() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.gridBox, { backgroundColor: '#F4C80B' }]}
-          onPress={() => navigation.navigate('Health')}> 
-          <Image source={require('../img/childhome/Vector.png')} style={styles.health} />
-          <Text style={styles.gridText}>健康狀況</Text>
+          style={styles.featureCard}
+          onPress={() => navigation.navigate('Medicine')}
+        >
+          <MaterialIcons name="medical-services" size={28} color="#FFF" />
+          <Text style={styles.featureText}>用藥資訊</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
+      </View>
+
+      {/* 底部功能列 */}
+      <View style={styles.settingBox}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
+          <FontAwesome name="user" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>個人</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}>
+          <FontAwesome name="home" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>家庭</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('index')}>
+          <FontAwesome name="exchange" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
-      <View style={styles.gridRow}>
-        <TouchableOpacity 
-          style={[styles.gridBox1, { backgroundColor: '#F58402' }]} 
-          onPress={() => navigation.navigate('Medicine')}>
-          <Image source={require('../img/childhome/image-3.png')} style={styles.medcine} />
-          <Text style={styles.gridText}>用藥</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.gridBox1, { backgroundColor: '#65B6E4' }]}
-          onPress={() => navigation.navigate('HospitalRecord')}       >
-          <Image source={require('../img/childhome/4320350.png')} style={styles.hospital} />
-          <Text style={styles.gridText}>看診</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={[styles.callBox, { backgroundColor: '#F4C80B' }]}> 
-        <Image source={require('../img/childhome/image-1.png')} style={styles.phone} />
-        <Text style={styles.callText}>通話紀錄</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => navigation.navigate('index')}>
-        <Text style={styles.alertText2}>切換使用者</Text>
-      </TouchableOpacity>
-
     </View>
-
-    
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#FCFEED', 
-    alignItems: 'center' 
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF',
   },
   header: {
-    width: '100%',
-    height:70,
-    flexDirection: 'row', 
+    backgroundColor: '#FFF',
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#65B6E4',
-    position: 'relative',
-    marginBottom:20,
-    paddingLeft:10,
-    paddingRight:10,
+    alignItems: 'center',
+    padding: 14,
   },
-  logo: { 
-    width: 60, 
-    height: 60,
-    marginTop:15,
-  },
-  setting:{
-    width: 40, 
-    height: 40,
-    marginTop:15,
-  },
-  title: { 
-    fontSize: 50, 
-    fontWeight:'900', 
-    color: '#000', 
-  },
-  userBox: {
-    width: '90%', 
-    height:65,
-    borderRadius: 10,
+  userCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    margin: 10,
+    padding: 12,
+    borderRadius: 30,
+  },
+  userIcon: {
+    width: 80,
+    height: 80,
     borderWidth: 3,
+    borderColor: '#000',
+    borderRadius: 50,
+    marginRight: 10,
   },
-  userIconLarge: { 
-    width: 62, 
-    height: 62, 
-    textAlign:'center',
-    marginTop:2,
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  userText: { 
-    fontSize: 36, 
-    fontWeight: '900', 
-    marginLeft:50,
-    marginTop:5,
+  userName: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#000',
+    fontFamily: 'DelaGothicOne-Regular',
   },
-  edit:{
-    width: 20, 
-    height: 20, 
-    marginLeft:100,
-    marginTop:20,
+  editIcon: {
+    marginLeft: 8,
   },
-  alertBox: {
-    width: '90%',
-    height:100,
-    marginTop:20,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 10, 
-    borderWidth: 3, 
-    paddingLeft:5,
-    paddingRight:10,
+  featureCardWrapper: {
+    backgroundColor: '#ECF5FF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: '#C0D8F0',
+    overflow: 'hidden',
   },
-  alertIcon: { 
-    width: 60, 
-    height: 60, 
-    marginRight:20,
-    marginLeft:5, 
+  featureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    justifyContent: 'flex-start',
+    backgroundColor: '#004B97',
+    gap: 14,
   },
-  alertText: { 
-    fontSize: 20, 
-    fontWeight: '900' 
+  cardBottomBlank: {
+    height: 100,
+    backgroundColor: '#ECF5FF',
   },
-  gridRow: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    width: '90%',
-    marginTop:10,
+  featureText: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: '900',
   },
-  gridBox: {
-    width: '45%', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    borderWidth: 3, 
+  settingBox: {
+    position: 'absolute',
+    bottom: 0,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    paddingVertical: 5,
+    borderRadius: 50,
+    borderColor: '#fff',
+    borderWidth: 2,
   },
-  gridBox1: {
-    width: '45%', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    borderWidth: 3, 
+  settingItem: {
+    alignItems: 'center',
   },
-  gridText: { 
-    fontSize: 20, 
-    fontWeight: '900',  
-    marginTop: 6, 
-    textAlign: 'center',
-  },
-  gridText1: { 
-    fontSize: 20, 
-    fontWeight: '900',  
+  settingLabel: {
     color: '#fff',
-    marginTop: 6, 
-    textAlign: 'center',
-  },
-  locate: {
-    width: 50, 
-    height: 50, 
-    marginTop:5
-  },
-  hospital: {
-    width: 55, 
-    height: 55, 
-    marginTop:5
-  },
-  medcine: {
-    width: 50, 
-    height: 50, 
-    marginTop:5
-  },
-  health: {
-    width: 54, 
-    height: 50,
-    marginTop:5 
-  },
-  phone: {
-    width: 54, 
-    height: 50, 
-  },
-  callBox: {
-    width: '90%',
-    height:70,
-    marginTop:20,
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 10, 
-    borderWidth: 3, 
-    paddingLeft:5,
-    paddingRight:10,
-  },
-  callText: { 
-    fontSize: 20, 
+    fontSize: 14,
+    marginTop: 2,
     fontWeight: '900',
-    marginLeft: 10 
   },
-
-  alertText2: {
-    fontSize: 20, 
-    fontWeight: '900',
-    marginLeft:220,
-    marginTop:30
-  }
 });
-// export default ChildHome;
