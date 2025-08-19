@@ -56,6 +56,7 @@ export default function FamilyAddHospital() {
   const [clinicPlace, setClinicPlace] = useState('');
   const [doctor, setDoctor] = useState('');
   const [loading, setLoading] = useState(false);
+  const [num, setNum] = useState('');
 
   // Fallback：只跑一次 + log + NaN 檢查
   useEffect(() => {
@@ -99,9 +100,11 @@ export default function FamilyAddHospital() {
   setLoading(true);
   try {
     const token = await AsyncStorage.getItem('access');
-    if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
+    if (!token) {
+      Alert.alert('錯誤', '尚未登入');
+      return;
+    }
 
-    // ✅ 這裡重新「多來源」取得 elderId：route → state → AsyncStorage
     let effElderId: number | null =
       typeof route?.params?.elderId === 'number' ? route.params.elderId :
       (elderId !== null ? elderId : null);
@@ -121,18 +124,23 @@ export default function FamilyAddHospital() {
       return;
     }
 
-    if (!clinicPlace.trim()) { Alert.alert('提醒', '請填寫地點'); return; }
-    if (!doctor.trim())     { Alert.alert('提醒', '請填寫醫師'); return; }
+    if (!clinicPlace.trim()) {
+      Alert.alert('提醒', '請填寫地點');
+      return;
+    }
+    if (!doctor.trim()) {
+      Alert.alert('提醒', '請填寫醫師');
+      return;
+    }
 
     const dateStr = clinicDate.toISOString().split('T')[0];
 
     await authPost('/api/hospital/create/', {
-      // 後端如果吃 UserID，這裡改成 UserID: effElderId
-      ElderID: effElderId,
+      elder_id: effElderId,
       ClinicDate: dateStr,
       ClinicPlace: clinicPlace.trim(),
       Doctor: doctor.trim(),
-      Num: 0
+      Num: Number(num) || 0
     });
 
     Alert.alert('成功', '新增成功');
@@ -140,11 +148,12 @@ export default function FamilyAddHospital() {
   } catch (e: any) {
     console.log('status=', e?.response?.status);
     console.log('data=', e?.response?.data);
-    Alert.alert('錯誤', '新增失敗，請稍後再試');
+    Alert.alert('錯誤', e?.response?.data?.error || '新增失敗，請稍後再試');
   } finally {
     setLoading(false);
   }
 };
+
 
   const dateLabel = clinicDate.toLocaleDateString();
   const hour = clinicDate.getHours().toString().padStart(2, '0');
@@ -196,6 +205,20 @@ export default function FamilyAddHospital() {
         </View>
         <TextInput style={styles.input} placeholder="XXX" value={doctor} onChangeText={setDoctor} />
       </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+        <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
+        <Text style={styles.cardTitle}>號碼</Text>
+      </View>
+  <TextInput
+    style={styles.input}
+    placeholder="例如 25"
+    keyboardType="numeric"
+    value={num}
+    onChangeText={setNum}
+  />
+</View>
 
       {loading ? (
         <ActivityIndicator size="large" style={{ marginTop: 20 }} />

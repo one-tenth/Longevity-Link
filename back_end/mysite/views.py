@@ -764,44 +764,67 @@ from .models import Hos
 from .serializers import HosSerializer
 
 def _get_target_user_id(user):
-    """回傳要操作的老人 UserID；家人→取 RelatedID，老人→取自己"""
-    if user.is_elder:
-        return user.UserID
     if user.RelatedID:
         return user.RelatedID.UserID
+    elif user.is_elder():  # 或者判斷身分欄位
+        return user.UserID
     return None
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def hospital_list(request):
-    """查詢該老人（或其家人綁定的老人）的看診紀錄"""
-    target_id = _get_target_user_id(request.user)
-    if not target_id:
-        return Response({"error": "沒有指定老人"}, status=400)
+    """查詢看診紀錄，可支援 user_id"""
+    user = request.user
+    user_id = request.query_params.get('user_id')
 
-    qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+    if user_id:
+        try:
+            from mysite.models import User
+            target_user = User.objects.get(UserID=int(user_id))
+        except (ValueError, User.DoesNotExist):
+            return Response({"error": "查無此使用者"}, status=404)
+    else:
+        target_id = _get_target_user_id(user)
+        if not target_id:
+            return Response({"error": "沒有指定老人"}, status=400)
+        user_id = target_id
+
+    qs = Hos.objects.filter(UserID_id=user_id).order_by('-ClinicDate')
     ser = HosSerializer(qs, many=True)
     return Response(ser.data)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def hospital_create(request):
-    """新增看診紀錄（自動套用目標老人 UserID）"""
-    target_id = _get_target_user_id(request.user)
+    """
+    新增看診紀錄（允許家人手動指定目標長者 UserID）
+    """
+    # ✅ 嘗試從 POST data 抓 elder_id，若無則 fallback 原本邏輯
+    elder_id = request.data.get('elder_id')
+    if elder_id:
+        try:
+            from mysite.models import User
+            target_user = User.objects.get(UserID=int(elder_id))
+        except (User.DoesNotExist, ValueError):
+            return Response({'error': '指定的 elder_id 無效'}, status=400)
+        target_id = target_user.UserID
+    else:
+        target_id = _get_target_user_id(request.user)
+
     if not target_id:
         return Response({"error": "沒有指定老人"}, status=400)
 
     data = request.data.copy()
 
-    # 若模型是 DateField，確保只送 YYYY-MM-DD
     if 'ClinicDate' in data and isinstance(data['ClinicDate'], str) and ' ' in data['ClinicDate']:
         data['ClinicDate'] = data['ClinicDate'].split(' ')[0]
 
     ser = HosSerializer(data=data)
     if ser.is_valid():
-        # 用 _id 指派外鍵最安全
         ser.save(UserID_id=target_id)
         return Response(ser.data, status=201)
     return Response(ser.errors, status=400)
+
 
     

@@ -77,3 +77,6 @@ class HosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hos
         fields = '__all__'
+        extra_kwargs = {
+            'UserID': {'read_only': True}  # ✅ 這行是關鍵
+        }
