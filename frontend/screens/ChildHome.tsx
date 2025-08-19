@@ -26,7 +26,10 @@ export default function ChildHome() {
       if (stored) {
         const parsed: Member = JSON.parse(stored);
         setSelectedMember(parsed?.RelatedID ? parsed : null);
-        if (parsed?.RelatedID) await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
+        if (parsed?.RelatedID) {
+          await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
+          await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
+        }
       } else {
         setSelectedMember(null);
       }
@@ -41,8 +44,16 @@ export default function ChildHome() {
       navigation.navigate('FamilyScreen', { mode: 'select' });
       return;
     }
+
+    // 寫入標準儲存欄位與傳遞參數
     await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
-    navigation.navigate('FamilyHospitalList', { elderName: selectedMember.Name });
+    await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
+    await AsyncStorage.setItem('selectedMember', JSON.stringify(selectedMember));
+
+    navigation.navigate('FamilyHospitalList', {
+      elderId: selectedMember.RelatedID,
+      elderName: selectedMember.Name,
+    });
   };
 
   return (
@@ -54,7 +65,7 @@ export default function ChildHome() {
         </TouchableOpacity>
       </View>
 
-      {/* User Info（點擊可去選長者） */}
+      {/* 使用者卡片（點擊可去選長者） */}
       <TouchableOpacity style={styles.userCard} onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}>
         <Image source={require('../img/childhome/grandpa.png')} style={styles.userIcon} />
         <View style={styles.nameRow}>
@@ -110,10 +121,9 @@ export default function ChildHome() {
   );
 }
 
-// 你的 styles 原樣保留（略）
 const styles = StyleSheet.create({
-  // ...沿用你原本這份樣式
-  container:{flex:1,backgroundColor:'#FFF'}, header:{backgroundColor:'#FFF',flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:14},
+  container:{flex:1,backgroundColor:'#FFF'},
+  header:{backgroundColor:'#FFF',flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:14},
   userCard:{flexDirection:'row',alignItems:'center',backgroundColor:'#F0F0F0',margin:10,padding:12,borderRadius:30},
   userIcon:{width:80,height:80,borderWidth:3,borderColor:'#000',borderRadius:50,marginRight:10},
   nameRow:{flexDirection:'row',alignItems:'center',flex:1},

@@ -48,7 +48,7 @@ export type RootStackParamList = {
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
-  RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
+  RegisterScreen: { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
   ElderMedRemind: undefined;
   FamilyScreen: { mode?: 'select' | 'full' };
@@ -56,7 +56,7 @@ export type RootStackParamList = {
   FamilySetting: undefined;
   JoinFamily: undefined;
   Profile: undefined;
-  FamilyHospitalList: { elderName?: string } | undefined;
+  FamilyHospitalList: { elderName?: string; elderId?: number } | undefined;
   FamilyAddHospital: { elderId: number; elderName?: string };
 };
 
