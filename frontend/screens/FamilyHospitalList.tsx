@@ -9,6 +9,8 @@ import { RootStackParamList } from '../App';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const BASE = 'http://192.168.0.19:8000';
+
 type HospitalRecord = {
   HosId?: number;   // 兼容不同命名
   HosID?: number;
@@ -34,8 +36,6 @@ export default function FamilyHospitalList() {
 
   const loadElderInfo = useCallback(async () => {
     const p = (route.params as RouteParams | undefined);
-
-    // 名字：只有在有帶值時才覆蓋 & 存入
     const nameFromParams = p?.elderName;
     const nameFromStore  = await AsyncStorage.getItem('elder_name');
     const name = (nameFromParams && nameFromParams.trim()) ? nameFromParams : (nameFromStore || '');
@@ -44,7 +44,6 @@ export default function FamilyHospitalList() {
       await AsyncStorage.setItem('elder_name', nameFromParams);
     }
 
-    // ID：優先用 params，其次 storage；過濾 NaN
     if (typeof p?.elderId === 'number' && !Number.isNaN(p.elderId)) {
       setElderId(p.elderId);
       await AsyncStorage.setItem('elder_id', String(p.elderId));
@@ -61,7 +60,6 @@ export default function FamilyHospitalList() {
     try {
       const token = await AsyncStorage.getItem('access');
 
-      // 取有效 elderId
       let id = elderId;
       if (id == null || Number.isNaN(id)) {
         const saved = await AsyncStorage.getItem('elder_id');
@@ -79,8 +77,7 @@ export default function FamilyHospitalList() {
         return;
       }
 
-      // ✅ 帶上 user_id 過濾對的長者
-      const url = `http://192.168.0.19:8000/api/hospital/list/?user_id=${id}`;
+      const url = `${BASE}/api/hospital/list/?user_id=${id}`;
       const res = await axios.get<HospitalRecord[]>(url, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000
@@ -119,7 +116,51 @@ export default function FamilyHospitalList() {
     navigation.navigate('FamilyAddHospital', { elderId: id, elderName: name });
   };
 
-  const getKey = (r: HospitalRecord) => String(r.HosId ?? r.HosID ?? r.id ?? Math.random());
+  const getPk = (r: HospitalRecord) => r.HosId ?? r.HosID ?? r.id;
+  const getKey = (r: HospitalRecord) => String(getPk(r) ?? Math.random());
+
+  // ⛔️ 刪除（含確認框）
+  const confirmDelete = (pk?: number) => {
+    if (pk == null) return; // 僅防呆
+    Alert.alert('確認刪除', '確定要刪除這筆看診紀錄嗎？', [
+      { text: '取消' },
+      { text: '刪除', style: 'destructive', onPress: () => handleDelete(pk) }
+    ]);
+  };
+
+  const handleDelete = async (pk: number) => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
+
+      // 取得當前 elderId（後端需要 user_id 來識別目標老人）
+      let id = elderId;
+      if (id == null || Number.isNaN(id)) {
+        const saved = await AsyncStorage.getItem('elder_id');
+        id = saved ? Number(saved) : NaN;
+      }
+      if (id == null || Number.isNaN(id)) {
+        Alert.alert('錯誤', '未指定長者');
+        return;
+      }
+
+      await axios.delete(`${BASE}/api/hospital/${pk}/?user_id=${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
+      });
+
+      setRecords(prev => {
+        const next = prev.filter(r => getPk(r) !== pk);
+        if (next.length === 0) setHint('還沒有新增過看診資料');
+        return next;
+      });
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.error || (status >= 500 ? '伺服器錯誤，請稍後再試' : '刪除失敗');
+      console.log('刪除失敗:', status, e?.response?.data);
+      Alert.alert('刪除失敗', msg);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -138,14 +179,24 @@ export default function FamilyHospitalList() {
         contentContainerStyle={{ alignItems: 'center' }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecords} />}
       >
-        {records.map((r) => (
-          <View key={getKey(r)} style={styles.card}>
-            <Text style={styles.time}>日期：{r.ClinicDate}</Text>
-            <Text style={styles.place}>地點：{r.ClinicPlace}</Text>
-            <Text style={styles.doctor}>醫師：{r.Doctor}</Text>
-            <Text style={styles.num}>號碼：{r.Num}</Text>
-          </View>
-        ))}
+        {records.map((r) => {
+          const pk = getPk(r);
+          return (
+            <View key={getKey(r)} style={styles.card}>
+              <View style={styles.cardRow}>
+                <Text style={styles.time}>日期：{r.ClinicDate}</Text>
+                {pk != null && (
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
+                    <Text style={styles.deleteText}>刪除</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.place}>地點：{r.ClinicPlace}</Text>
+              <Text style={styles.doctor}>醫師：{r.Doctor}</Text>
+              <Text style={styles.num}>號碼：{r.Num}</Text>
+            </View>
+          );
+        })}
       </ScrollView>
 
       <TouchableOpacity style={[styles.button, { backgroundColor: '#4FC3F7' }]} onPress={goToAdd}>
@@ -167,12 +218,15 @@ const styles = StyleSheet.create<{
   headerText: TextStyle;
   hint: TextStyle;
   card: ViewStyle;
+  cardRow: ViewStyle;
   time: TextStyle;
   place: TextStyle;
   doctor: TextStyle;
   num: TextStyle;
   button: ViewStyle;
   btnText: TextStyle;
+  deleteBtn: ViewStyle;
+  deleteText: TextStyle;
 }>({
   container: { flex: 1, backgroundColor: '#fff', paddingTop: 20, alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 15, width: '100%' },
@@ -182,10 +236,13 @@ const styles = StyleSheet.create<{
   headerText: { fontSize: 22, fontWeight: 'bold', color: '#333' },
   hint: { width: '85%', color: '#666', marginBottom: 6 },
   card: { backgroundColor: '#FFD54F', width: '85%', padding: 15, borderRadius: 12, marginBottom: 12, elevation: 3 },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   time: { fontSize: 16, fontWeight: 'bold' },
   place: { fontSize: 14, marginTop: 4 },
   doctor: { fontSize: 14, marginTop: 4 },
   num: { fontSize: 14, marginTop: 4 },
   button: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, marginTop: 10, width: '85%', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  deleteBtn: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#E53935', borderRadius: 6, borderWidth: 2, borderColor: '#111' },
+  deleteText: { color: '#fff', fontWeight: 'bold', fontSize: 12 }
 });
