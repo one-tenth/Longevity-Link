@@ -25,7 +25,7 @@ const FamilyScreen = () => {
       if (!token) return;
 
       try {
-        const resMe = await fetch('http://192.168.0.19:8000/account/me/', {
+        const resMe = await fetch('http://192.168.0.55:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -34,7 +34,7 @@ const FamilyScreen = () => {
         setUserId(user.UserID);
         setFamilyName(`${user.Name}的家庭`);
 
-        const resMembers = await fetch('http://192.168.0.19:8000/family/members/', {
+        const resMembers = await fetch('http://192.168.0.55:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
