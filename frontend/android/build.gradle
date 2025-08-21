@@ -1,39 +1,24 @@
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
-        minSdkVersion     = 24
+        minSdkVersion = 24
         compileSdkVersion = 35
-        targetSdkVersion  = 35
-        ndkVersion        = "27.1.12297006"
-        kotlinVersion     = "2.0.21"
+        targetSdkVersion = 35
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.0.21"
     }
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:7.4.2")
+        classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
-        classpath("com.google.gms:google-services:4.3.15")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        classpath 'com.google.gms:google-services:4.3.15'
+
     }
 }
 
 apply plugin: "com.facebook.react.rootproject"
-// apply plugin: 'com.google.gms.google-services'
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    // 强制统一版本的 
-    configurations.all {
-        resolutionStrategy { 
-            force(
-                "com.google.android.gms:play-services-location:21.0.1",
-                "com.google.android.gms:play-services-base:18.2.0"
-            )
-        }
-    }
-}
+apply plugin: 'com.google.gms.google-services'

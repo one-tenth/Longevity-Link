@@ -1,7 +1,7 @@
 // 負責後端的API請求
 import axios from 'axios';
 
-const API_BASE = 'http://172.16.32.126:8000/api/account';
+const API_BASE = 'http://10.30.200.212:8000/api/account';
 
 export interface RegisterData { Phone: string; Name: string; Gender: 'M' | 'F'; Borndate: string; password: string; }
 export interface LoginData { Phone: string; password: string; }

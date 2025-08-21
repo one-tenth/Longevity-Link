@@ -79,6 +79,15 @@ export default function ChildHome() {
         <View style={styles.cardBottomBlank} />
       </View>
 
+      {/* 家人定位卡片 */}
+      <View style={styles.featureCardWrapper}>
+        <TouchableOpacity style={styles.featureCard} onPress={() => navigation.navigate('Location', { elderId: 1})}>
+          <MaterialIcons name="location-on" size={28} color="#FFF" />
+          <Text style={styles.featureText}>家人定位</Text>
+        </TouchableOpacity>
+        <View style={styles.cardBottomBlank} />
+      </View>
+
       {/* 底部功能列 */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
@@ -164,25 +173,27 @@ const styles = StyleSheet.create({
     width: '90%',
     alignSelf: 'center',
   },
-  settingItem: { alignItems: 'center' },
+  settingItem: {
+    alignItems: 'center',
+  },
   settingLabel: {
     color: '#fff',
     fontSize: 14,
     marginTop: 2,
     fontWeight: '900',
   },
-featureCardWrapper: {
-  width: '90%',
-  backgroundColor: '#005757',
-  borderRadius: 16,
-  marginTop: 16,
-  overflow: 'hidden',
-  alignSelf: 'center',
-},
+  featureCardWrapper: {
+    width: '90%',
+    backgroundColor: '#005757',
+    borderRadius: 16,
+    marginTop: 16,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding:10,
+    padding: 10,
     justifyContent: 'flex-start',
     backgroundColor: '#005757',
     gap: 14,
@@ -194,7 +205,7 @@ featureCardWrapper: {
   },
   featureText: {
     color: '#FFF',
-    fontSize:24,
+    fontSize: 24,
     fontWeight: '900',
   },
 

@@ -87,16 +87,6 @@ export default function ChildHome() {
 
       {/* 用藥資訊卡片 */}
       <View style={styles.featureCardWrapper}>
-      <View style={styles.gridRow}>
-        <TouchableOpacity
-          style={[styles.gridBox, { backgroundColor: '#549D77' }]}
-          onPress={() => navigation.navigate('Location', { elderId})}>
-          <Image
-            source={require('../img/childhome/Group.png')}
-            style={styles.locate}/>
-          <Text style={styles.gridText1}>即時位置</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.featureCard}
           onPress={() => navigation.navigate('Medicine')}
