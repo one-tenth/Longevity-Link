@@ -180,7 +180,7 @@ class FitData(models.Model):
 
 class LocaRecord(models.Model):
     LocationID = models.AutoField(primary_key=True)
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID') #長者的
     Latitude = models.FloatField()
     Longitude = models.FloatField()
     Timestamp = models.DateTimeField(auto_now_add=True)
@@ -188,3 +188,6 @@ class LocaRecord(models.Model):
     class Meta:
         verbose_name = "LocaRecord"
         verbose_name_plural = "LocaRecords"
+        indexes = [
+            models.Index(fields=['UserID', '-Timestamp']),  # ✅ 查最新更快
+        ]

@@ -37,10 +37,10 @@ urlpatterns = [
     path('account/me/', views.get_me,name='get_me'),
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
-     path('me/', views.get_me),
-    path('api/location/upload/',  views.upload_location, name='upload-location'),
-    path('api/location/latest/<int:user_id>/', views.get_latest_location, name='latest-location'),
-
-    
+    path('me/', views.get_me),
+    path('api/location/upload/',  views.upload_location, name='upload_location'),
+    path('api/location/latest/<int:user_id>/', views.get_latest_location, name='get_latest_location'),
+    path('api/location/family/<int:family_id>/', views.get_family_locations, name='get_family_locations')
+   
 
 ]

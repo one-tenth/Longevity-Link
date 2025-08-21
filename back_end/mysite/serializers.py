@@ -77,5 +77,20 @@ class FamilySerializer(serializers.ModelSerializer):
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = LocaRecord
-        fields = ['LocationID', 'Latitude', 'Longitude', 'Timestamp']
-        read_only_fields = ['LocationID', 'Timestamp']
+        fields = ['LocationID', 'UserID', 'Latitude', 'Longitude', 'Timestamp']
+        read_only_fields = ['LocationID', 'Timestamp']  # UserID 可保留可寫，或一律 read_only 由後端注入
+
+    def validate(self, attrs):
+        lat = attrs.get('Latitude')
+        lng = attrs.get('Longitude')
+        if lat is None or lng is None:
+            raise serializers.ValidationError('缺少座標')
+        if not (-90.0 <= float(lat) <= 90.0) or not (-180.0 <= float(lng) <= 180.0):
+            raise serializers.ValidationError('座標超出範圍（lat:-90~90, lng:-180~180）')
+        return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.Timestamp:
+            data['Timestamp'] = instance.Timestamp.isoformat()
+        return data
