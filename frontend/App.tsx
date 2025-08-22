@@ -2,7 +2,9 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import { setupNotificationChannel, initMedicationNotifications } from './utils/initNotification';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 // 引入各頁（照你原本的）
 import AddHospitalRecord from './screens/AddHospitalRecord';
@@ -58,22 +60,25 @@ const App: React.FC = () => {
   // 在應用啟動時建立通知頻道
   useEffect(() => {
     async function initNotifee() {
-      await notifee.requestPermission();
+      console.log('🔔 初始化通知中...');
+      await setupNotificationChannel(); // 初始化頻道
 
-      await notifee.createChannel({
-        id: 'default',
-        name: 'Default Channel',
-        importance: AndroidImportance.HIGH,
-      });
+      const token = await AsyncStorage.getItem('access_token');
+      const role = await AsyncStorage.getItem('role'); // 假設你在登入時有儲存角色
+
+      if (token && role === 'elder') {
+        console.log('👴 是長者，準備排程通知...');
+        await initMedicationNotifications();
+      } else {
+        console.log('🙅‍♂️ 非長者，不排程通知');
+      }
     }
-
     initNotifee();
   }, []);
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="NotifTest" component={NotifTest} />
         <Stack.Screen name="index" component={index} />
         <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
         <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
@@ -94,6 +99,7 @@ const App: React.FC = () => {
         <Stack.Screen name="Health" component={Health} />
         <Stack.Screen name="CreateFamilyScreen" component={CreateFamilyScreen} />
         <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
+        <Stack.Screen name="NotifTest" component={NotifTest} />
       </Stack.Navigator>
     </NavigationContainer>
   );

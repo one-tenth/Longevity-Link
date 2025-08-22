@@ -14,6 +14,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+// 0822(onetenth)
+import { initMedicationNotifications } from '../utils/initNotification'; // 根據實際路徑調整
+
 
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -70,6 +73,10 @@ export default function LoginScreen() {
         await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
         await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
         await AsyncStorage.setItem('userID', String(user.UserID));
+
+
+        // ✅ 登入成功後初始化吃藥通知(0822)
+        await initMedicationNotifications();
 
         Alert.alert('登入成功', `歡迎 ${user.Name}`);
 

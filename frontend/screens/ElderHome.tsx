@@ -1,13 +1,52 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
 
 type ElderHomeNavProp = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
 export default function ElderHome() {
   const navigation = useNavigation<ElderHomeNavProp>();
+
+  // ✅ 每次進入畫面時刷新通知
+  useFocusEffect(
+    useCallback(() => {
+      async function refreshNotifications() {
+        console.log('🔁 每次進入 ElderHome 時刷新通知');
+        await setupNotificationChannel();
+
+        const token = await AsyncStorage.getItem('access');
+        if (token) {
+          try {
+            const result = await initMedicationNotifications();
+            if (result === 'no-time') {
+              Alert.alert('尚未設定用藥時間', '請通知家人協助設定藥物提醒時間');
+            } else if (result === 'no-meds') {
+              Alert.alert('尚無藥物資料', '目前無需提醒藥物');
+            }
+          } catch (error) {
+            console.log('通知初始化失敗', error);
+            Alert.alert('錯誤', '取得用藥資料時發生錯誤');
+          }
+        } else {
+          console.log('❌ 無 access token，無法設定通知');
+        }
+      }
+
+      refreshNotifications();
+    }, [])
+  );
 
   return (
     <View style={styles.container}>
@@ -75,15 +114,10 @@ export default function ElderHome() {
   );
 }
 
+// ✅ 保持原本樣式
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FCFEED',
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 30,
-  },
+  container: { flex: 1, backgroundColor: '#FCFEED' },
+  scrollContent: { alignItems: 'center', paddingBottom: 30 },
   header: {
     width: '100%',
     height: 70,
@@ -95,21 +129,9 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 10,
   },
-  title: {
-    fontSize: 50,
-    fontWeight: '900',
-    color: '#000',
-  },
-  logo: {
-    width: 60,
-    height: 60,
-    marginTop: 15,
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    marginTop: 15,
-  },
+  title: { fontSize: 50, fontWeight: '900', color: '#000' },
+  logo: { width: 60, height: 60, marginTop: 15 },
+  settingIcon: { width: 40, height: 40, marginTop: 15 },
   boxGreen: {
     width: '90%',
     backgroundColor: '#549D77',
@@ -128,33 +150,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'black',
   },
-  boxTitle: {
-    fontSize: 30,
-    fontWeight: '900',
-    marginBottom: 12,
-    color: 'black',
-  },
-  boxText: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: 'black',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  icon: {
-    width: 62,
-    height: 62,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  buttonRow: {
-    width: '90%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  boxTitle: { fontSize: 30, fontWeight: '900', marginBottom: 12, color: 'black' },
+  boxText: { fontSize: 30, fontWeight: '900', color: 'black' },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  icon: { width: 62, height: 62, textAlign: 'center', marginTop: 2 },
+  buttonRow: { width: '90%', flexDirection: 'row', justifyContent: 'space-between' },
   buttonGreen: {
     flex: 1,
     backgroundColor: '#7ac3a3',
@@ -175,10 +175,5 @@ const styles = StyleSheet.create({
     borderColor: 'black',
     alignItems: 'center',
   },
-  buttonText: {
-    marginTop: 6,
-    fontSize: 22,
-    fontWeight: '900',
-    color: 'white',
-  },
+  buttonText: { marginTop: 6, fontSize: 22, fontWeight: '900', color: 'white' },
 });
