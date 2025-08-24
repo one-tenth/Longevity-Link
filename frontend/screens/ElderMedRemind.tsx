@@ -18,9 +18,15 @@ export default function ElderMedRemind() {
   const route = useRoute();
   const { period, meds, time } = route.params as RouteParams;
 
+
+  const formatTime = (time: string) => {
+    // 如果是 "08:00:00"，只顯示到 "08:00"
+    return time?.length >= 5 ? time.slice(0, 5) : time;
+  };
+
   const medList = typeof meds === 'string' ? meds.split(',') : meds || [];
   const displayPeriod = period || '目前時段';
-  const displayTime = (time && time.length >= 3) ? `用藥時間：${time}` : '尚未設定時間';
+  const displayTime = time ? `用藥時間：${formatTime(time)}` : '尚未設定時間';
 
 
   return (

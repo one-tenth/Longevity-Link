@@ -447,6 +447,10 @@ from .models import Med, MedTimeSetting
 def get_med_reminders(request):
     user = request.user
 
+    # ❗️新增：身份驗證（RelatedID 有值代表是家人）
+    if user.RelatedID is None:
+        return Response({"error": "此帳號為家人，無法取得用藥提醒"}, status=403)
+
     try:
         time_setting = MedTimeSetting.objects.get(UserID=user)
     except MedTimeSetting.DoesNotExist:
@@ -473,9 +477,14 @@ def get_med_reminders(request):
             schedule["morning"].append(med.MedName)
             schedule["noon"].append(med.MedName)
             schedule["evening"].append(med.MedName)
+        elif freq == "一天四次":
+            schedule["morning"].append(med.MedName)
+            schedule["noon"].append(med.MedName)
+            schedule["evening"].append(med.MedName)
+            schedule["bedtime"].append(med.MedName)
         elif freq == "睡前":
             schedule["bedtime"].append(med.MedName)
-        # 如果有更多類型可以加 elif 處理
+        # 可視需求擴充其他頻率
 
     result = {
         "morning": {
@@ -497,6 +506,7 @@ def get_med_reminders(request):
     }
 
     return Response(result)
+
 
 #----------------------------------------------------------------
 #健康

@@ -61,56 +61,69 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
 const App: React.FC = () => {
-  useEffect(() => {
-    async function initNotifee() {
-      console.log('🔔 初始化通知中...');
-      await setupNotificationChannel();
+    useEffect(() => {
+      async function initNotifee() {
+        console.log('🔔 初始化通知中...');
+        await setupNotificationChannel();
 
-      const token = await AsyncStorage.getItem('access_token');
-      const role = await AsyncStorage.getItem('role');
+        const result = await initMedicationNotifications();
+        switch (result) {
+          case 'success':
+            console.log('✅ 成功排程提醒通知');
+            break;
+          case 'no-time':
+            console.log('⚠️ 尚未設定用藥時間');
+            break;
+          case 'no-meds':
+            console.log('⚠️ 尚未設定任何藥品');
+            break;
+          case 'no-token':
+            console.log('⚠️ 尚未登入');
+            break;
+          case 'not-elder':
+            console.log('👨‍👩‍👧 是家人帳號，不排程通知');
+            break;
+          case 'error':
+          default:
+            console.log('❌ 初始化提醒通知時出錯');
+            break;
+        }
 
-      if (token && role === 'elder') {
-        console.log('👴 是長者，準備排程通知...');
-        await initMedicationNotifications();
-      } else {
-        console.log('🙅‍♂️ 非長者，不排程通知');
-      }
+        // 如果有儲存的通知資料，就自動跳轉
+        const storedPeriod = await AsyncStorage.getItem('notificationPeriod');
+        const storedMeds = await AsyncStorage.getItem('notificationMeds');
 
-      // 🔁 如果有儲存的通知資料，就自動跳轉
-      const storedPeriod = await AsyncStorage.getItem('notificationPeriod');
-      const storedMeds = await AsyncStorage.getItem('notificationMeds');
-
-      if (storedPeriod && storedMeds && navigationRef.isReady()) {
-        console.log('🚀 App 啟動自動跳轉 ReminderScreen');
-        navigationRef.navigate('ElderMedRemind', {
-          period: storedPeriod,
-          meds: storedMeds.split(','),
-        });
-
-        // 清除已處理的通知資料
-        await AsyncStorage.removeItem('notificationPeriod');
-        await AsyncStorage.removeItem('notificationMeds');
-      }
-    }
-
-    initNotifee();
-
-    const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
-      if (type === EventType.PRESS && detail.notification?.data) {
-        const { period, meds, time } = detail.notification.data;
-
-        if (navigationRef.isReady() && period && meds) {
+        if (storedPeriod && storedMeds && navigationRef.isReady()) {
+          console.log('🚀 App 啟動自動跳轉 ElderMedRemind');
           navigationRef.navigate('ElderMedRemind', {
-            period,
-            meds: meds.split(','),
-            time,
+            period: storedPeriod,
+            meds: storedMeds.split(','),
           });
+
+          await AsyncStorage.removeItem('notificationPeriod');
+          await AsyncStorage.removeItem('notificationMeds');
         }
       }
-    });
 
-    return () => unsubscribe();
-  }, []);
+      initNotifee();
+
+      const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
+        if (type === EventType.PRESS && detail.notification?.data) {
+          const { period, meds, time } = detail.notification.data;
+
+          if (navigationRef.isReady() && period && meds) {
+            navigationRef.navigate('ElderMedRemind', {
+              period,
+              meds: meds.split(','),
+              time,
+            });
+          }
+        }
+      });
+
+      return () => unsubscribe();
+    }, []);
+
 
 
   return (

@@ -8,61 +8,70 @@ import notifee, {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { navigationRef } from '../App'; // 全域導航用
+import { navigationRef } from '../App';
 
-// ===== 工具：時間字串轉為明日時間點 =====
+// ===== 工具：時間字串轉日期 =====
 function createTriggerTime(timeStr: string): Date {
   const [hour, minute] = timeStr.split(':').map(Number);
   const now = new Date();
   const triggerTime = new Date(now);
   triggerTime.setHours(hour, minute, 0, 0);
-  if (triggerTime <= now) {
-    triggerTime.setDate(triggerTime.getDate() + 1);
-  }
+  if (triggerTime <= now) triggerTime.setDate(triggerTime.getDate() + 1);
   return triggerTime;
 }
 
-// ===== 初始化通知（App 啟動後執行）=====
-export async function initMedicationNotifications(): Promise<'success' | 'no-time' | 'no-meds' | 'no-token' | 'error'> {
+// ===== 初始化提醒 =====
+export async function initMedicationNotifications(): Promise<
+  'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
+> {
   const token = await AsyncStorage.getItem('access');
-  console.log('🔑 access token =', token);
-
   if (!token) {
-    console.log('❌ 沒有 token，跳出 init');
+    console.log('❌ 無 token');
     return 'no-token';
   }
 
   try {
-    console.log('📡 發送 API 請求到 /api/get-med-reminders/');
-    const response = await axios.get('http://192.168.0.55:8000/api/get-med-reminders/', {
+    // 取得目前使用者
+    const meRes = await axios.get('http://192.168.0.55:8000/account/me/', {
       headers: { Authorization: `Bearer ${token}` },
     });
+    const user = meRes.data;
+    console.log('✅ 使用者資訊:', user);
 
-    console.log('✅ 後端回傳資料:', response.data);
-    const schedule = response.data;
+    // 非長者不排通知
+    if (user.RelatedID === null) {
+      console.log('👨‍👩‍👧 家人帳號，不排通知');
+      return 'not-elder';
+    }
 
-    // 儲存下來供背景事件使用
+    // 呼叫提醒 API
+    const res = await axios.get('http://192.168.0.55:8000/api/get-med-reminders/', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const schedule = res.data;
+    console.log('✅ 提醒排程資料:', schedule);
+
     await AsyncStorage.setItem('medReminderData', JSON.stringify(schedule));
 
+    // 檢查是否有設定時間與藥物
     const allEmpty = Object.values(schedule).every(
       (d: any) => !d.time || !Array.isArray(d.meds) || d.meds.length === 0
     );
     if (allEmpty) {
-      Alert.alert('尚未設定用藥時間', '請通知家人至設定頁為長者設定每日用藥時間。');
+      Alert.alert('尚未設定用藥時間', '請通知家人設定。');
       return 'no-time';
     }
 
     let medsExist = false;
 
     for (const [period, data] of Object.entries(schedule)) {
-      const time = data.time;
-      const meds = data.meds;
+      const { time, meds } = data as { time: string; meds: string[] };
 
       if (!time || meds.length === 0) continue;
-
       medsExist = true;
 
       const triggerTime = createTriggerTime(time);
+      console.log(`🔔 預排：${period} → ${time} (${triggerTime})`);
 
       const trigger: TimestampTrigger = {
         type: TriggerType.TIMESTAMP,
@@ -74,7 +83,7 @@ export async function initMedicationNotifications(): Promise<'success' | 'no-tim
       await notifee.createTriggerNotification(
         {
           title: `💊 ${period} 吃藥提醒`,
-          body: `請記得服用：${meds.join(', ')}`,
+          body: `請記得服用：${meds.map(m => String(m)).join(', ')}`,
           android: {
             channelId: 'medication',
             smallIcon: 'ic_launcher',
@@ -82,29 +91,29 @@ export async function initMedicationNotifications(): Promise<'success' | 'no-tim
           },
           data: {
             period,
-            meds: meds.join(','), // 給點擊通知時用
-            time, // 👈 加這行！
+            meds: meds.join(','),
+            time,
           },
         },
         trigger
       );
 
-      console.log(`🔔 通知已建立：${period} → ${time}`);
+      console.log(`✅ 已排程：${period} → ${time}`);
     }
 
     if (!medsExist) {
-      Alert.alert('目前無需提醒藥物', '尚未為任何時段設定藥物。');
+      Alert.alert('尚無藥物設定', '請由家人設定用藥內容。');
       return 'no-meds';
     }
 
     return 'success';
-  } catch (error) {
-    console.error('❌ 取得提醒資料失敗', error);
+  } catch (err: any) {
+    console.error('❌ 排程失敗:', err?.response?.data || err.message || err);
     return 'error';
   }
 }
 
-// ===== 建立 Android 通知頻道 =====
+// ===== Android 通知頻道 =====
 export async function setupNotificationChannel() {
   await notifee.createChannel({
     id: 'medication',
@@ -113,31 +122,27 @@ export async function setupNotificationChannel() {
   });
 }
 
-// ===== 前景通知點擊處理（App 有開著）=====
+// ===== 通知點擊處理（App 前景）=====
 notifee.onForegroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
-    const { period, meds,time } = detail.notification.data;
+    const { period, meds, time } = detail.notification.data;
     navigationRef.current?.navigate('ElderMedRemind', {
       period,
       meds: meds?.split(','),
-      time, // ✅ 加上這行
+      time,
     });
   }
 });
 
-// ===== 背景通知點擊處理（App 被關掉）=====
+// ===== 通知點擊處理（App 背景）=====
 notifee.onBackgroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
     const { period, meds, time } = detail.notification.data;
-
-    console.log('📦 背景事件觸發，儲存通知資料', period, meds, time);
-
-    // 儲存資料（如果你要用）
     await AsyncStorage.setItem('notificationPeriod', period || '');
     await AsyncStorage.setItem('notificationMeds', meds || '');
     await AsyncStorage.setItem('notificationTime', time || '');
 
-    // 預防 app 還沒初始化完成
+    // 延遲避免跳太快
     setTimeout(() => {
       navigationRef.current?.navigate('ElderMedRemind', {
         period,
