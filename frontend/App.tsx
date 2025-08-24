@@ -79,10 +79,10 @@ const App: React.FC = () => (
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
       <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
-      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
-      <Stack.Screen name="CreateFamily" component={CreateFamily} />
       <Stack.Screen name="FamilySetting" component={FamilySetting} />
+      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
       <Stack.Screen name="JoinFamily" component={JoinFamily} />
+      <Stack.Screen name="CreateFamily" component={CreateFamily} />
       <Stack.Screen name="Profile" component={Profile} />
     </Stack.Navigator>
   </NavigationContainer>
