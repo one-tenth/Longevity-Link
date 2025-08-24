@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Dimensions,
+  Modal,
+  FlatList,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -26,11 +30,60 @@ const COLORS = {
   textMid: '#333',
   green: '#A6CFA1',
   lightred: '#D67C78',
-  red:'#FF4C4C'
+  red: '#FF4C4C',
 };
+
+type MedCard = {
+  id: string;
+  period: string;     // 早上 / 中午 / 晚上 / 睡前
+  time: string;       // 8:00
+  meds: string[];     // 藥品清單
+};
+
+const { width } = Dimensions.get('window');
+const CARD_W = Math.min(width * 0.86, 360);
 
 export default function ElderHome() {
   const navigation = useNavigation<ElderHomeNavProp>();
+
+  // 示例資料（你之後可換成後端回傳）
+  const medCards: MedCard[] = [
+    { id: '1', period: '早上', time: '08:00', meds: ['降壓藥 A', '保健品 B'] },
+    { id: '2', period: '中午', time: '12:30', meds: ['胃藥 C'] },
+    { id: '3', period: '晚上', time: '18:30', meds: ['降脂藥 D', '鈣片 E'] },
+    { id: '4', period: '睡前', time: '22:00', meds: ['助眠藥 F'] },
+  ];
+
+  const [showMedModal, setShowMedModal] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatRef = useRef<FlatList<MedCard>>(null);
+
+  const openMedModal = (startIndex = 0) => {
+    setCurrentIndex(startIndex);
+    setShowMedModal(true);
+    // 小延遲確保 FlatList 已渲染後再捲動
+    requestAnimationFrame(() => {
+      flatRef.current?.scrollToIndex({ index: startIndex, animated: false });
+    });
+  };
+
+  const closeMedModal = () => setShowMedModal(false);
+
+  const goPrev = () => {
+    if (currentIndex > 0) {
+      const idx = currentIndex - 1;
+      setCurrentIndex(idx);
+      flatRef.current?.scrollToIndex({ index: idx, animated: true });
+    }
+  };
+
+  const goNext = () => {
+    if (currentIndex < medCards.length - 1) {
+      const idx = currentIndex + 1;
+      setCurrentIndex(idx);
+      flatRef.current?.scrollToIndex({ index: idx, animated: true });
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -65,15 +118,15 @@ export default function ElderHome() {
             <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
               <Text style={[styles.notePlaceholder, { color: COLORS.textMid }]}>
                 早上8:00{'\n'}
-                臺大醫院 . 鄭醫師
+                臺大醫院 · 鄭醫師
               </Text>
             </View>
           </TouchableOpacity>
 
-          {/* 吃藥提醒 */}
+          {/* 吃藥提醒（改為開啟浮層，不跳頁） */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('ElderMedRemind' as never)}
+            onPress={() => openMedModal(0)}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
           >
             <View style={styles.rowTop}>
@@ -87,7 +140,7 @@ export default function ElderHome() {
             </View>
           </TouchableOpacity>
 
-        {/* 健康狀況 */}
+          {/* 健康狀況 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
@@ -116,6 +169,99 @@ export default function ElderHome() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ====== 吃藥提醒浮層（可左右滑動） ====== */}
+      <Modal
+        visible={showMedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeMedModal}
+      >
+        {/* 半透明暗背景，點擊可關閉 */}
+        <TouchableWithoutFeedback onPress={closeMedModal}>
+          <View style={styles.backdrop} />
+        </TouchableWithoutFeedback>
+
+        {/* 中央卡片區域（阻止事件穿透） */}
+        <View style={styles.modalCenter} pointerEvents="box-none">
+          <View style={styles.modalCardWrap}>
+            {/* 關閉按鈕 */}
+            <TouchableOpacity style={styles.closeBtn} onPress={closeMedModal} activeOpacity={0.9}>
+              <Feather name="x" size={22} color={COLORS.black} />
+            </TouchableOpacity>
+
+            {/* 上一頁 / 下一頁 */}
+            <TouchableOpacity
+              onPress={goPrev}
+              style={[styles.navArrow, { left: -12, opacity: currentIndex === 0 ? 0.3 : 1 }]}
+              disabled={currentIndex === 0}
+              activeOpacity={0.8}
+            >
+              <Feather name="chevron-left" size={28} color={COLORS.black} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={goNext}
+              style={[
+                styles.navArrow,
+                { right: -12, opacity: currentIndex === medCards.length - 1 ? 0.3 : 1 },
+              ]}
+              disabled={currentIndex === medCards.length - 1}
+              activeOpacity={0.8}
+            >
+              <Feather name="chevron-right" size={28} color={COLORS.black} />
+            </TouchableOpacity>
+
+            {/* 可滑動卡片 */}
+            <FlatList
+              ref={flatRef}
+              data={medCards}
+              keyExtractor={(item) => item.id}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_W + 24));
+                setCurrentIndex(Math.max(0, Math.min(idx, medCards.length - 1)));
+              }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              renderItem={({ item }) => (
+                <View style={[styles.medCard, styles.cardShadow]}>
+                  <View style={styles.medHeader}>
+                    <Text style={styles.medPeriod}>{item.period}</Text>
+                    <Text style={styles.medTime}>{item.time}</Text>
+                  </View>
+
+                  <View style={styles.medList}>
+                    {item.meds.map((m, i) => (
+                      <View key={i} style={styles.medPill}>
+                        <MaterialIcons name="medication" size={18} color={COLORS.black} />
+                        <Text style={styles.medPillText}>{m}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity style={styles.okBtn} onPress={closeMedModal} activeOpacity={0.9}>
+                    <Text style={styles.okBtnText}>知道了</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+
+            {/* 指示點 */}
+            <View style={styles.dots}>
+              {medCards.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    { opacity: i === currentIndex ? 1 : 0.35, width: i === currentIndex ? 16 : 8 },
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -202,4 +348,76 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: { color: COLORS.white, fontSize: 25, fontWeight: '900', marginTop: 6 },
+
+  /* ===== Modal styles ===== */
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  modalCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  modalCardWrap: {
+    width: CARD_W + 24, // 包含左右 padding
+    alignItems: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 10,
+    backgroundColor: '#F2F2F2',
+    borderRadius: 18,
+    padding: 8,
+    elevation: 3,
+  },
+  navArrow: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -16 }],
+    zIndex: 5,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 999,
+    padding: 6,
+    elevation: 2,
+  },
+  medCard: {
+    width: CARD_W,
+    marginHorizontal: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 18,
+  },
+  medHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 10,
+  },
+  medPeriod: { fontSize: 29, fontWeight: '900', color: COLORS.black },
+  medTime: { fontSize: 25, fontWeight: '900', color: COLORS.textMid },
+  medList: { gap: 10, marginTop: 6, marginBottom: 18 },
+  medPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F7F9FB',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  medPillText: { fontSize: 25, fontWeight: '700', color: COLORS.textDark },
+  okBtn: {
+    marginTop: 4,
+    backgroundColor: COLORS.black,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  okBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '800' },
+  dots: { flexDirection: 'row', gap: 6, marginTop: 12, justifyContent: 'center' },
+  dot: { height: 8, borderRadius: 999, backgroundColor: COLORS.black },
 });
