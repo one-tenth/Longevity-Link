@@ -680,6 +680,7 @@ class CreateFamilyView(APIView):
 @permission_classes([IsAuthenticated])
 def get_me(request):
     user = request.user
+    family = user.FamilyID
     family_obj = user.FamilyID  
 
     return Response({
@@ -688,6 +689,8 @@ def get_me(request):
         "Phone": user.Phone,
         "Gender": user.Gender,
         "Borndate": user.Borndate,
+        "FamilyID": family.id if family else None,
+        "Fcode": family.Fcode if family else None,  # ✅ 真正抓到 Fcode
         "FamilyID": family_obj.FamilyID if family_obj else None, 
         "Fcode": family_obj.Fcode if family_obj else None,        
         "RelatedID": user.RelatedID.UserID if user.RelatedID else None,

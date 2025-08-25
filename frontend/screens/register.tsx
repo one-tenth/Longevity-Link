@@ -1,5 +1,4 @@
 // RegisterScreen.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -16,18 +15,16 @@ import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
 
+/** =========================
+ *  弧形標題：CareMate
+ *  ========================= */
 function ArcText() {
   return (
     <Svg width={360} height={90} viewBox="0 0 360 90" style={{ alignSelf: 'center' }}>
       <Defs>
         <Path id="curve" d="M60,70 Q180,10 300,70" fill="none" />
       </Defs>
-      <SvgText
-        fill="#000000"
-        fontSize="42"
-        fontWeight="bold"
-        fontFamily="FascinateInline-Regular"
-      >
+      <SvgText fill="#000000" fontSize="42" fontWeight="bold" fontFamily="FascinateInline-Regular">
         <TextPath href="#curve" startOffset="0%" textAnchor="start">
           .CareMate.
         </TextPath>
@@ -36,22 +33,31 @@ function ArcText() {
   );
 }
 
-const years = Array.from({ length: 60 }, (_, i) => (1930 + i).toString());
+/** =========================
+ *  Picker 選項
+ *  ========================= */
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: currentYear - 1930 + 1 }, (_, i) => (1930 + i).toString());
 const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 
+/** =========================
+ *  Navigation 參數型別
+ *  ========================= */
 type RootStackParamList = {
   RegisterScreen: { mode: 'register' | 'addElder'; creatorId?: number };
 };
-
 type RegisterRouteProp = RouteProp<RootStackParamList, 'RegisterScreen'>;
 
+/** =========================
+ *  後端資料型別（請確定與後端一致）
+ *  ========================= */
 interface RegisterData {
   Name: string;
   Gender: 'M' | 'F';
   Borndate: string;
   Phone: string;
-  password: string;
+  Password: string;      // 若後端吃小寫，請把這裡與下方 payload 一起改成 password
   creator_id?: number;
 }
 
@@ -62,8 +68,8 @@ export default function RegisterScreen() {
 
   const [form, setForm] = useState({
     Name: '',
-    Gender: 'M',
-    year: '1930',
+    Gender: 'M' as 'M' | 'F',
+    year: years[0] ?? '1930',
     month: '01',
     day: '01',
     Phone: '',
@@ -71,8 +77,74 @@ export default function RegisterScreen() {
     confirmPassword: '',
   });
 
-
+  /** =========================
+   *  送出註冊
+   *  ========================= */
   const handleRegister = async () => {
+    // 1) 前端驗證
+    if (!form.Name.trim()) {
+      Alert.alert('錯誤', '請輸入姓名');
+      return;
+    }
+    if (!/^09\d{8}$/.test(form.Phone)) {
+      Alert.alert('錯誤', '請輸入正確的手機號碼格式 (09開頭，共10碼)');
+      return;
+    }
+    if (!form.Password || !form.confirmPassword) {
+      Alert.alert('錯誤', '請輸入密碼與確認密碼');
+      return;
+    }
+    if (form.Password.length < 6) {
+      Alert.alert('錯誤', '密碼長度需至少6碼');
+      return;
+    }
+    if (form.Password !== form.confirmPassword) {
+      Alert.alert('錯誤', '兩次密碼不一致');
+      return;
+    }
+
+    // 2) 組 payload（先宣告再使用）
+    const Borndate = `${form.year}-${form.month}-${form.day}`;
+    const dataToSend: RegisterData = {
+      Name: form.Name,
+      Gender: form.Gender,
+      Borndate,
+      Phone: form.Phone,
+      Password: form.Password, // 若後端吃小寫，請改成 password: form.Password
+      ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
+    };
+
+    // 3) 呼叫 API（只保留一個 try/catch）
+    try {
+      const res = await fetch('http://192.168.0.19:8000/api/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        if (errorText.includes('Duplicate entry')) {
+          Alert.alert('註冊失敗', '此電話號碼已被註冊，請改用其他號碼');
+        } else {
+          console.error('錯誤回應內容:', errorText);
+          Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+        }
+        return;
+      }
+
+      // 4) 導頁
+      if (mode === 'addElder') {
+        Alert.alert('新增成功', '已成功將長者加入家庭');
+        navigation.navigate('ChildHome' as never); // 依你的 Stack 名稱
+      } else {
+        Alert.alert('註冊成功', '請前往登入');
+        navigation.navigate('LoginScreen' as never); // 依你的 Stack 名稱
+      }
+    } catch (error: any) {
+      console.error(error?.message || error);
+      Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
+=======
   if (!form.Name.trim()) {
     Alert.alert('錯誤', '請輸入姓名');
     return;
@@ -147,13 +219,16 @@ export default function RegisterScreen() {
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.headerContainer}>
           <ArcText />
           <Image source={require('../img/childhome/1.png')} style={styles.logo} />
         </View>
 
+        {/* Form */}
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.formWrapper}>
+            {/* 姓名 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>姓名</Text>
               <TextInput
@@ -164,9 +239,10 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* 性別 */}
             <Text style={styles.label}>性別</Text>
             <View style={styles.genderRow}>
-              {['M', 'F'].map((g) => (
+              {(['M', 'F'] as const).map((g) => (
                 <TouchableOpacity
                   key={g}
                   style={[styles.genderBtn, form.Gender === g && styles.genderSelected]}
@@ -179,6 +255,7 @@ export default function RegisterScreen() {
               ))}
             </View>
 
+            {/* 生日 */}
             <Text style={styles.label}>生日</Text>
             <View style={styles.birthdayRow}>
               <View style={styles.pickerWrapperYear}>
@@ -216,6 +293,7 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {/* 手機 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>電話號碼</Text>
               <TextInput
@@ -227,6 +305,7 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* 密碼 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>密碼</Text>
               <TextInput
@@ -238,6 +317,7 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* 確認密碼 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>確認密碼</Text>
               <TextInput
@@ -249,6 +329,7 @@ export default function RegisterScreen() {
               />
             </View>
 
+            {/* 送出 */}
             <TouchableOpacity style={styles.btn} onPress={handleRegister}>
               <Text style={styles.btnText}>註冊</Text>
             </TouchableOpacity>
@@ -257,7 +338,7 @@ export default function RegisterScreen() {
               style={[styles.btn, { backgroundColor: '#A0C334', marginTop: 10 }]}
               onPress={() => navigation.navigate('index')}>
               <Text style={styles.btnText}>返回主頁</Text>
-</TouchableOpacity>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -265,6 +346,9 @@ export default function RegisterScreen() {
   );
 }
 
+/** =========================
+ *  樣式
+ *  ========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: 20 },
   headerContainer: { alignItems: 'center' },

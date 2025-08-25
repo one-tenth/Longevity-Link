@@ -22,7 +22,6 @@ import Setting from './screens/Setting';
 import LoginScreen from './screens/login';
 import RegisterScreen from './screens/register';
 import Health from './screens/Health';
-import ElderMedRemind from './screens/ElderMedRemind';
 import FamilyScreen from './screens/FamilyScreen';
 import CreateFamily from './screens/CreateFamily';
 import FamilySetting from './screens/FamilySetting';
@@ -48,7 +47,6 @@ export type RootStackParamList = {
   LoginScreen: undefined;
   RegisterScreen:   | { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
-  ElderMedRemind: undefined;
   FamilyScreen: { mode?: 'select' | 'full' };
   CreateFamily: undefined;
   FamilySetting: undefined;
@@ -78,11 +76,10 @@ const App: React.FC = () => (
       <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
       <Stack.Screen name="ElderHome" component={ElderHome} />
       <Stack.Screen name="Health" component={Health} />
-      <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
-      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
-      <Stack.Screen name="CreateFamily" component={CreateFamily} />
       <Stack.Screen name="FamilySetting" component={FamilySetting} />
+      <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
       <Stack.Screen name="JoinFamily" component={JoinFamily} />
+      <Stack.Screen name="CreateFamily" component={CreateFamily} />
       <Stack.Screen name="Profile" component={Profile} />
     </Stack.Navigator>
   </NavigationContainer>

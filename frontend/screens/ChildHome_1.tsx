@@ -85,7 +85,7 @@ export default function ChildHome() {
           <FontAwesome name="user" size={28} color="#fff" />
           <Text style={styles.settingLabel}>個人</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('CreateFamily')}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
         </TouchableOpacity>
