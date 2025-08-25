@@ -54,7 +54,7 @@ export default function ChildHome() {
         <View style={styles.heroRow}>
           <Image source={require('../img/childhome/grandpa.png')} style={styles.avatar} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.hello, { color: COLORS.white }]}>Hi, 爺爺</Text>
+            <Text style={[styles.hello, { color: COLORS.white }]}>爺爺</Text>
             <Text style={{ color: COLORS.green, opacity: 0.95 }}>家庭成員 · 關注中</Text>
           </View>
           <TouchableOpacity
