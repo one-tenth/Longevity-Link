@@ -36,7 +36,7 @@ const ProfileScreen = () => {
       }
 
       try {
-        const res = await fetch('http://192.168.0.19:8000/account/me/', {
+        const res = await fetch('http://172.20.10.4:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');

@@ -66,3 +66,8 @@ class UserMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID']
+
+class FamilySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Family
+        fields = ['id', 'Fcode'] 
