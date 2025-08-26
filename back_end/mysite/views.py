@@ -472,7 +472,7 @@ def get_med_reminders(request):
             schedule["morning"].append(med.MedName)
         elif freq == "一天兩次":
             schedule["morning"].append(med.MedName)
-            schedule["evening"].append(med.MedName)
+            schedule["noon"].append(med.MedName)
         elif freq == "一天三次":
             schedule["morning"].append(med.MedName)
             schedule["noon"].append(med.MedName)
