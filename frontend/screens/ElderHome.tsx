@@ -1,89 +1,131 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  Image,
   TouchableOpacity,
-  StatusBar,
-  ScrollView,
-  Dimensions,
   Modal,
   FlatList,
   TouchableWithoutFeedback,
+  Dimensions,
+  StatusBar,
+  ScrollView,
+  Image,
+  StyleSheet,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
-
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 
-type ElderHomeNavProp = StackNavigationProp<RootStackParamList, 'ElderHome'>;
-
-const COLORS = {
-  white: '#FFFFFF',
-  black: '#111111',
-  cream: '#FFFCEC',
-  textDark: '#111',
-  textMid: '#333',
-  green: '#A6CFA1',
-  lightred: '#D67C78',
-  red: '#FF4C4C',
-};
-
-type MedCard = {
-  id: string;
-  period: string;     // 早上 / 中午 / 晚上 / 睡前
-  time: string;       // 8:00
-  meds: string[];     // 藥品清單
-};
+const COLORS = { white: '#FFFFFF', black: '#111111', cream: '#FFFCEC', textDark: '#111', textMid: '#333', green: '#A6CFA1', lightred: '#D67C78', red: '#FF4C4C' };
 
 const { width } = Dimensions.get('window');
 const CARD_W = Math.min(width * 0.86, 360);
+const SNAP = CARD_W + 24;
+
+// 工具：補零
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// 依「現在 HH:MM」從 medCards 中挑出『下一筆有藥』的索引（原陣列索引）
+// 規則：先以 time 升冪排序（空 time 視為 '99:99' 放最後），找第一個 time >= 現在 且 有藥；找不到就取當天最早一筆有藥
+const getNextPreviewIndex = (cards: Array<{ id: string; time?: string; meds?: string[] }>): number => {
+  if (!cards || cards.length === 0) return -1;
+
+  const now = new Date();
+  const nowStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const sorted = [...cards].sort(
+    (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99')
+  );
+
+  const hasMeds = (c: any) => Array.isArray(c.meds) && c.meds.length > 0;
+
+  const idxInSorted =
+    sorted.findIndex(c => (c.time && c.time >= nowStr) && hasMeds(c)) >= 0
+      ? sorted.findIndex(c => (c.time && c.time >= nowStr) && hasMeds(c))
+      : sorted.findIndex(hasMeds);
+
+  if (idxInSorted < 0) return -1;
+
+  const targetId = sorted[idxInSorted].id;
+  return cards.findIndex(c => c.id === targetId);
+};
 
 export default function ElderHome() {
-  const navigation = useNavigation<ElderHomeNavProp>();
-
-  // 示例資料（你之後可換成後端回傳）
-  const medCards: MedCard[] = [
-    { id: '1', period: '早上', time: '08:00', meds: ['降壓藥 A', '保健品 B'] },
-    { id: '2', period: '中午', time: '12:30', meds: ['胃藥 C'] },
-    { id: '3', period: '晚上', time: '18:30', meds: ['降脂藥 D', '鈣片 E'] },
-    { id: '4', period: '睡前', time: '22:00', meds: ['助眠藥 F'] },
-  ];
-
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'ElderHome'>>();
+  const [medCards, setMedCards] = useState<any[]>([]);
   const [showMedModal, setShowMedModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const flatRef = useRef<FlatList<MedCard>>(null);
+  const flatRef = useRef<FlatList<any>>(null);
+
+  // 每 60 秒觸發重算（讓「下一筆」會自動更新）
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const openMedModal = (startIndex = 0) => {
     setCurrentIndex(startIndex);
     setShowMedModal(true);
-    // 小延遲確保 FlatList 已渲染後再捲動
     requestAnimationFrame(() => {
-      flatRef.current?.scrollToIndex({ index: startIndex, animated: false });
+      requestAnimationFrame(() => {
+        flatRef.current?.scrollToIndex({ index: startIndex, animated: false });
+      });
     });
   };
 
   const closeMedModal = () => setShowMedModal(false);
+  const goPrev = () => currentIndex > 0 && setCurrentIndex(i => i - 1);
+  const goNext = () => currentIndex < medCards.length - 1 && setCurrentIndex(i => i + 1);
 
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      const idx = currentIndex - 1;
-      setCurrentIndex(idx);
-      flatRef.current?.scrollToIndex({ index: idx, animated: true });
-    }
-  };
+  useEffect(() => {
+    if (!showMedModal) return;
+    flatRef.current?.scrollToIndex({ index: currentIndex, animated: true });
+  }, [currentIndex, showMedModal]);
 
-  const goNext = () => {
-    if (currentIndex < medCards.length - 1) {
-      const idx = currentIndex + 1;
-      setCurrentIndex(idx);
-      flatRef.current?.scrollToIndex({ index: idx, animated: true });
-    }
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) return;
+      try {
+        const res = await axios.get('http://192.168.0.55:8000/api/get-med-reminders/', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const raw = res.data;
+        const converted = Object.entries(raw)
+          .map(([key, val]: any, idx) => ({
+            id: String(idx + 1),
+            period: key,
+            time: val?.time ? String(val.time).slice(0, 5) : '',
+            meds: Array.isArray(val?.meds) ? val.meds : [],
+          }))
+          .filter(card => card.time || card.meds.length > 0);
+
+        setMedCards(converted);
+      } catch (err) {
+        console.log('❌ 藥物提醒資料抓取失敗:', err);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 供 FlatList 快速定位
+  const getItemLayout = (_: any, index: number) => ({
+    length: SNAP,
+    offset: SNAP * index,
+    index,
+  });
+
+  // === 依現在時間挑出『下一筆有藥』作為預覽 ===
+  const previewIndex = getNextPreviewIndex(medCards);
+  const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
 
   return (
     <View style={styles.container}>
@@ -123,20 +165,43 @@ export default function ElderHome() {
             </View>
           </TouchableOpacity>
 
-          {/* 吃藥提醒（改為開啟浮層，不跳頁） */}
+          {/* 吃藥提醒（卡片內顯示「下一筆有藥」；點擊開浮層並跳到該卡） */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => openMedModal(0)}
+            onPress={() => openMedModal(previewIndex >= 0 ? previewIndex : 0)}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
           >
             <View style={styles.rowTop}>
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>吃藥提醒</Text>
               <MaterialIcons name="medication" size={30} color={COLORS.black} />
             </View>
+
             <View style={[styles.noteBox, { backgroundColor: '#E9F4E4' }]}>
-              <Text style={styles.notePlaceholder}>
-                早上 8:00{'\n'}保健品
-              </Text>
+              {preview ? (
+                <>
+                  <Text style={styles.notePlaceholder}>
+                    {preview.period} {preview.time || ''}
+                  </Text>
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                    {preview.meds.slice(0, 3).map((m: string, i: number) => (
+                      <View key={i} style={styles.miniPill}>
+                        <MaterialIcons name="medication" size={16} color={COLORS.black} />
+                        <Text style={styles.miniPillText}>{m}</Text>
+                      </View>
+                    ))}
+                    {preview.meds.length > 3 && (
+                      <View style={styles.miniPill}>
+                        <Text style={[styles.miniPillText, { fontWeight: '900' }]}>
+                          +{preview.meds.length - 3}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.notePlaceholder}>尚無資料</Text>
+              )}
             </View>
           </TouchableOpacity>
 
@@ -182,7 +247,7 @@ export default function ElderHome() {
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 
-        {/* 中央卡片區域（阻止事件穿透） */}
+        {/* 中央卡片區域 */}
         <View style={styles.modalCenter} pointerEvents="box-none">
           <View style={styles.modalCardWrap}>
             {/* 關閉按鈕 */}
@@ -190,7 +255,7 @@ export default function ElderHome() {
               <Feather name="x" size={22} color={COLORS.black} />
             </TouchableOpacity>
 
-            {/* 上一頁 / 下一頁 */}
+            {/* 上/下一頁箭頭 */}
             <TouchableOpacity
               onPress={goPrev}
               style={[styles.navArrow, { left: -12, opacity: currentIndex === 0 ? 0.3 : 1 }]}
@@ -217,10 +282,14 @@ export default function ElderHome() {
               data={medCards}
               keyExtractor={(item) => item.id}
               horizontal
-              pagingEnabled
+              pagingEnabled={false}
+              snapToInterval={SNAP}
+              decelerationRate="fast"
+              snapToAlignment="start"
               showsHorizontalScrollIndicator={false}
+              getItemLayout={getItemLayout}
               onMomentumScrollEnd={(e) => {
-                const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_W + 24));
+                const idx = Math.round(e.nativeEvent.contentOffset.x / SNAP);
                 setCurrentIndex(Math.max(0, Math.min(idx, medCards.length - 1)));
               }}
               contentContainerStyle={{ paddingHorizontal: 12 }}
@@ -231,14 +300,18 @@ export default function ElderHome() {
                     <Text style={styles.medTime}>{item.time}</Text>
                   </View>
 
-                  <View style={styles.medList}>
+                  {/* 卡片內垂直滾動的藥品清單 */}
+                  <ScrollView style={styles.medScroll} contentContainerStyle={styles.medList}>
                     {item.meds.map((m, i) => (
                       <View key={i} style={styles.medPill}>
                         <MaterialIcons name="medication" size={18} color={COLORS.black} />
                         <Text style={styles.medPillText}>{m}</Text>
                       </View>
                     ))}
-                  </View>
+                    {item.meds.length === 0 && (
+                      <Text style={{ fontSize: 16, color: COLORS.textMid }}>此時段沒有藥物</Text>
+                    )}
+                  </ScrollView>
 
                   <TouchableOpacity style={styles.okBtn} onPress={closeMedModal} activeOpacity={0.9}>
                     <Text style={styles.okBtnText}>知道了</Text>
@@ -361,7 +434,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   modalCardWrap: {
-    width: CARD_W + 24, // 包含左右 padding
+    width: CARD_W + 24,
     alignItems: 'center',
   },
   closeBtn: {
@@ -399,7 +472,8 @@ const styles = StyleSheet.create({
   },
   medPeriod: { fontSize: 29, fontWeight: '900', color: COLORS.black },
   medTime: { fontSize: 25, fontWeight: '900', color: COLORS.textMid },
-  medList: { gap: 10, marginTop: 6, marginBottom: 18 },
+  medScroll: { maxHeight: 260 }, // 卡片內可滾動區域
+  medList: { gap: 10, paddingBottom: 4 },
   medPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -420,4 +494,22 @@ const styles = StyleSheet.create({
   okBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '800' },
   dots: { flexDirection: 'row', gap: 6, marginTop: 12, justifyContent: 'center' },
   dot: { height: 8, borderRadius: 999, backgroundColor: COLORS.black },
+
+  // 吃藥提醒卡片裡的小藥丸（預覽）
+  miniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F7F9FB',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  miniPillText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    marginLeft: 6,
+  },
 });

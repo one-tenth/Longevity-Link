@@ -296,42 +296,61 @@ class OcrAnalyzeView(APIView):
 
     def analyze_with_gpt(self, ocr_text):
         prompt = f"""
-你是一個藥物資料結構化助理，請從以下 OCR 辨識出的藥袋文字中，萃取藥品資訊並輸出乾淨 JSON 格式資料。
+        你是一個藥物資料結構化助理，請從以下 OCR 辨識出的藥袋文字中，萃取藥品資訊並輸出乾淨 JSON 格式資料。
 
-⬇️ OCR 內容如下：
-{ocr_text}
+        ⬇️ OCR 內容如下：
+        {ocr_text}
 
-📌 請輸出以下 JSON 格式（請根據上下文**合理推論**，只有在**完全無線索**的情況下才填寫 "未知"）  
-📌 本次資料約包含 8 種藥品，請不要產生超過 8 筆。
+        📌 請輸出以下 JSON 格式（請根據上下文**合理推論**，只有在**完全無線索**的情況下才填寫 "未知"）  
 
-```json
-{{
-  "diseaseNames": ["高血壓", "糖尿病"],
-  "medications": [
-    {{
-      "medicationName": "藥品A",
-      "administrationRoute": "內服",
-      "dosageFrequency": "一天三次",
-      "effect": "抗過敏",
-      "sideEffect": "可能頭暈"
-    }},
-    {{
-      "medicationName": "藥品B",
-      "administrationRoute": "外用",
-      "dosageFrequency": "一天兩次",
-      "effect": "消炎止癢",
-      "sideEffect": "無明顯副作用"
-    }}
-  ]
-}}
-⚠️ 請注意：
+        ```json
+        {{
+        "diseaseNames": ["高血壓", "糖尿病"],
+        "medications": [
+            {{
+            "medicationName": "藥品A",
+            "administrationRoute": "內服",
+            "dosageFrequency": "一天三次",
+            "effect": "抗過敏",
+            "sideEffect": "可能頭暈"
+            }},
+            {{
+            "medicationName": "藥品B",
+            "administrationRoute": "外用",
+            "dosageFrequency": "一天兩次",
+            "effect": "消炎止癢",
+            "sideEffect": "無明顯副作用"
+            }}
+        ]
+        }}
+        ⚠️ 請注意以下規則：
 
-只輸出純 JSON 區塊，不要加註解、說明或其他文字
+        1.只輸出純 JSON 區塊，不要加註解、說明或其他文字
 
-每一筆 medications 一定要有上述五個欄位，若資料不明請填寫 "未知"
+        2.medications 每一筆資料都要有以下五個欄位：
 
-diseaseNames 必須是一個字串陣列
-"""
+            medicationName
+
+            administrationRoute
+
+            dosageFrequency
+
+            effect
+
+            sideEffect
+
+        3.dosageFrequency 欄位只能是以下四種之一（若不確定請填 "未知"）：
+
+            一天一次
+
+            一天兩次
+
+            一天三次
+
+            睡前
+
+        4.diseaseNames 必須為一個字串陣列
+        """
 
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -417,24 +436,52 @@ class DeletePrescriptionView(APIView):
         return Response({'message': '已刪除', 'deleted_count': deleted_count}, status=status.HTTP_200_OK)
 
 #用藥時間設定
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .serializers import MedTimeSettingSerializer
 from rest_framework import status
+from .models import User, MedTimeSetting
+from .serializers import MedTimeSettingSerializer
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_med_time_setting(request):
     data = request.data.copy()
-    data['UserID'] = request.user.pk  # ✅ 自動加入登入者的 ID
-    print("📩 接收到資料（含使用者）：", data)
 
-    serializer = MedTimeSettingSerializer(data=data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    print("❌ 錯誤訊息：", serializer.errors)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # ✅ 取得前端傳來的 UserID（選擇的長者）
+    user_id = data.get('UserID')
+    if not user_id:
+        return Response({"error": "缺少 UserID"}, status=400)
+
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "指定的 UserID 不存在"}, status=404)
+
+    # ✅ 準備欄位值
+    morning = data.get('MorningTime')
+    noon = data.get('NoonTime')
+    evening = data.get('EveningTime')
+    bedtime = data.get('Bedtime')
+
+    # ✅ 使用 update_or_create（不會新增多筆，只會更新或建立一筆）
+    setting, created = MedTimeSetting.objects.update_or_create(
+        UserID=user,
+        defaults={
+            "MorningTime": morning,
+            "NoonTime": noon,
+            "EveningTime": evening,
+            "Bedtime": bedtime
+        }
+    )
+
+    serializer = MedTimeSettingSerializer(setting)
+    return Response({
+        "status": "updated" if not created else "created",
+        "data": serializer.data
+    }, status=200)
+
+
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -451,6 +498,78 @@ def get_med_time_setting(request):
         return Response(serializer.data)
     except MedTimeSetting.DoesNotExist:
         return Response({'detail': '尚未設定時間'}, status=404)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Med, MedTimeSetting
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_med_reminders(request):
+    user = request.user
+
+    # ❗️新增：身份驗證（RelatedID 有值代表是家人）
+    if user.RelatedID is None:
+        return Response({"error": "此帳號為家人，無法取得用藥提醒"}, status=403)
+
+    try:
+        time_setting = MedTimeSetting.objects.get(UserID=user)
+    except MedTimeSetting.DoesNotExist:
+        return Response({"error": "尚未設定用藥時間"}, status=404)
+
+    meds = Med.objects.filter(UserID=user)
+
+    schedule = {
+        "morning": [],
+        "noon": [],
+        "evening": [],
+        "bedtime": []
+    }
+
+    for med in meds:
+        freq = med.DosageFrequency.strip()
+
+        if freq == "一天一次":
+            schedule["morning"].append(med.MedName)
+        elif freq == "一天兩次":
+            schedule["morning"].append(med.MedName)
+            schedule["noon"].append(med.MedName)
+        elif freq == "一天三次":
+            schedule["morning"].append(med.MedName)
+            schedule["noon"].append(med.MedName)
+            schedule["evening"].append(med.MedName)
+        elif freq == "一天四次":
+            schedule["morning"].append(med.MedName)
+            schedule["noon"].append(med.MedName)
+            schedule["evening"].append(med.MedName)
+            schedule["bedtime"].append(med.MedName)
+        elif freq == "睡前":
+            schedule["bedtime"].append(med.MedName)
+        # 可視需求擴充其他頻率
+
+    result = {
+        "morning": {
+            "time": str(time_setting.MorningTime) if time_setting.MorningTime else None,
+            "meds": schedule["morning"]
+        },
+        "noon": {
+            "time": str(time_setting.NoonTime) if time_setting.NoonTime else None,
+            "meds": schedule["noon"]
+        },
+        "evening": {
+            "time": str(time_setting.EveningTime) if time_setting.EveningTime else None,
+            "meds": schedule["evening"]
+        },
+        "bedtime": {
+            "time": str(time_setting.Bedtime) if time_setting.Bedtime else None,
+            "meds": schedule["bedtime"]
+        }
+    }
+
+    return Response(result)
+
 
 #----------------------------------------------------------------
 #健康
