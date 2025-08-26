@@ -44,4 +44,5 @@ urlpatterns = [
     path('account/me/', views.get_me,name='get_me'),
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
+     path('me/', views.get_me),
 ]

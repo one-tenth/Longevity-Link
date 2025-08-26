@@ -81,7 +81,7 @@ export default function LoginScreen() {
         Alert.alert('登入成功', `歡迎 ${user.Name}`);
 
         if (!user.FamilyID) {
-          navigation.navigate('CreateFamilyScreen' as never);
+          navigation.navigate('CreateFamily' as never);
         } else if (user.RelatedID) {
           navigation.navigate('ElderHome' as never);
         } else {
@@ -160,14 +160,17 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>登入</Text>
         </TouchableOpacity>
 
-        {/* 註冊導向 */}
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen', { mode: 'register' })}>
+
+        {/* 註冊連結 */}
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
 
-        {/* 返回首頁 */}
-        <TouchableOpacity onPress={() => navigation.navigate('index')}>
-          <Text style={styles.homeText}>返回首頁</Text>
+        <TouchableOpacity
+          style={[styles.smallButton, { backgroundColor: '#37613C' }]} // 同登入顏色
+          onPress={() => navigation.navigate('index')}
+        >     
+        <Text style={styles.smallButtonText}>返回主頁</Text>
         </TouchableOpacity>
       </View>
     </>
@@ -251,4 +254,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  smallButton: {
+  backgroundColor: '#A0C334',
+  paddingVertical: 10,
+  paddingHorizontal: 40,
+  borderRadius: 10,
+  marginTop: 12,
+  width: '60%', // 讓它比登入按鈕窄
+  alignItems: 'center',
+},
+smallButtonText: {
+  color: '#FFF',
+  fontWeight: '900',
+  fontSize: 16,
+  textAlign: 'center',
+},
 });

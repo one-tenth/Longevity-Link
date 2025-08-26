@@ -3,35 +3,35 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
-  Alert,
   ScrollView,
-  Platform
+  Alert,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
+// navigation 型別定義
 type MedTimeSettingNavProp = StackNavigationProp<RootStackParamList, 'MedTimeSetting'>;
 
 type TimeItem = {
   label: string;
   time: string;
-  color: string;
 };
 
 export default function TimeSettingInput() {
   const navigation = useNavigation<MedTimeSettingNavProp>();
 
   const [times, setTimes] = useState<TimeItem[]>([
-    { label: '早上', time: '08:00', color: '#F4C80B' },
-    { label: '中午', time: '12:00', color: '#F9A66C' },
-    { label: '晚上', time: '18:00', color: '#A3D6F5' },
-    { label: '睡前', time: '20:00', color: '#A3D6F5' }
+    { label: '早上', time: '08:00' },
+    { label: '中午', time: '12:00' },
+    { label: '晚上', time: '18:00' },
+    { label: '睡前', time: '20:00' },
   ]);
 
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
@@ -125,33 +125,29 @@ export default function TimeSettingInput() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('ChildHome')}>
-          <Image source={require('../img/medicine/med.png')} style={styles.home} />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Medicine')}>
+          <FontAwesome name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>CareMate</Text>
-        <Image source={require('../img/medicine/logo.png')} style={styles.logo} />
+        <Text style={styles.title}>.CareMate.</Text>
       </View>
 
-      <View style={styles.profileRow}>
-        <View style={styles.profileBox}>
-          <Image source={require('../img/medicine/elderly.png')} style={styles.profileIcon} />
-          <Text style={styles.profileText}>爺爺</Text>
-        </View>
-        <Text style={styles.sectionTitle}>時間設定</Text>
-      </View>
+      <Text style={styles.sectionTitle}>時間設定</Text>
 
       <ScrollView style={styles.scrollContainer}>
         {times.map((item, index) => (
           <TouchableOpacity
             key={index}
-            style={[styles.featureButton, { backgroundColor: item.color }]}
+            style={styles.timeRow}
             onPress={() => {
               setPickerIndex(index);
               setShowPicker(true);
             }}
           >
-            <Text style={styles.featureText}>{item.label}</Text>
-            <Text style={styles.timeText}>{item.time}</Text>
+            <View style={styles.timeBlock}>
+              <View style={styles.labelBox}><Text style={styles.labelText}>{item.label}</Text></View>
+              <View style={styles.line} />
+              <View style={styles.timeBox}><Text style={styles.timeText}>{item.time}</Text></View>
+            </View>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -166,12 +162,9 @@ export default function TimeSettingInput() {
         />
       )}
 
-      <View style={styles.rowButtons}>
-        <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#65B6E4' }]} onPress={handleSave}>
-          <Text style={styles.featureText}>儲存</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.gridButton, { backgroundColor: '#F58402' }]} onPress={() => navigation.navigate('Medicine')}>
-          <Text style={styles.featureText}>回前頁</Text>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: '#005757' }]} onPress={handleSave}>
+          <Text style={styles.buttonText}>儲存</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -179,114 +172,103 @@ export default function TimeSettingInput() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FCFEED'
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
   header: {
     width: '100%',
     height: 70,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#65B6E4',
-    paddingLeft: 10,
-    paddingRight: 10,
-    alignItems: 'center'
-  },
-  logo: {
-    width: 60,
-    height: 60,
-    marginTop: 15
-  },
-  home: {
-    width: 50,
-    height: 50,
-    marginTop: 15
-  },
-  title: {
-    fontSize: 50,
-    fontWeight: '900',
-    color: '#000'
-  },
-  profileRow: {
-    marginTop: 20,
-    flexDirection: 'row',
-    marginBottom: 10,
-    marginLeft: 5
-  },
-  profileBox: {
-    width: '40%',
-    marginLeft: 10,
-    flexDirection: 'row',
+    backgroundColor: '#005757',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#000',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    padding: 1
   },
-  profileIcon: {
-    width: 55,
-    height: 55,
-    marginRight: 10
-  },
-  profileText: {
-    fontSize: 30,
-    fontWeight: '900'
+  backButton: { position: 'absolute', left: 10 },
+  title: {
+    fontSize: 36,
+    color: '#FFF',
+    fontFamily: 'FascinateInline-Regular',
   },
   sectionTitle: {
-    fontSize: 30,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#005757',
     textAlign: 'center',
-    paddingLeft: 10,
-    marginTop: 20
+    marginVertical: 10,
   },
   scrollContainer: {
     width: '90%',
-    marginBottom: 20,
-    alignSelf: 'center'
-  },
-  featureButton: {
-    marginTop: 5,
-    width: '100%',
-    padding: 5,
-    borderRadius: 12,
-    borderWidth: 3,
-    borderColor: '#000',
-    alignItems: 'center',
     alignSelf: 'center',
+    marginBottom: 20,
+  },
+  timeRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  timeBlock: {
+    width: '90%',
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  featureText: {
-    fontSize: 20,
-    fontWeight: '900'
-  },
-  timeText: {
-    backgroundColor: '#fff',
+  labelBox: {
+    width: '30%',
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    borderColor:'#004B97',
     borderWidth: 3,
-    borderColor: '#000',
-    borderRadius: 8,
-    padding: 4,
-    width: '50%',
-    fontSize: 16,
-    textAlign: 'center',
-    fontWeight: '900'
+    padding: 10,
+    minWidth: 80,
+    alignItems: 'center',
   },
-  rowButtons: {
+  labelText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#333',
+  },
+  line: {
+    flex: 1,
+    height: 5,
+    backgroundColor: '#000079',
+    marginHorizontal: 1,
+  },
+  timeBox: {
+    width: '60%',
+    height: 65,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    borderColor:'#004B97',
+    borderWidth: 3,
+    padding: 10,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+timeText: {
+  fontSize: 22,
+  fontWeight: 'bold',
+  color: '#333',
+  backgroundColor: '#FFF',
+  paddingHorizontal: 16,
+  paddingVertical: 6,
+},
+
+  buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginTop: 10,
     marginBottom: 20,
-    width: '90%',
-    alignSelf: 'center'
   },
-  gridButton: {
-    width: '40%',
+  button: {
+    width: '50%',
+    height: 60,
+    padding: 12,
     borderRadius: 12,
-    borderWidth: 3,
+    borderWidth: 1,
     borderColor: '#000',
     alignItems: 'center',
-    padding: 10
-  }
+  },
+  buttonText: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#fff',
+    alignItems: 'center',
+  },
 });
