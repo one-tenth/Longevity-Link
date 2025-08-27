@@ -16,7 +16,7 @@ export default function Medicine() {
       {/* Header */}
      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('ChildHome_1')}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('ChildHome')}>
           <FontAwesome name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={{ fontFamily: 'FascinateInline-Regular', fontSize: 40, color: '#FFF' }}>.CareMate.</Text>

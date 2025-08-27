@@ -14,6 +14,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+// 0822(onetenth)
+import { initMedicationNotifications } from '../utils/initNotification'; // 根據實際路徑調整
+
 
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -70,6 +73,10 @@ export default function LoginScreen() {
         await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
         await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
         await AsyncStorage.setItem('userID', String(user.UserID));
+
+
+        // ✅ 登入成功後初始化吃藥通知(0822)
+        await initMedicationNotifications();
 
         Alert.alert('登入成功', `歡迎 ${user.Name}`);
 
@@ -155,10 +162,16 @@ export default function LoginScreen() {
 
 
         {/* 註冊連結 */}
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
- 69072b5a1a56c01bdc730629f53778265b646794
+
+        <TouchableOpacity
+          style={[styles.smallButton, { backgroundColor: '#37613C' }]} // 同登入顏色
+          onPress={() => navigation.navigate('index')}
+        >     
+        <Text style={styles.smallButtonText}>返回主頁</Text>
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -241,4 +254,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  smallButton: {
+  backgroundColor: '#A0C334',
+  paddingVertical: 10,
+  paddingHorizontal: 40,
+  borderRadius: 10,
+  marginTop: 12,
+  width: '60%', // 讓它比登入按鈕窄
+  alignItems: 'center',
+},
+smallButtonText: {
+  color: '#FFF',
+  fontWeight: '900',
+  fontSize: 16,
+  textAlign: 'center',
+},
 });

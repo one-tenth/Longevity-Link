@@ -36,27 +36,29 @@ export default function TimeSettingInput() {
 
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [elderId, setElderId] = useState<number | null>(null);
 
-
-  // 🔽 載入時間設定
   useEffect(() => {
-    loadTimeSetting();
+    const fetchElderIdAndTime = async () => {
+      const selectedMember = await AsyncStorage.getItem('selectedMember');
+      if (selectedMember) {
+        const parsed = JSON.parse(selectedMember);
+        setElderId(parsed.UserID); // ✅ 取得你選的長者 ID
+      }
+      loadTimeSetting();
+    };
+    fetchElderIdAndTime();
   }, []);
 
   const loadTimeSetting = async () => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('未登入', '請重新登入');
-        return;
-      }
+      if (!token || !elderId) return;
 
       const response = await axios.get(
-        'http://192.168.0.55:8000/api/get-med-time/',
+        `http://192.168.0.55:8000/api/get-med-time/?UserID=${elderId}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -91,14 +93,15 @@ export default function TimeSettingInput() {
   const handleSave = async () => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('登入失效', '請重新登入');
+      if (!token || !elderId) {
+        Alert.alert('請先選擇長者或登入');
         return;
       }
 
       const response = await axios.post(
         'http://192.168.0.55:8000/api/create-med-time/',
         {
+          UserID: elderId, // ✅ 送出正確長者 ID
           MorningTime: times[0].time,
           NoonTime: times[1].time,
           EveningTime: times[2].time,

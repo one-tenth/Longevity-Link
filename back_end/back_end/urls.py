@@ -17,9 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from mysite import views
+from django.http import JsonResponse
+
+def ping(_request):
+    return JsonResponse({"ok": True, "service": "backend", "path": "/api/ping/"})
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/ping/', ping, name='api-ping'),
     path('api/hello/', views.hello_world),
     path('api/ocrblood/', views.BloodOCRView.as_view(), name='ocr_blood'),
     path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
@@ -31,10 +37,16 @@ urlpatterns = [
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/create-med-time/', views.create_med_time_setting, name='create_med_time'),
     path('api/get-med-time/', views.get_med_time_setting),
+    path('api/get-med-reminders/', views.get_med_reminders),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
     path('api/family/create/', views.CreateFamilyView.as_view(), name='create_family'),
     path('account/me/', views.get_me,name='get_me'),
+    path('api/account/me/', views.get_me_1, name='get_me'),
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
+    path('me/', views.get_me),
+    path('api/hospital/list/', views.hospital_list),
+    path('api/hospital/create/', views.hospital_create),
+    path('api/hospital/<int:pk>/', views.hospital_delete, name='hospital_delete'),
 ]
