@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, TextInput, Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
@@ -33,15 +33,41 @@ const outerShadow = {
 
 export default function AddHospitalRecord() {
   const navigation = useNavigation<AddHospitalRecordNavProp>();
+  const route = useRoute<any>(); // 這裡用 any 避免型別衝突；若你在 RootStackParamList 有定義可改成正確型別
 
-  const [dateText, setDateText] = useState('05/25');
-  const [timeText, setTimeText] = useState('09:30');
-  const [location, setLocation] = useState('臺大醫院');
-  const [doctor, setDoctor] = useState(''); // 你之前說卡片不需要人名，預設留空
+  // 從 params 取值（可能為 undefined）
+  const { recordId, time: paramTime, hospital: paramHospital, doctor: paramDoctor, mode } = route.params || {};
+
+  // 判斷是否為編輯模式
+  const isEdit = useMemo(() => mode === 'edit' || recordId !== undefined, [mode, recordId]);
+
+  // 簡單從 "早上 08:00" 之類的字串抓出 "08:00"
+  const extractedTime = useMemo(() => {
+    if (typeof paramTime === 'string') {
+      const m = paramTime.match(/(\d{1,2}:\d{2})/);
+      return m ? m[1] : undefined;
+    }
+    return undefined;
+  }, [paramTime]);
+
+  // 狀態
+  const [dateText, setDateText] = useState('05/25');     // 你原本就沒有帶日期，保留預設
+  const [timeText, setTimeText] = useState(extractedTime || '09:30');
+  const [location, setLocation] = useState(paramHospital || '臺大醫院');
+  const [doctor, setDoctor] = useState(paramDoctor ?? ''); // 可留空
+
+  // 如果從上一頁帶了參數，初次載入時預填
+  useEffect(() => {
+    if (paramHospital) setLocation(paramHospital);
+    if (paramDoctor !== undefined) setDoctor(paramDoctor);
+    if (extractedTime) setTimeText(extractedTime);
+    // dateText 目前沒有來源，保留預設
+  }, [paramHospital, paramDoctor, extractedTime]);
 
   const onSubmit = () => {
-    // 這裡之後可串 API
-    Alert.alert('已新增', `時間：${dateText} ${timeText}\n地點：${location}${doctor ? `\n醫師：${doctor}` : ''}`);
+    // 這裡可改成呼叫 API（新增/更新），目前先用 Alert 示意
+    const verb = isEdit ? '已更新' : '已新增';
+    Alert.alert(verb, `時間：${dateText} ${timeText}\n地點：${location}${doctor ? `\n醫師：${doctor}` : ''}`);
     navigation.goBack();
   };
 
@@ -64,7 +90,7 @@ export default function AddHospitalRecord() {
           {/* 中央標題（icon + 文字置中、放大） */}
           <View style={styles.centerTitle} pointerEvents="none">
             <MaterialIcons name="event-note" size={32} color={COLORS.green} style={{ marginRight: 8 }} />
-            <Text style={styles.titleBig}>看診紀錄</Text>
+            <Text style={styles.titleBig}>{isEdit ? '編輯看診紀錄' : '新增看診紀錄'}</Text>
           </View>
         </View>
       </View>
@@ -139,7 +165,7 @@ export default function AddHospitalRecord() {
       <View style={styles.bottomBar}>
         <TouchableOpacity style={[styles.bigBtn, { backgroundColor: COLORS.black }]} onPress={onSubmit}>
           <Feather name="check" size={18} color={COLORS.white} />
-          <Text style={[styles.bigBtnText, { color: COLORS.white }]}>儲存</Text>
+          <Text style={[styles.bigBtnText, { color: COLORS.white }]}>{isEdit ? '更新' : '儲存'}</Text>
         </TouchableOpacity>
       </View>
     </View>
