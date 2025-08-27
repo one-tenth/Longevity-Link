@@ -31,12 +31,14 @@ import CreateFamily from './screens/CreateFamily';
 import FamilySetting from './screens/FamilySetting';
 import JoinFamily from './screens/JoinFamily';
 import Profile from './screens/Profile';
-import ElderMedRemind from './screens/ElderMedRemind'; // ✅ 補上
+import FamilyHospitalList from './screens/FamilyHospitalList';
+import FamilyAddHospital from './screens/FamilyAddHospital';
+import ElderMedRemind from './screens/ElderMedRemind';
 
 // ---- Stack params ----
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
-  ChildHome: undefined;
+  ChildHome: { mode: 'select' | 'full' } | undefined;
   ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
@@ -50,66 +52,45 @@ export type RootStackParamList = {
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
-  RegisterScreen:
-    | { mode: 'register' }
-    | { mode: 'addElder'; creatorId: number };
+  RegisterScreen: { mode: 'register' } | { mode: 'addElder'; creatorId: number };
   Health: undefined;
 
   // 通知相關
-  ElderMedRemind: {
-    period?: string;
-    meds?: string[]; // 會從通知資料轉成陣列
-    time?: string;
-  };
+  ElderMedRemind: { period?: string; meds?: string[]; time?: string };
+  ReminderScreen: undefined;
 
   // 家庭/成員相關
   FamilyScreen: { mode?: 'select' | 'full' } | undefined;
   FamilySetting: undefined;
   JoinFamily: undefined;
   CreateFamily: undefined;
-  CreateFamilyScreen: undefined; // 可能有地方用這個 route 名稱
+  CreateFamilyScreen: undefined;
 
   // 其他
-  ReminderScreen: undefined;
   Profile: undefined;
+  FamilyHospitalList: { elderName?: string; elderId?: number } | undefined;
+  FamilyAddHospital: { elderId: number; elderName?: string };
 };
 
 // ---- Global navigation ref ----
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
+// ✅ 只保留這個 App
 const App: React.FC = () => {
   useEffect(() => {
     async function initNotifee() {
       try {
-        console.log('🔔 初始化通知中...');
         await setupNotificationChannel();
-
         const result = await initMedicationNotifications();
-        switch (result) {
-          case 'success':
-            console.log('✅ 成功排程提醒通知');
-            break;
-          case 'no-time':
-            console.log('⚠️ 尚未設定用藥時間');
-            break;
-          case 'no-meds':
-            console.log('⚠️ 尚未設定任何藥品');
-            break;
-          case 'no-token':
-            console.log('⚠️ 尚未登入');
-            break;
-          case 'not-elder':
-            console.log('👨‍👩‍👧 是家人帳號，不排程通知');
-            break;
-          default:
-            console.log('❌ 初始化提醒通知時出錯');
-        }
+        console.log('init result:', result);
 
-        // App 冷啟：若有儲存的通知資料，啟動即跳轉
-        const storedPeriod = await AsyncStorage.getItem('notificationPeriod');
-        const storedMeds = await AsyncStorage.getItem('notificationMeds');
-        const storedTime = await AsyncStorage.getItem('notificationTime');
+        // 冷啟：若有儲存的通知資料，啟動即跳轉
+        const [storedPeriod, storedMeds, storedTime] = await Promise.all([
+          AsyncStorage.getItem('notificationPeriod'),
+          AsyncStorage.getItem('notificationMeds'),
+          AsyncStorage.getItem('notificationTime'),
+        ]);
 
         if (storedPeriod && navigationRef.isReady()) {
           navigationRef.navigate('ElderMedRemind', {
@@ -117,11 +98,7 @@ const App: React.FC = () => {
             meds: storedMeds ? storedMeds.split(',') : undefined,
             time: storedTime ?? undefined,
           });
-          await AsyncStorage.multiRemove([
-            'notificationPeriod',
-            'notificationMeds',
-            'notificationTime',
-          ]);
+          await AsyncStorage.multiRemove(['notificationPeriod', 'notificationMeds', 'notificationTime']);
         }
       } catch (e) {
         console.warn('initNotifee error:', e);
@@ -134,10 +111,9 @@ const App: React.FC = () => {
       if (type === EventType.PRESS && detail.notification?.data) {
         const { period, meds, time } = detail.notification.data as {
           period?: string;
-          meds?: string; // 逗號字串
+          meds?: string;
           time?: string;
         };
-
         if (navigationRef.isReady() && (period || meds)) {
           navigationRef.navigate('ElderMedRemind', {
             period,
@@ -147,7 +123,6 @@ const App: React.FC = () => {
         }
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -174,16 +149,12 @@ const App: React.FC = () => {
         <Stack.Screen name="Health" component={Health} />
         <Stack.Screen name="Medicine" component={Medicine} />
         <Stack.Screen name="MedInfo" component={MedInfo} />
-        <Stack.Screen
-          name="MedInfo_1"
-          component={MedInfo_1}
-          initialParams={{ prescriptionId: '' }}
-        />
+        <Stack.Screen name="MedInfo_1" component={MedInfo_1} initialParams={{ prescriptionId: '' }} />
         <Stack.Screen name="MedRemind" component={MedRemind} />
         <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
         <Stack.Screen name="Setting" component={Setting} />
 
-        {/* 家庭/成員（保留兩個 route 名稱避免既有呼叫壞掉） */}
+        {/* 家庭/成員 */}
         <Stack.Screen name="FamilyScreen" component={FamilyScreen} />
         <Stack.Screen name="FamilySetting" component={FamilySetting} />
         <Stack.Screen name="JoinFamily" component={JoinFamily} />
@@ -192,6 +163,8 @@ const App: React.FC = () => {
 
         {/* 其他 */}
         <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen name="FamilyHospitalList" component={FamilyHospitalList} />
+        <Stack.Screen name="FamilyAddHospital" component={FamilyAddHospital} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -877,3 +877,119 @@ from .serializers import UserMeSerializer
 def get_me(request):
     serializer = UserMeSerializer(request.user)
     return Response(serializer.data)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Hos
+from mysite.models import User  # 你的 User 模型
+from django.shortcuts import get_object_or_404
+
+def _resolve_target_user_id(request):
+    """
+    解析本次操作的老人 UserID：
+    - 老人登入：就是自己
+    - 家人登入：優先讀 ?user_id= 或 body 的 elder_id/user_id，
+      並檢查是否同家庭（或老人.RelatedID == 自己）才放行
+    """
+    me = request.user
+
+    # 1) 老人登入：直接回自己
+    if getattr(me, 'is_elder', False):
+        return getattr(me, 'UserID', None) or getattr(me, 'pk', None)
+
+    # 2) 家人登入：從參數拿 user_id / elder_id
+    raw = (
+        request.query_params.get('user_id')
+        or request.data.get('elder_id')
+        or request.data.get('user_id')
+    )
+    if not raw:
+        return None
+
+    try:
+        uid = int(raw)
+    except (TypeError, ValueError):
+        return None
+
+    elder = get_object_or_404(User, UserID=uid)
+
+    # 授權檢查（擇一或都檢）：
+    # A) 同家庭
+    same_family = (getattr(elder, 'FamilyID_id', None) and
+                   getattr(me, 'FamilyID_id', None) and
+                   elder.FamilyID_id == me.FamilyID_id)
+
+    # B) 老人的 RelatedID 指向自己（你建立長者時就這樣設）
+    related_to_me = (getattr(elder, 'RelatedID_id', None) == getattr(me, 'UserID', None))
+
+    if same_family or related_to_me:
+        return uid
+
+    return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def hospital_list(request):
+    """
+    查看診紀錄：
+    - 老人：自己的
+    - 家人：帶 ?user_id=老人ID（必帶），且需通過授權檢查
+    """
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+    # 你已有 HosSerializer
+    from .serializers import HosSerializer
+    ser = HosSerializer(qs, many=True)
+    return Response(ser.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def hospital_create(request):
+    """
+    新增看診紀錄：
+    - 老人：自己
+    - 家人：必須帶 elder_id/user_id 指定長者
+    """
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    data = request.data.copy()
+
+    # 日期只留 YYYY-MM-DD（若是 DateField）
+    if 'ClinicDate' in data and isinstance(data['ClinicDate'], str) and ' ' in data['ClinicDate']:
+        data['ClinicDate'] = data['ClinicDate'].split(' ')[0]
+
+    from .serializers import HosSerializer
+    ser = HosSerializer(data=data)
+    if ser.is_valid():
+        ser.save(UserID_id=target_id)  # ✅ 明確綁定老人
+        return Response(ser.data, status=201)
+    return Response(ser.errors, status=400)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def hospital_delete(request, pk):
+    """
+    刪除看診紀錄：
+    - 老人：可刪自己的
+    - 家人：帶 ?user_id=老人ID，且需通過授權檢查
+    """
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    deleted_count, _ = Hos.objects.filter(pk=pk, UserID_id=target_id).delete()
+    if deleted_count == 0:
+        return Response({"error": "找不到資料或無權限刪除"}, status=404)
+
+    return Response({"message": "已刪除"}, status=200)

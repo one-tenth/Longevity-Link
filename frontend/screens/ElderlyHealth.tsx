@@ -68,7 +68,7 @@ export default function ElderlyHealth() {
     if (!token) return;
     try {
       const response = await axios.post(
-        'http://192.168.0.55:8000/api/fitdata/',
+        'http://172.20.10.4:8000/api/fitdata/',
         { steps, timestamp: timestamp.toISOString() },
         { headers: { Authorization: `Bearer ${token}` } }
       );

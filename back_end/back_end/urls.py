@@ -44,5 +44,8 @@ urlpatterns = [
     path('account/me/', views.get_me,name='get_me'),
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
-     path('me/', views.get_me),
+    path('me/', views.get_me),
+    path('api/hospital/list/', views.hospital_list),
+    path('api/hospital/create/', views.hospital_create),
+    path('api/hospital/<int:pk>/', views.hospital_delete, name='hospital_delete'),
 ]
