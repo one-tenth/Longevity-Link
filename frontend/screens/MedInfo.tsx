@@ -45,7 +45,7 @@ export default function MedicationInfoScreen() {
 
       const member = JSON.parse(selected);
 
-      const response = await axios.get(`http://172.20.10.4:8000/api/mednames/?user_id=${member.UserID}`, {
+      const response = await axios.get(`http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
