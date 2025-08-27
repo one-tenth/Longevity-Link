@@ -500,37 +500,34 @@ def get_med_time_setting(request):
         return Response({'detail': '尚未設定時間'}, status=404)
 
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import Med, MedTimeSetting
 
 @api_view(['GET'])
+@authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def get_med_reminders(request):
     user = request.user
 
-    # ❗️新增：身份驗證（RelatedID 有值代表是家人）
+    # ✅ 你的定義：RelatedID 有值 = 長者；None = 家人
+    # 家人不允許查詢（這支是給長者本人用）
     if user.RelatedID is None:
         return Response({"error": "此帳號為家人，無法取得用藥提醒"}, status=403)
 
     try:
-        time_setting = MedTimeSetting.objects.get(UserID=user)
+        time_setting = MedTimeSetting.objects.get(UserID=user)   # 這裡的 user 就是長者
     except MedTimeSetting.DoesNotExist:
         return Response({"error": "尚未設定用藥時間"}, status=404)
 
-    meds = Med.objects.filter(UserID=user)
+    meds = Med.objects.filter(UserID=user)  # 同樣以長者 user 篩選
 
-    schedule = {
-        "morning": [],
-        "noon": [],
-        "evening": [],
-        "bedtime": []
-    }
+    schedule = {"morning": [], "noon": [], "evening": [], "bedtime": []}
 
     for med in meds:
-        freq = med.DosageFrequency.strip()
-
+        freq = (getattr(med, "DosageFrequency", "") or "").strip()
         if freq == "一天一次":
             schedule["morning"].append(med.MedName)
         elif freq == "一天兩次":
@@ -547,28 +544,31 @@ def get_med_reminders(request):
             schedule["bedtime"].append(med.MedName)
         elif freq == "睡前":
             schedule["bedtime"].append(med.MedName)
-        # 可視需求擴充其他頻率
+            
+    if getattr(user, 'RelatedID', None) is None:
+        return Response({"error": "此帳號為家人，無法取得提醒"}, status=403)
+
+    try:
+        time_setting = MedTimeSetting.objects.get(UserID=user)
+    except MedTimeSetting.DoesNotExist:
+        return Response({"error": "尚未設定用藥時間，請先到時間設定頁設定"}, status=404)
+
+    meds = Med.objects.filter(UserID=user)
+    if not meds.exists():
+        return Response({"error": "尚無藥物資料，請先新增藥物"}, status=404)
 
     result = {
-        "morning": {
-            "time": str(time_setting.MorningTime) if time_setting.MorningTime else None,
-            "meds": schedule["morning"]
-        },
-        "noon": {
-            "time": str(time_setting.NoonTime) if time_setting.NoonTime else None,
-            "meds": schedule["noon"]
-        },
-        "evening": {
-            "time": str(time_setting.EveningTime) if time_setting.EveningTime else None,
-            "meds": schedule["evening"]
-        },
-        "bedtime": {
-            "time": str(time_setting.Bedtime) if time_setting.Bedtime else None,
-            "meds": schedule["bedtime"]
-        }
+        "morning": {"time": str(time_setting.MorningTime) if time_setting.MorningTime else None,
+                    "meds": schedule["morning"]},
+        "noon":    {"time": str(time_setting.NoonTime)    if time_setting.NoonTime    else None,
+                    "meds": schedule["noon"]},
+        "evening": {"time": str(time_setting.EveningTime) if time_setting.EveningTime else None,
+                    "meds": schedule["evening"]},
+        "bedtime": {"time": str(time_setting.Bedtime)     if time_setting.Bedtime     else None,
+                    "meds": schedule["bedtime"]},
     }
-
     return Response(result)
+
 
 
 #----------------------------------------------------------------
@@ -814,6 +814,49 @@ def get_me(request):
         "Fcode": family_obj.Fcode if family_obj else None,        
         "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
     })
+
+
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])  # 只用 JWT，避免 CSRF 影響
+@permission_classes([IsAuthenticated])
+def get_me_1(request):
+    user = request.user
+    family = getattr(user, 'FamilyID', None)  # 你的模型若是外鍵 Family
+
+    # 取 family 主鍵與 Fcode（名稱可能是 id 或 FamilyID，做容錯）
+    family_pk = None
+    family_code = None
+    if family:
+        family_pk = getattr(family, 'id', None) or getattr(family, 'FamilyID', None)
+        family_code = getattr(family, 'Fcode', None)
+
+    # RelatedID：你的定義是「有值=長者；None=家人」
+    related_user = getattr(user, 'RelatedID', None)
+    related_id = getattr(related_user, 'UserID', None) if related_user else None
+    is_elder = related_id is not None  # ✅ 直接給前端明確布林
+
+    return Response({
+        "UserID": getattr(user, "UserID", None),
+        "Name": getattr(user, "Name", None),
+        "Phone": getattr(user, "Phone", None),
+        "Gender": getattr(user, "Gender", None),
+        "Borndate": getattr(user, "Borndate", None),
+
+        # 家庭資訊
+        "FamilyPrimaryKey": family_pk,
+        "FamilyFcode": family_code,
+
+        # 長者／家人判定
+        "RelatedID": related_id,  # 有值=長者
+        "isElder": is_elder,      # ✅ 額外提供更直覺的布林
+    })
+
+
 
 
 #新增長者

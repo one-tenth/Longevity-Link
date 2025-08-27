@@ -56,7 +56,7 @@ export default function TimeSettingInput() {
       if (!token || !elderId) return;
 
       const response = await axios.get(
-        `http://172.20.10.4:8000/api/get-med-time/?UserID=${elderId}`,
+        `http://192.168.0.55:8000/api/get-med-time/?UserID=${elderId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -99,7 +99,7 @@ export default function TimeSettingInput() {
       }
 
       const response = await axios.post(
-        'http://172.20.10.4:8000/api/create-med-time/',
+        'http://192.168.0.55:8000/api/create-med-time/',
         {
           UserID: elderId, // ✅ 送出正確長者 ID
           MorningTime: times[0].time,

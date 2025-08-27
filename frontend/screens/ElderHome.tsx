@@ -1,4 +1,4 @@
-// ElderHome.tsx (clean & merged)
+// ElderHome.tsx (base: 第一支，吃藥提醒區塊改成第二支樣式 + 初始化通知)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -13,15 +13,15 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
-
 import { RootStackParamList } from '../App';
+import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
@@ -65,7 +65,7 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://172.20.10.4:8000';
+const BASE = 'http://192.168.0.55:8000';
 
 // ---- Types ----
 type HospitalRecord = {
@@ -86,13 +86,34 @@ export default function ElderHome() {
   const [showMedModal, setShowMedModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatRef = useRef<FlatList<any>>(null);
-
+  const [userName, setUserName] = useState<string>('使用者');
   // 每 60 秒觸發重算（讓「下一筆」會自動更新）
   const [, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 60000);
-    return () => clearInterval(t);
+    (async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('user_name'); // 登入時記得存這個
+        if (storedName) {
+          setUserName(storedName);
+        } else {
+          // 如果沒存，就去後端拿
+          const token = await AsyncStorage.getItem('access');
+          if (token) {
+            const res = await axios.get(`${BASE}/api/account/me/`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.data?.Name) {
+              setUserName(res.data.Name);
+              await AsyncStorage.setItem('user_name', res.data.Name); // 順便快取
+            }
+          }
+        }
+      } catch (err) {
+        console.log('❌ 抓使用者名稱失敗:', err);
+      }
+    })();
   }, []);
+
 
   const openMedModal = (startIndex = 0) => {
     setCurrentIndex(startIndex);
@@ -144,6 +165,7 @@ export default function ElderHome() {
 
   const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, setTick]);
   const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
+  
 
   // 看診提醒（動態）
   const [loading, setLoading] = useState(false);
@@ -214,6 +236,21 @@ export default function ElderHome() {
     return unsub;
   }, [navigation, loadReminder]);
 
+  // ✅ 進到 ElderHome（或返回）時初始化/刷新通知排程
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          await setupNotificationChannel();
+          const result = await initMedicationNotifications();
+          console.log('ElderHome init notifications:', result);
+        } catch (e) {
+          console.log('initMedicationNotifications error:', e);
+        }
+      })();
+    }, [])
+  );
+
   const displayDate = (iso?: string) => {
     const d = onlyDate(iso);
     const [y, m, dd] = d.split('-');
@@ -230,7 +267,8 @@ export default function ElderHome() {
         <View style={styles.userCard}>
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>爺爺</Text>
+            <Text style={styles.userName}>{userName}</Text>
+
           </View>
         </View>
       </View>
@@ -276,11 +314,20 @@ export default function ElderHome() {
             </View>
           </TouchableOpacity>
 
-          {/* 吃藥提醒（卡片內顯示「下一筆有藥」；點擊開浮層並跳到該卡） */}
+          {/* ===== 吃藥提醒（改成第二支樣式） ===== */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => openMedModal(previewIndex >= 0 ? previewIndex : 0)}
-            style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
+            disabled={!preview} // ✅ 沒有資料時禁用
+            onPress={() => {
+              if (previewIndex >= 0) {
+                openMedModal(previewIndex);
+              }
+            }}
+            style={[
+              styles.rowCard,
+              styles.cardShadow,
+              { backgroundColor: COLORS.green, opacity: preview ? 1 : 0.5 }, // ✅ 無資料時變淡
+            ]}
           >
             <View style={styles.rowTop}>
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>吃藥提醒</Text>
@@ -296,7 +343,7 @@ export default function ElderHome() {
 
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
                     {preview.meds.slice(0, 3).map((m: string, i: number) => (
-                      <View key={`${m}-${i}`} style={styles.miniPill}>
+                      <View key={i} style={styles.miniPill}>
                         <MaterialIcons name="medication" size={16} color={COLORS.black} />
                         <Text style={styles.miniPillText}>{m}</Text>
                       </View>
@@ -409,7 +456,7 @@ export default function ElderHome() {
                   {/* 卡片內垂直滾動的藥品清單 */}
                   <ScrollView style={styles.medScroll} contentContainerStyle={styles.medList}>
                     {item.meds.map((m, i) => (
-                      <View key={`${m}-${i}`} style={styles.medPill}>
+                      <View key={i} style={styles.medPill}>
                         <MaterialIcons name="medication" size={18} color={COLORS.black} />
                         <Text style={styles.medPillText}>{m}</Text>
                       </View>
@@ -499,17 +546,8 @@ const styles = StyleSheet.create({
   notePlaceholder: { fontSize: 30, fontWeight: '800', color: COLORS.textMid },
 
   // 新增：看診提醒分行顯示
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  infoText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.textMid,
-  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  infoText: { fontSize: 24, fontWeight: '800', color: COLORS.textMid },
 
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
   fab: {
@@ -532,34 +570,30 @@ const styles = StyleSheet.create({
   modalCenter: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 14 },
   modalCardWrap: { width: CARD_W + 24, alignItems: 'center' },
   closeBtn: { position: 'absolute', top: -6, right: -6, zIndex: 10, backgroundColor: '#F2F2F2', borderRadius: 18, padding: 8, elevation: 3 },
-  navArrow: {
-    position: 'absolute',
-    top: '50%',
-    transform: [{ translateY: -16 }],
-    zIndex: 5,
-    backgroundColor: '#F6F6F6',
-    borderRadius: 999,
-    padding: 6,
-    elevation: 2,
-  },
+  navArrow: { position: 'absolute', top: '50%', transform: [{ translateY: -16 }], zIndex: 5, backgroundColor: '#F6F6F6', borderRadius: 999, padding: 6, elevation: 2 },
   medCard: { width: CARD_W, marginHorizontal: 12, backgroundColor: '#FFF', borderRadius: 20, padding: 18 },
   medHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   medPeriod: { fontSize: 29, fontWeight: '900', color: COLORS.black },
   medTime: { fontSize: 25, fontWeight: '900', color: COLORS.textMid },
   medScroll: { maxHeight: 260 },
   medList: { gap: 10, paddingBottom: 4 },
-  medPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F7F9FB',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
+  medPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F7F9FB', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12 },
   medPillText: { fontSize: 25, fontWeight: '700', color: COLORS.textDark },
   okBtn: { marginTop: 4, backgroundColor: COLORS.black, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   okBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '800' },
   dots: { flexDirection: 'row', gap: 6, marginTop: 12, justifyContent: 'center' },
   dot: { height: 8, borderRadius: 999, backgroundColor: COLORS.black, width: 8 },
+
+  // 吃藥提醒卡片內預覽小藥丸
+  miniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F7F9FB',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  miniPillText: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 6 },
 });

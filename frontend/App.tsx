@@ -115,7 +115,7 @@ const App: React.FC = () => {
           time?: string;
         };
         if (navigationRef.isReady() && (period || meds)) {
-          navigationRef.navigate('ElderMedRemind', {
+          navigationRef.navigate('ElderHome', {
             period,
             meds: meds ? meds.split(',') : undefined,
             time,
