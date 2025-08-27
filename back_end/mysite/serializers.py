@@ -62,6 +62,15 @@ class FamilySerializer(serializers.ModelSerializer):
         model = Family
         fields = '__all__'
 
+
+class ReminderItemSerializer(serializers.Serializer):
+    at = serializers.CharField()
+    med_name = serializers.CharField()
+    freq = serializers.CharField()
+    prescription_id = serializers.CharField()
+    disease = serializers.CharField()
+    user_id = serializers.IntegerField()
+    
 class UserMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
