@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, TextInput, Alert,
+  View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView,
+  TextInput, Alert, Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
@@ -31,17 +33,27 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
+/* ===== Helpers ===== */
+const pad = (n: number) => n.toString().padStart(2, '0');
+const fmtDate = (d: Date) => `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`; // MM/DD
+const fmtTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;   // HH:MM
+const timeStrToDate = (hhmm: string | undefined): Date | null => {
+  if (!hhmm) return null;
+  const m = hhmm.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const now = new Date();
+  now.setHours(parseInt(m[1], 10), parseInt(m[2], 10), 0, 0);
+  return now;
+};
+
 export default function AddHospitalRecord() {
   const navigation = useNavigation<AddHospitalRecordNavProp>();
-  const route = useRoute<any>(); // 這裡用 any 避免型別衝突；若你在 RootStackParamList 有定義可改成正確型別
-
-  // 從 params 取值（可能為 undefined）
+  const route = useRoute<any>();
   const { recordId, time: paramTime, hospital: paramHospital, doctor: paramDoctor, mode } = route.params || {};
 
-  // 判斷是否為編輯模式
   const isEdit = useMemo(() => mode === 'edit' || recordId !== undefined, [mode, recordId]);
 
-  // 簡單從 "早上 08:00" 之類的字串抓出 "08:00"
+  // 從「早上 08:00」擷取 08:00
   const extractedTime = useMemo(() => {
     if (typeof paramTime === 'string') {
       const m = paramTime.match(/(\d{1,2}:\d{2})/);
@@ -50,24 +62,29 @@ export default function AddHospitalRecord() {
     return undefined;
   }, [paramTime]);
 
-  // 狀態
-  const [dateText, setDateText] = useState('05/25');     // 你原本就沒有帶日期，保留預設
-  const [timeText, setTimeText] = useState(extractedTime || '09:30');
-  const [location, setLocation] = useState(paramHospital || '臺大醫院');
-  const [doctor, setDoctor] = useState(paramDoctor ?? ''); // 可留空
+  /* ===== State（無預設；編輯模式才帶入） ===== */
+  const [dateVal, setDateVal] = useState<Date | null>(null);
+  const [timeVal, setTimeVal] = useState<Date | null>(() => timeStrToDate(extractedTime));
+  const [location, setLocation] = useState<string>(paramHospital ?? '');
+  const [doctor, setDoctor] = useState<string>(paramDoctor ?? '');
 
-  // 如果從上一頁帶了參數，初次載入時預填
+  /* 原生 Picker 顯示控制 */
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+
   useEffect(() => {
-    if (paramHospital) setLocation(paramHospital);
+    if (paramHospital !== undefined) setLocation(paramHospital);
     if (paramDoctor !== undefined) setDoctor(paramDoctor);
-    if (extractedTime) setTimeText(extractedTime);
-    // dateText 目前沒有來源，保留預設
+    if (extractedTime) setTimeVal(timeStrToDate(extractedTime));
   }, [paramHospital, paramDoctor, extractedTime]);
 
   const onSubmit = () => {
-    // 這裡可改成呼叫 API（新增/更新），目前先用 Alert 示意
+    if (!dateVal || !timeVal || !location.trim() || !doctor.trim()) {
+      Alert.alert('請完成必填', '日期、時間、地點、醫師皆為必填。');
+      return;
+    }
     const verb = isEdit ? '已更新' : '已新增';
-    Alert.alert(verb, `時間：${dateText} ${timeText}\n地點：${location}${doctor ? `\n醫師：${doctor}` : ''}`);
+    Alert.alert(verb, `時間：${fmtDate(dateVal)} ${fmtTime(timeVal)}\n地點：${location}\n醫師：${doctor}`);
     navigation.goBack();
   };
 
@@ -78,7 +95,6 @@ export default function AddHospitalRecord() {
       {/* ===== HERO（黑色抬頭） ===== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
-          {/* 返回 */}
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backPlain}
@@ -87,7 +103,6 @@ export default function AddHospitalRecord() {
             <Feather name="arrow-left" size={24} color={COLORS.white} />
           </TouchableOpacity>
 
-          {/* 中央標題（icon + 文字置中、放大） */}
           <View style={styles.centerTitle} pointerEvents="none">
             <MaterialIcons name="event-note" size={32} color={COLORS.green} style={{ marginRight: 8 }} />
             <Text style={styles.titleBig}>{isEdit ? '編輯看診紀錄' : '新增看診紀錄'}</Text>
@@ -97,29 +112,39 @@ export default function AddHospitalRecord() {
 
       {/* ===== 表單卡片 ===== */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* 時間 */}
+        {/* 時間：同一張白卡、兩個可點欄位（不開鍵盤） */}
         <View style={[styles.card, outerShadow]}>
           <View style={styles.cardLeftBar} />
           <View style={{ flex: 1 }}>
             <View style={styles.cardHead}>
-              <MaterialIcons name="access-time" size={22} color={COLORS.textDark} />
+              <MaterialIcons name="schedule" size={22} color={COLORS.textDark} />
               <Text style={styles.cardTitle}>時間</Text>
             </View>
-            <View style={styles.rowInput}>
-              <TextInput
-                style={[styles.input, styles.inputCenter]}
-                value={dateText}
-                onChangeText={setDateText}
-                placeholder="MM/DD"
-                placeholderTextColor="#9AA0A6"
-              />
-              <TextInput
-                style={[styles.input, styles.inputCenter]}
-                value={timeText}
-                onChangeText={setTimeText}
-                placeholder="HH:MM"
-                placeholderTextColor="#9AA0A6"
-              />
+
+            <View style={styles.rowTwo}>
+              {/* 日期欄位（日曆） */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowDate(true)}
+                style={[styles.pickerField, { flex: 1 }]}
+              >
+                <Text style={[styles.pickerText, !dateVal && styles.placeholder]}>
+                  {dateVal ? fmtDate(dateVal) : '選擇日期'}
+                </Text>
+                <MaterialIcons name="keyboard-arrow-down" size={22} color={COLORS.textMid} />
+              </TouchableOpacity>
+
+              {/* 時間欄位（鬧鐘） */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowTime(true)}
+                style={[styles.pickerField, { flex: 1 }]}
+              >
+                <Text style={[styles.pickerText, !timeVal && styles.placeholder]}>
+                  {timeVal ? fmtTime(timeVal) : '選擇時間'}
+                </Text>
+                <MaterialIcons name="keyboard-arrow-down" size={22} color={COLORS.textMid} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -142,24 +167,43 @@ export default function AddHospitalRecord() {
           </View>
         </View>
 
-        {/* 醫師（可選） */}
+        {/* 醫師 */}
         <View style={[styles.card, outerShadow]}>
           <View style={styles.cardLeftBar} />
           <View style={{ flex: 1 }}>
             <View style={styles.cardHead}>
               <MaterialIcons name="person-outline" size={22} color={COLORS.textDark} />
-              <Text style={styles.cardTitle}>醫師（可選）</Text>
+              <Text style={styles.cardTitle}>醫師</Text>
             </View>
             <TextInput
               style={styles.input}
               value={doctor}
               onChangeText={setDoctor}
-              placeholder="醫師姓名（可不填）"
+              placeholder="醫師姓名"
               placeholderTextColor="#9AA0A6"
             />
           </View>
         </View>
       </ScrollView>
+
+      {/* ===== 原生 Date / Time Picker ===== */}
+      {showDate && (
+        <DateTimePicker
+          value={dateVal ?? new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(e, d) => { setShowDate(false); if (d) setDateVal(d); }}
+        />
+      )}
+      {showTime && (
+        <DateTimePicker
+          value={timeVal ?? new Date()}
+          mode="time"
+          is24Hour
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(e, d) => { setShowTime(false); if (d) setTimeVal(d); }}
+        />
+      )}
 
       {/* ===== 底部主按鈕 ===== */}
       <View style={styles.bottomBar}>
@@ -211,7 +255,23 @@ const styles = StyleSheet.create({
 
   cardTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textDark },
 
-  rowInput: { flexDirection: 'row', gap: 10 },
+  /* 兩欄排列（日期 / 時間） */
+  rowTwo: { flexDirection: 'row', gap: 10 },
+
+  /* 可點選的「假輸入框」：點了開 Picker，不會跳鍵盤 */
+  pickerField: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerText: { fontSize: 18, color: COLORS.textDark },
+  placeholder: { color: '#9AA0A6' },
 
   input: {
     borderWidth: 1,
@@ -222,9 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.textDark,
     backgroundColor: COLORS.white,
-    flex: 1,
   },
-  inputCenter: { textAlign: 'center' },
 
   bottomBar: {
     position: 'absolute',
