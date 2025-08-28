@@ -40,24 +40,25 @@ export default function HospitalRecord() {
   ]);
 
   const handleEdit = (r: { id: number; time: string; hospital: string; doctor: string }) => {
-    // 直接 navigate 並帶參數（不要用 as never）
-    navigation.navigate('EditHospitalRecord', {
-      recordId: r.id,
-      time: r.time,
-      hospital: r.hospital,
-      doctor: r.doctor,
-      mode: 'edit',
-    } as any);
+    navigation.navigate(
+      'EditHospitalRecord',
+      {
+        recordId: r.id,
+        time: r.time,
+        hospital: r.hospital,
+        doctor: r.doctor,
+        mode: 'edit',
+      } as any
+    );
   };
 
   const handleDelete = (id: number) => {
     setRecords(prev => prev.filter(x => x.id !== id));
   };
 
+  // ✅ 新增 -> 走 AddHospitalRecord（有日曆/鬧鐘那一頁）
   const handleCreate = () => {
-    navigation.navigate('EditHospitalRecord', {
-      mode: 'create',
-    } as any);
+    navigation.navigate('AddHospitalRecord' as never);
   };
 
   return (
@@ -68,7 +69,7 @@ export default function HospitalRecord() {
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('ChildHome_1')}
+            onPress={() => navigation.navigate('ChildHome_1' as never)}
             style={styles.backPlain}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
