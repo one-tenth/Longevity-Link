@@ -12,7 +12,7 @@ import {
   Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -70,7 +70,12 @@ export default function ProfileScreen() {
       const token = await AsyncStorage.getItem('access');
       if (!token) {
         Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
-        navigation.navigate('LoginScreen' as never);
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'LoginScreen' }],
+          })
+        );
         return;
       }
 
@@ -94,12 +99,34 @@ export default function ProfileScreen() {
   }, [navigation]);
 
   const logout = async () => {
-    await AsyncStorage.multiRemove([
-      'access', 'refresh', 'selectedMember',
-      'elder_id', 'elder_name', 'user_name'
-    ]);
-    Alert.alert('已登出');
-    navigation.navigate('index' as never);
+    try {
+      await AsyncStorage.multiRemove([
+        'access', 'refresh', 'selectedMember',
+        'elder_id', 'elder_name', 'user_name'
+      ]);
+
+      // 若有在其他地方快取使用者狀態，這裡也順手清掉
+      setProfile(null);
+
+      Alert.alert('已登出');
+
+      // 重置導航堆疊回登入畫面（返回鍵不會回到登出前頁）
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'LoginScreen' }],
+        })
+      );
+    } catch (e) {
+      console.log('登出失敗', e);
+      Alert.alert('提示', '登出時發生錯誤，但本地資料已清除。');
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'LoginScreen' }],
+        })
+      );
+    }
   };
 
   if (loading) {
