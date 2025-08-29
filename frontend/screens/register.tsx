@@ -52,7 +52,7 @@ interface RegisterData {
   creator_id?: number;
 }
 
-const API_BASE = 'http://192.168.0.55:8000';
+const API_BASE = 'http://192.168.31.127:8000';
 
 export default function RegisterScreen() {
   const navigation = useNavigation();

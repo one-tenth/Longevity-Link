@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,20 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { RootStackParamList } from '../App'; // 確保這個路徑正確
+
+type Nav = StackNavigationProp<RootStackParamList, 'MedInfo_1'>;
+
+type GroupedPrescription = {
+  PrescriptionID: string;
+  [k: string]: any;
+};
 
 const COLORS = {
   white: '#FFFFFF',
@@ -22,8 +31,7 @@ const COLORS = {
 };
 
 export default function MedicationInfoScreen() {
-
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<Nav>();
   const [groupedData, setGroupedData] = useState<GroupedPrescription[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,16 +43,11 @@ export default function MedicationInfoScreen() {
         console.warn('⚠️ 找不到 JWT 或 selectedMember');
         return;
       }
-
-
       const member = JSON.parse(selected);
-
-      const response = await axios.get(`http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
+      const response = await axios.get(
+        `http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setGroupedData(response.data);
     } catch (error) {
       console.error('❌ 撈資料錯誤:', error);
@@ -52,6 +55,13 @@ export default function MedicationInfoScreen() {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchData();
+    }, [])
+  );
 
   const handleDelete = async (prescriptionID: string) => {
     try {
@@ -61,9 +71,7 @@ export default function MedicationInfoScreen() {
         console.warn('⚠️ 找不到 JWT 或 selectedMember');
         return;
       }
-
       const member = JSON.parse(selected);
-      console.log('🧪 刪除藥單：selectedMember:', member); // ✅ 印出來看清楚
 
       await axios.delete(
         `http://192.168.0.55:8000/api/delete-prescription/${prescriptionID}/`,
@@ -73,8 +81,6 @@ export default function MedicationInfoScreen() {
         }
       );
 
-      console.log('🧪 要刪的成員：', member);
-      
       setGroupedData(prev =>
         prev.filter(group => group.PrescriptionID !== prescriptionID)
       );
@@ -82,7 +88,6 @@ export default function MedicationInfoScreen() {
       console.error('❌ 刪除失敗:', error);
     }
   };
-
 
   const handleTakePhoto = () => {
     Alert.alert(
@@ -107,7 +112,7 @@ export default function MedicationInfoScreen() {
     await uploadImage(result);
   };
 
-  const uploadImage = async (result: any) => {
+  const uploadImage = async (result: ImagePickerResponse) => {
     if (result?.didCancel || result?.errorCode) {
       console.log('❌ 使用者取消或出錯:', result?.errorMessage);
       return;
@@ -135,14 +140,7 @@ export default function MedicationInfoScreen() {
       } as any);
       formData.append('user_id', String(member.UserID));
 
-      const res = await axios.post('http://172.20.10.26:8000/ocr-analyze/', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-
+      // 使用單一正確的後端 URL
       const response = await axios.post(
         'http://192.168.0.55:8000/ocr-analyze/',
         formData,
@@ -155,9 +153,8 @@ export default function MedicationInfoScreen() {
       );
 
       console.log('✅ 圖片上傳成功:', response.data);
-      alert('圖片上傳成功');
+      Alert.alert('成功', '圖片上傳成功');
       fetchData(); // 上傳成功後刷新資料
-
     } catch (error) {
       console.error('❌ 圖片上傳失敗:', error);
       Alert.alert('失敗', '圖片上傳失敗');
@@ -167,8 +164,6 @@ export default function MedicationInfoScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-
-      {/* 只保留新增圖片：一個大 ICON 按鈕 */}
       <TouchableOpacity style={styles.bigIconBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
         <MaterialIcons name="add-a-photo" size={34} color={COLORS.black} />
       </TouchableOpacity>
