@@ -106,8 +106,9 @@ export default function ChildHome() {
             </Text>
             <Text style={{ color: COLORS.green, opacity: 0.95 }}>家庭成員 · 關注中</Text>
           </View>
+          {/* ✅ 設定鈕改為跳選擇家人頁面 */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Setting' as never)}
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
           >
             <Feather name="settings" size={22} color={COLORS.black} />

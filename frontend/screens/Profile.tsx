@@ -38,12 +38,10 @@ const COLORS = {
   textDark: '#111',
   textMid: '#333',
   green: '#A6CFA1',
-  grayBox: '#F2F2F2',
 };
 
 const R = 22;
 
-/* 外層大框陰影（自然） */
 const outerShadow = {
   elevation: 4,
   shadowColor: '#000',
@@ -52,7 +50,6 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-/* 功能卡輕陰影 */
 const lightShadow = {
   elevation: 2,
   shadowColor: '#000',
@@ -78,13 +75,12 @@ export default function ProfileScreen() {
       }
 
       try {
-        const res = await fetch('http://192.168.0.55:8000/account/me/', {
+        const res = await fetch('http://192.168.0.19:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');
         const data = await res.json();
         setProfile(data);
-        // 順便把名稱放到本地（供他處使用）
         if (data?.Name) await AsyncStorage.setItem('user_name', data.Name);
       } catch (err) {
         console.error('載入個人資料失敗:', err);
@@ -98,7 +94,10 @@ export default function ProfileScreen() {
   }, [navigation]);
 
   const logout = async () => {
-    await AsyncStorage.multiRemove(['access', 'refresh', 'selectedMember', 'elder_id', 'elder_name', 'user_name']);
+    await AsyncStorage.multiRemove([
+      'access', 'refresh', 'selectedMember',
+      'elder_id', 'elder_name', 'user_name'
+    ]);
     Alert.alert('已登出');
     navigation.navigate('index' as never);
   };
@@ -126,7 +125,7 @@ export default function ProfileScreen() {
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ==== HERO（黑色大卡） ==== */}
+      {/* ==== HERO ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
           <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
@@ -136,42 +135,20 @@ export default function ProfileScreen() {
               {profile.Phone || ''} · {getGenderText(profile.Gender)}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Setting' as never)}
-            style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
-          >
-            <Feather name="settings" size={22} color={COLORS.black} />
-          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 內容捲動區：底部預留空間避免被功能列蓋到 */}
+      {/* 內容區 */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* ==== 統計列（可作為基本資料速覽） ==== */}
-        <View style={[styles.statsBar, outerShadow]}>
-          <StatBox title="生日" value={profile.Borndate || '—'} />
-          <StatBox title="家庭ID" value={profile.FamilyID || '—'} />
-          <StatBox title="家庭代碼" value={profile.Fcode || '—'} />
-          <StatBox title="用戶ID" value={String(profile.UserID || '—')} />
+        {/* 基本資料（橫列） */}
+        <View style={[styles.infoBox, outerShadow]}>
+          <InfoRow label="生日" value={profile.Borndate || '—'} />
+          <InfoRow label="家庭ID" value={profile.FamilyID || '—'} />
+          <InfoRow label="用戶ID" value={String(profile.UserID || '—')} />
         </View>
 
-        {/* ==== 2x2 快捷卡 ==== */}
+        {/* 快捷卡：只留「家庭成員 / 登出」 */}
         <View style={styles.grid2x2}>
-          <QuickIcon
-            big
-            bg={COLORS.green}
-            icon={<Feather name="edit-2" size={32} color={COLORS.black} />}
-            label="編輯資料"
-            onPress={() => navigation.navigate('Setting' as never)}
-            darkLabel={false}
-          />
-          <QuickIcon
-            big
-            bg={COLORS.cream}
-            icon={<MaterialIcons name="notifications-active" size={32} color={COLORS.textDark} />}
-            label="通知設定"
-            onPress={() => navigation.navigate('Setting' as never)}
-          />
           <QuickIcon
             big
             bg={COLORS.black}
@@ -191,7 +168,7 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* ==== 底部功能列（與 ChildHome 一致） ==== */}
+      {/* 底部功能列（不變） */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
           <FontAwesome name="user" size={28} color="#fff" />
@@ -233,13 +210,11 @@ function QuickIcon({
   );
 }
 
-function StatBox({ title, value, suffix }: { title: string; value: string; suffix?: string }) {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <View style={stats.box}>
-      <Text style={stats.title}>{title}</Text>
-      <Text style={stats.value}>
-        {value}{suffix ? <Text style={stats.suffix}> {suffix}</Text> : null}
-      </Text>
+    <View style={info.row}>
+      <Text style={info.label}>{label}</Text>
+      <Text style={info.value}>{value}</Text>
     </View>
   );
 }
@@ -250,20 +225,17 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.white },
   hello: { fontSize: 22, fontWeight: '900' },
-  iconBtn: { padding: 10, borderRadius: 12 },
 
-  /* 統計列：外層白底容器 + 陰影；內部四格灰底、無陰影 */
-  statsBar: {
+  // 橫列資訊卡容器
+  infoBox: {
     marginHorizontal: 16,
     marginBottom: 16,
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
 
-  /* 2×2 方格 */
   grid2x2: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -272,7 +244,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  /* 底部功能列（固定在底） */
   bottomBox: {
     position: 'absolute',
     left: 0,
@@ -286,16 +257,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  settingItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  settingLabel: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
-  },
+  settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
+  settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
 });
 
 const quick = StyleSheet.create({
@@ -304,15 +267,22 @@ const quick = StyleSheet.create({
   label: { marginTop: 8, fontWeight: '900' },
 });
 
-const stats = StyleSheet.create({
-  box: {
-    width: '23%',
-    backgroundColor: COLORS.grayBox,   // 四格灰底
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
+const info = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  title: { fontSize: 14, fontWeight: '700', color: COLORS.textMid },
-  value: { fontSize: 20, fontWeight: '900', color: COLORS.black },
-  suffix: { fontSize: 14, fontWeight: '700', color: COLORS.black },
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textMid,
+  },
+  value: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: COLORS.black,
+  },
 });
