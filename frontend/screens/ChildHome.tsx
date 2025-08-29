@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+// ChildHome.tsx
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert,
+  ScrollView, Pressable, Alert, ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -19,6 +20,8 @@ interface Member {
   RelatedID?: number | null;
 }
 
+const API_BASE = 'http://192.168.0.55:8000';
+
 const COLORS = {
   white: '#FFFFFF',
   black: '#111111',
@@ -31,7 +34,7 @@ const COLORS = {
 
 const R = 22;
 
-/* 外層大框陰影 */
+/* 陰影 */
 const outerShadow = {
   elevation: 4,
   shadowColor: '#000',
@@ -40,7 +43,6 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-/* 功能卡輕陰影 */
 const lightShadow = {
   elevation: 2,
   shadowColor: '#000',
@@ -49,24 +51,47 @@ const lightShadow = {
   shadowOffset: { width: 0, height: 2 },
 } as const;
 
+/* 取得本地(裝置)今天 YYYY-MM-DD */
+function getLocalToday(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
-  // 讀取已選長者
+  // 今日日期字串
+  const today = useMemo(getLocalToday, []);
+
+  // Loading / error
+  const [loading, setLoading] = useState(false);
+
+  // 統計值
+  const [steps, setSteps] = useState<string>('N/A');
+  const [heart, setHeart] = useState<string>('N/A'); // 來自 healthcare.pulse
+  const [bp, setBp] = useState<string>('N/A');
+
+  // 讀取已選成員
   useEffect(() => {
     const loadSelectedMember = async () => {
       const stored = await AsyncStorage.getItem('selectedMember');
-      if (stored) {
+      if (!stored) {
+        setSelectedMember(null);
+        return;
+      }
+      try {
         const parsed: Member = JSON.parse(stored);
-        if (parsed?.RelatedID) {
-          setSelectedMember(parsed);
+        setSelectedMember(parsed ?? null);
+        // 若你其他頁面還在用 elder_*，這裡兼容寫入（有 RelatedID 才寫）
+        if (parsed?.RelatedID != null) {
           await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
-          await AsyncStorage.setItem('elder_id', parsed.RelatedID.toString());
-        } else {
-          setSelectedMember(null);
+          await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
         }
-      } else {
+      } catch {
         setSelectedMember(null);
       }
     };
@@ -74,20 +99,82 @@ export default function ChildHome() {
     return unsub;
   }, [navigation]);
 
-  // 回診資料邏輯
+  // 查詢「當天」fitdata / healthcare（用 user_id）
+  useEffect(() => {
+    const fetchAll = async () => {
+      if (!selectedMember?.UserID) return;
+
+      setLoading(true);
+      // 預設顯示 N/A，避免舊值殘留
+      setSteps('N/A');
+      setHeart('N/A');
+      setBp('N/A');
+
+      try {
+        const token = await AsyncStorage.getItem('access');
+        if (!token) {
+          Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
+          navigation.navigate('LoginScreen' as never);
+          return;
+        }
+
+        // -------- FITDATA: /api/fitdata/by-date/?user_id=&date= --------
+        const fitUrl =
+          `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        const fitResp = await fetch(fitUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (fitResp.ok) {
+          const fit = await fitResp.json();
+          if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
+        } else if (fitResp.status !== 404) {
+          console.warn('fitdata 讀取失敗', await safeText(fitResp));
+        }
+        // 404 當作無當日資料 → 保持 N/A
+
+        // -------- HEALTHCARE: /api/healthcare/by-date/?user_id=&date= --------
+        const hcUrl =
+          `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        const hcResp = await fetch(hcUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (hcResp.ok) {
+          const hc = await hcResp.json();
+          const sys = num(hc?.systolic);
+          const dia = num(hc?.diastolic);
+          const pulse = num(hc?.pulse);
+
+          if (sys != null && dia != null) setBp(`${sys}/${dia}`);
+          if (pulse != null) setHeart(`${pulse}`);
+        } else if (hcResp.status !== 404) {
+          console.warn('healthcare 讀取失敗', await safeText(hcResp));
+        }
+      } catch (err) {
+        console.error('讀取資料錯誤:', err);
+        Alert.alert('讀取失敗', '無法取得當日健康資料，請稍後再試');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAll();
+  }, [selectedMember?.UserID, today, navigation]);
+
+  // 回診資料（仍沿用 RelatedID 給你的回診頁）
   const goHospital = async () => {
     if (!selectedMember || !selectedMember.RelatedID) {
       Alert.alert('提醒', '請先選擇要照護的長者');
-      navigation.navigate('FamilyScreen', { mode: 'select' });
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
       return;
     }
     await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
-    await AsyncStorage.setItem('elder_id', selectedMember.RelatedID.toString());
-
+    await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
     navigation.navigate('FamilyHospitalList', {
       elderName: selectedMember.Name,
       elderId: selectedMember.RelatedID,
-    });
+    } as never);
   };
 
   return (
@@ -97,14 +184,16 @@ export default function ChildHome() {
       {/* ==== HERO（黑色大卡） ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
-          <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}>
+          <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' } as never)}>
             <Image source={require('../img/childhome/grandpa.png')} style={styles.avatar} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>
               {selectedMember?.Name || '尚未選擇'}
             </Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>家庭成員 · 關注中</Text>
+            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
+              {`日期 ${today}`}
+            </Text>
           </View>
           <TouchableOpacity
             onPress={() => navigation.navigate('Setting' as never)}
@@ -117,12 +206,18 @@ export default function ChildHome() {
 
       {/* 內容捲動區 */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {loading ? (
+          <View style={{ paddingTop: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={COLORS.black} />
+            <Text style={{ marginTop: 8, color: COLORS.textMid }}>讀取中…</Text>
+          </View>
+        ) : null}
+
         {/* 統計列 */}
         <View style={[styles.statsBar, outerShadow]}>
-          <StatBox title="步數" value="6,420" />
-          <StatBox title="心率" value="72" suffix="bpm" />
-          <StatBox title="血壓" value="118/76" />
-          <StatBox title="睡眠" value="7.2" suffix="h" />
+          <StatBox title="步數" value={steps} />
+          <StatBox title="心率" value={heart} suffix={heart !== 'N/A' ? 'bpm' : undefined} />
+          <StatBox title="血壓" value={bp} />
         </View>
 
         {/* 功能列 */}
@@ -167,13 +262,32 @@ export default function ChildHome() {
           <FontAwesome name="user" size={28} color="#fff" />
           <Text style={styles.settingLabel}>個人</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}>
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' } as never)}
+        >
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
+}
+
+/* ====== 工具函式 ====== */
+function num(v: any): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function isFiniteNum(v: any): boolean {
+  return Number.isFinite(Number(v));
+}
+async function safeText(r: Response) {
+  try {
+    return await r.text();
+  } catch {
+    return '';
+  }
 }
 
 /* ====== 子元件 ====== */
@@ -193,8 +307,18 @@ function QuickIcon({
         pressed && { transform: [{ scale: 0.97 }] },
       ]}
     >
-      <View style={[quick.iconCircle, { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 }]}>{icon}</View>
-      <Text style={[quick.label, { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 }]}>{label}</Text>
+      <View style={[
+        quick.iconCircle,
+        { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 },
+      ]}>
+        {icon}
+      </View>
+      <Text style={[
+        quick.label,
+        { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 },
+      ]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -236,16 +360,10 @@ const styles = StyleSheet.create({
   },
   bottomBox: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    backgroundColor: COLORS.black,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    left: 0, right: 0, bottom: 0,
+    height: 72, backgroundColor: COLORS.black,
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    paddingHorizontal: 20, paddingBottom: 8,
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
@@ -259,7 +377,7 @@ const quick = StyleSheet.create({
 
 const stats = StyleSheet.create({
   box: {
-    width: '23%',
+    width: '31%',
     backgroundColor: COLORS.grayBox,
     borderRadius: 12,
     paddingVertical: 12,
