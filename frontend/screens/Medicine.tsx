@@ -84,9 +84,8 @@ export default function Medicine() {
       </View>
 
       {/* ── 內容 */}
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        {activeTab === 'info' ? <MedInfoScreen /> : <MedTimeScreen />}
-      </ScrollView>
+      {activeTab === 'info' ? <MedInfoScreen /> : <MedTimeScreen />}
+
     </View>
   );
 }
