@@ -10,7 +10,7 @@ type TimeItem = { label: string; time: string; };
 
 const COLORS = {
   screenBg: '#B7D77C',   // 外層綠
-  phoneBg: '#FFFFB9',    
+  phoneBg: '#FFFFB9',
   black: '#111111',
   white: '#FFFFFF',
   card: '#0E0E0E',
@@ -35,6 +35,8 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 6 },
 } as const;
 
+const BASE = 'http://192.168.0.55:8000';
+
 export default function TimeSettingInput() {
   const [times, setTimes] = useState<TimeItem[]>([
     { label: '早上', time: '08:00' },
@@ -44,42 +46,46 @@ export default function TimeSettingInput() {
   ]);
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [elderId, setElderId] = useState<number | null>(null);
 
-  useEffect(() => { loadTimeSetting(); }, []);
+  useEffect(() => {
+    const fetchElderIdAndTime = async () => {
+      try {
+        const selectedMember = await AsyncStorage.getItem('selectedMember');
+        let id: number | null = null;
+        if (selectedMember) {
+          const parsed = JSON.parse(selectedMember);
+          id = parsed?.UserID ?? null;
+          setElderId(id);
+        }
+        await loadTimeSetting(id); // 直接用取得的 id，避免 state 未即時更新
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchElderIdAndTime();
+  }, []);
 
-  const loadTimeSetting = async () => {
+  const loadTimeSetting = async (idFromArg?: number | null) => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) return;
-      const { data } = await axios.get('http://172.20.10.26:8000/api/get-med-time/', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const id = idFromArg ?? elderId;
+      if (!token || !id) return;
+
+      const response = await axios.get(
+        `${BASE}/api/get-med-time/?UserID=${id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const data = response.data || {};
       setTimes([
         { label: '早上', time: data.MorningTime || '08:00' },
         { label: '中午', time: data.NoonTime || '12:00' },
         { label: '晚上', time: data.EveningTime || '18:00' },
         { label: '睡前', time: data.Bedtime || '20:00' },
       ]);
-    } catch {}
-  };
-
-  const saveTimes = async (next: TimeItem[]) => {
-    try {
-      const token = await AsyncStorage.getItem('access');
-      if (!token) return;
-      await axios.post(
-        'http://172.20.10.26:8000/api/create-med-time/',
-        {
-          MorningTime: next[0].time,
-          NoonTime: next[1].time,
-          EveningTime: next[2].time,
-          Bedtime: next[3].time,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      console.log('✅ 已儲存時間設定');
-    } catch {
-      Alert.alert('儲存失敗', '請稍後再試');
+    } catch (e) {
+      // 可視需要提示
     }
   };
 
@@ -90,11 +96,39 @@ export default function TimeSettingInput() {
     }
     setShowPicker(false);
     if (selectedDate && pickerIndex !== null) {
-      const h = selectedDate.getHours().toString().padStart(2, '0');
-      const m = selectedDate.getMinutes().toString().padStart(2, '0');
-      const next = times.map((t, idx) => (idx === pickerIndex ? { ...t, time: `${h}:${m}` } : t));
-      setTimes(next);
-      saveTimes(next); // 修改即自動儲存
+      const updated = [...times];
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      updated[pickerIndex].time = `${hours}:${minutes}`;
+      setTimes(updated);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token || !elderId) {
+        Alert.alert('請先選擇長者或登入');
+        return;
+      }
+
+      const response = await axios.post(
+        `${BASE}/api/create-med-time/`,
+        {
+          UserID: elderId, // ✅ 傳送正確長者 ID
+          MorningTime: times[0].time,
+          NoonTime: times[1].time,
+          EveningTime: times[2].time,
+          Bedtime: times[3].time,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      console.log('✅ 儲存成功:', response.data);
+      Alert.alert('成功', '時間設定已儲存！');
+    } catch (error) {
+      console.error('❌ 儲存失敗:', error);
+      Alert.alert('儲存失敗', '請稍後再試');
     }
   };
 
@@ -143,7 +177,7 @@ export default function TimeSettingInput() {
 
         {/* 底部儲存 */}
         <View pointerEvents="box-none" style={styles.fabWrap}>
-          <TouchableOpacity activeOpacity={0.9} onPress={() => saveTimes(times)} style={styles.saveBar}>
+          <TouchableOpacity activeOpacity={0.9} onPress={handleSave} style={styles.saveBar}>
             <Text style={styles.saveText}>儲存</Text>
           </TouchableOpacity>
         </View>

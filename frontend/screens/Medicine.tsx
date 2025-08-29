@@ -37,6 +37,7 @@ export default function Medicine() {
   const [activeTab, setActiveTab] = useState<'info' | 'time'>('info');
 
   return (
+
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
@@ -60,6 +61,7 @@ export default function Medicine() {
         </View>
 
         <View style={styles.sideSlot} />
+
       </View>
 
       {/* ── Tabs（保留你的圖片；選中黑、未選中灰） */}

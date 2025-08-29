@@ -1,22 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+  StatusBar,
+  ScrollView,
+  Pressable,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
 
-type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
+type NavProp = StackNavigationProp<RootStackParamList, 'Profile'>;
 
-interface Member {
+interface UserProfile {
   UserID: number;
   Name: string;
-  RelatedID?: number | null;
+  Phone: string;
+  Gender: string;   // 'M' | 'F' | others
+  Borndate: string; // YYYY-MM-DD
+  FamilyID: string;
+  Fcode: string;
 }
 
 const COLORS = {
@@ -31,7 +43,7 @@ const COLORS = {
 
 const R = 22;
 
-/* 外層大框陰影 */
+/* 外層大框陰影（自然） */
 const outerShadow = {
   elevation: 4,
   shadowColor: '#000',
@@ -49,46 +61,66 @@ const lightShadow = {
   shadowOffset: { width: 0, height: 2 },
 } as const;
 
-export default function ChildHome() {
-  const navigation = useNavigation<ChildHomeNavProp>();
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+export default function ProfileScreen() {
+  const navigation = useNavigation<NavProp>();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // 讀取已選長者
+  const getGenderText = (g?: string) => (g === 'M' ? '男' : g === 'F' ? '女' : '—');
+
   useEffect(() => {
-    const loadSelectedMember = async () => {
-      const stored = await AsyncStorage.getItem('selectedMember');
-      if (stored) {
-        const parsed: Member = JSON.parse(stored);
-        if (parsed?.RelatedID) {
-          setSelectedMember(parsed);
-          await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
-          await AsyncStorage.setItem('elder_id', parsed.RelatedID.toString());
-        } else {
-          setSelectedMember(null);
-        }
-      } else {
-        setSelectedMember(null);
+    const fetchProfile = async () => {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
+        navigation.navigate('LoginScreen' as never);
+        return;
+      }
+
+      try {
+        const res = await fetch('http://192.168.0.55:8000/account/me/', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('取得失敗');
+        const data = await res.json();
+        setProfile(data);
+        // 順便把名稱放到本地（供他處使用）
+        if (data?.Name) await AsyncStorage.setItem('user_name', data.Name);
+      } catch (err) {
+        console.error('載入個人資料失敗:', err);
+        Alert.alert('錯誤', '無法載入個人資料');
+      } finally {
+        setLoading(false);
       }
     };
-    const unsub = navigation.addListener('focus', loadSelectedMember);
-    return unsub;
+
+    fetchProfile();
   }, [navigation]);
 
-  // 回診資料邏輯
-  const goHospital = async () => {
-    if (!selectedMember || !selectedMember.RelatedID) {
-      Alert.alert('提醒', '請先選擇要照護的長者');
-      navigation.navigate('FamilyScreen', { mode: 'select' });
-      return;
-    }
-    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
-    await AsyncStorage.setItem('elder_id', selectedMember.RelatedID.toString());
-
-    navigation.navigate('FamilyHospitalList', {
-      elderName: selectedMember.Name,
-      elderId: selectedMember.RelatedID,
-    });
+  const logout = async () => {
+    await AsyncStorage.multiRemove(['access', 'refresh', 'selectedMember', 'elder_id', 'elder_name', 'user_name']);
+    Alert.alert('已登出');
+    navigation.navigate('index' as never);
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.white }}>
+        <Text style={{ fontSize: 16, color: 'red' }}>無法載入個人資料</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          <Text style={{ textDecorationLine: 'underline' }}>返回</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -97,14 +129,12 @@ export default function ChildHome() {
       {/* ==== HERO（黑色大卡） ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
-          <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}>
-            <Image source={require('../img/childhome/grandpa.png')} style={styles.avatar} />
-          </Pressable>
+          <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.hello, { color: COLORS.white }]}>
-              {selectedMember?.Name || '尚未選擇'}
+            <Text style={[styles.hello, { color: COLORS.white }]}>{profile.Name || '使用者'}</Text>
+            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
+              {profile.Phone || ''} · {getGenderText(profile.Gender)}
             </Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>家庭成員 · 關注中</Text>
           </View>
           <TouchableOpacity
             onPress={() => navigation.navigate('Setting' as never)}
@@ -115,61 +145,65 @@ export default function ChildHome() {
         </View>
       </View>
 
-      {/* 內容捲動區 */}
+      {/* 內容捲動區：底部預留空間避免被功能列蓋到 */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* 統計列 */}
+        {/* ==== 統計列（可作為基本資料速覽） ==== */}
         <View style={[styles.statsBar, outerShadow]}>
-          <StatBox title="步數" value="6,420" />
-          <StatBox title="心率" value="72" suffix="bpm" />
-          <StatBox title="血壓" value="118/76" />
-          <StatBox title="睡眠" value="7.2" suffix="h" />
+          <StatBox title="生日" value={profile.Borndate || '—'} />
+          <StatBox title="家庭ID" value={profile.FamilyID || '—'} />
+          <StatBox title="家庭代碼" value={profile.Fcode || '—'} />
+          <StatBox title="用戶ID" value={String(profile.UserID || '—')} />
         </View>
 
-        {/* 功能列 */}
+        {/* ==== 2x2 快捷卡 ==== */}
         <View style={styles.grid2x2}>
           <QuickIcon
             big
             bg={COLORS.green}
-            icon={<MaterialIcons name="favorite" size={34} color={COLORS.black} />}
-            label="健康狀況"
-            onPress={() => navigation.navigate('Health' as never)}
+            icon={<Feather name="edit-2" size={32} color={COLORS.black} />}
+            label="編輯資料"
+            onPress={() => navigation.navigate('Setting' as never)}
             darkLabel={false}
           />
           <QuickIcon
             big
             bg={COLORS.cream}
-            icon={<MaterialIcons name="medical-services" size={32} color={COLORS.textDark} />}
-            label="用藥資訊"
-            onPress={() => navigation.navigate('Medicine' as never)}
+            icon={<MaterialIcons name="notifications-active" size={32} color={COLORS.textDark} />}
+            label="通知設定"
+            onPress={() => navigation.navigate('Setting' as never)}
           />
           <QuickIcon
             big
             bg={COLORS.black}
-            icon={<MaterialIcons name="event-note" size={32} color={COLORS.green} />}
-            label="回診資料"
-            onPress={goHospital}
+            icon={<MaterialIcons name="group" size={32} color={COLORS.green} />}
+            label="家庭成員"
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' } as never)}
             darkLabel={false}
           />
           <QuickIcon
             big
             bg={COLORS.green}
-            icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
-            label="通話紀錄"
-            onPress={() => navigation.navigate('CallRecord' as never)}
+            icon={<Feather name="log-out" size={32} color={COLORS.black} />}
+            label="登出"
+            onPress={logout}
             darkLabel={false}
           />
         </View>
       </ScrollView>
 
-      {/* 底部功能列 */}
+      {/* ==== 底部功能列（與 ChildHome 一致） ==== */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
           <FontAwesome name="user" size={28} color="#fff" />
           <Text style={styles.settingLabel}>個人</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' } as never)}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('ChildHome' as never)}>
+          <FontAwesome name="exchange" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -218,6 +252,7 @@ const styles = StyleSheet.create({
   hello: { fontSize: 22, fontWeight: '900' },
   iconBtn: { padding: 10, borderRadius: 12 },
 
+  /* 統計列：外層白底容器 + 陰影；內部四格灰底、無陰影 */
   statsBar: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -227,6 +262,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+
+  /* 2×2 方格 */
   grid2x2: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -234,6 +271,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
+
+  /* 底部功能列（固定在底） */
   bottomBox: {
     position: 'absolute',
     left: 0,
@@ -247,8 +286,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
-  settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  settingItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  settingLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
 });
 
 const quick = StyleSheet.create({
@@ -260,7 +307,7 @@ const quick = StyleSheet.create({
 const stats = StyleSheet.create({
   box: {
     width: '23%',
-    backgroundColor: COLORS.grayBox,
+    backgroundColor: COLORS.grayBox,   // 四格灰底
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',

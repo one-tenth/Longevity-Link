@@ -1,3 +1,5 @@
+# import mysql.connector.django  # ⬅️ 加在 settings.py 開頭
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -106,13 +108,15 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',# JWT token 中的 key 名稱
 }
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'ENGINE': 'mysql.connector.django',
+#         'NAME': 'railway',
+#         'USER': 'root',
+#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
+#         'HOST': 'mysql.railway.internal',
+#         'PORT': '3306',
 #     }
 # }
 DATABASES = {

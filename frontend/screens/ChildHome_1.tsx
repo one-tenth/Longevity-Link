@@ -31,7 +31,7 @@ const outerShadow = {
   shadowOpacity: 0.08,
   shadowRadius: 6,
   shadowOffset: { width: 0, height: 3 },
-};
+} as const;
 
 /* 功能卡輕陰影 */
 const lightShadow = {
@@ -40,7 +40,7 @@ const lightShadow = {
   shadowOpacity: 0.05,
   shadowRadius: 4,
   shadowOffset: { width: 0, height: 2 },
-};
+} as const;
 
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
@@ -66,7 +66,11 @@ export default function ChildHome() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
+      {/* 內容捲動區：底部預留空間避免被功能列蓋到 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
         {/* ==== 統計列（外框有陰影；四格灰底、無陰影） ==== */}
         <View style={[styles.statsBar, outerShadow]}>
           <StatBox title="步數" value="6,420" />
@@ -109,38 +113,22 @@ export default function ChildHome() {
             darkLabel={false}
           />
         </View>
-
-        {/* ==== 即時位置（自己一列，有陰影） ==== */}
-        <FeatureCard
-          bg={COLORS.white}
-          title="即時位置"
-          subtitle="地圖 / 地址"
-          right={<MaterialIcons name="location-on" size={30} color={COLORS.black} />}
-          onPress={() => navigation.navigate('Location' as never)}
-          darkText
-          withShadow
-        />
       </ScrollView>
 
-      {/* ==== 底部黑色膠囊列（修正白色直角） ==== */}
-      <View pointerEvents="box-none" style={styles.fabWrap}>
-        <View style={styles.fabBarOuter}>
-          <View style={[styles.fabBar, outerShadow]}>
-            <Pressable style={({ pressed }) => [styles.fabBtn, pressed && styles.fabPressed]} onPress={() => navigation.navigate('Profile' as never)}>
-              <View style={[styles.fabIcon, { backgroundColor: COLORS.green }]}>
-                <FontAwesome name="user" size={20} color={COLORS.black} />
-              </View>
-              <Text style={[styles.fabText, { color: COLORS.white }]}>個人</Text>
-            </Pressable>
-            <View style={styles.fabDivider} />
-            <Pressable style={({ pressed }) => [styles.fabBtn, pressed && styles.fabPressed]} onPress={() => navigation.navigate('FamilySetting' as never)}>
-              <View style={[styles.fabIcon, { backgroundColor: COLORS.cream }]}>
-                <FontAwesome name="home" size={20} color={COLORS.black} />
-              </View>
-              <Text style={[styles.fabText, { color: COLORS.white }]}>家庭</Text>
-            </Pressable>
-          </View>
-        </View>
+      {/* ==== 底部功能列（origin/dev 版） ==== */}
+      <View style={styles.bottomBox}>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
+          <FontAwesome name="user" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>個人</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('CreateFamily' as never)}>
+          <FontAwesome name="home" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>家庭</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('index' as never)}>
+          <FontAwesome name="exchange" size={28} color="#fff" />
+          <Text style={styles.settingLabel}>切換</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -181,32 +169,6 @@ function StatBox({ title, value, suffix }: { title: string; value: string; suffi
   );
 }
 
-function FeatureCard({
-  bg, title, subtitle, right, onPress, darkText = false, withShadow = false,
-}: {
-  bg: string; title: string; subtitle?: string; right?: React.ReactNode; onPress: () => void;
-  darkText?: boolean; withShadow?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: '#00000010' }}
-      style={({ pressed }) => [
-        feature.card,
-        { backgroundColor: bg },
-        withShadow && outerShadow,
-        pressed && { transform: [{ scale: 0.995 }] },
-      ]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={[feature.title, { color: darkText ? COLORS.textDark : COLORS.white }]}>{title}</Text>
-        {!!subtitle && <Text style={[feature.sub, { color: darkText ? COLORS.textMid : COLORS.white }]}>{subtitle}</Text>}
-      </View>
-      {right}
-    </Pressable>
-  );
-}
-
 /* ====== Styles ====== */
 const styles = StyleSheet.create({
   hero: { margin: 16, marginBottom: 8, padding: 16, borderRadius: R },
@@ -235,15 +197,30 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  /* 底部膠囊列：使用外層避免白色直角 */
-  fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 18, alignItems: 'center' },
-  fabBarOuter: { width: '88%', borderRadius: 999, backgroundColor: 'transparent' },
-  fabBar: { backgroundColor: COLORS.black, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' },
-  fabBtn: { flex: 1, paddingVertical: 8, borderRadius: 999, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  fabPressed: { backgroundColor: '#222222' },
-  fabIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  fabText: { fontSize: 15, fontWeight: '800' },
-  fabDivider: { width: 1, height: 22, backgroundColor: '#FFFFFF33', marginHorizontal: 8, alignSelf: 'center' },
+  /* 底部功能列（固定在底） */
+  bottomBox: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+    backgroundColor: COLORS.black,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 8, // iOS 安全區域一點緩衝
+  },
+  settingItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  settingLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
 });
 
 const quick = StyleSheet.create({
@@ -255,19 +232,12 @@ const quick = StyleSheet.create({
 const stats = StyleSheet.create({
   box: {
     width: '23%',
-    backgroundColor: COLORS.grayBox,   // ← 四格灰底
+    backgroundColor: COLORS.grayBox,   // 四格灰底
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
-    // 無陰影、無外框
   },
   title: { fontSize: 14, fontWeight: '700', color: COLORS.textMid },
   value: { fontSize: 20, fontWeight: '900', color: COLORS.black },
   suffix: { fontSize: 14, fontWeight: '700', color: COLORS.black },
-});
-
-const feature = StyleSheet.create({
-  card: { marginHorizontal: 16, marginTop: 12, borderRadius: R, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 18, fontWeight: '900' },
-  sub: { marginTop: 2, fontSize: 14 },
 });

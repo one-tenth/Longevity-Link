@@ -61,14 +61,15 @@ export default function MedicineInfo() {
       setErrorMsg(null);
 
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        setErrorMsg('尚未登入或權限失效。');
-        return;
-      }
 
-      const res = await axios.get(
-        `http://172.20.10.26:8000/api/meds/${prescriptionId}/`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const response = await axios.get(
+        `http://192.168.0.55:8000/api/meds/${prescriptionId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+
       );
       setMedList(Array.isArray(res.data) ? res.data : []);
     } catch (err) {

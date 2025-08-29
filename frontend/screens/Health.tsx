@@ -30,7 +30,10 @@ const outerShadow = {
   shadowOpacity: 0.08,
   shadowRadius: 6,
   shadowOffset: { width: 0, height: 3 },
-};
+} as const;
+
+// 改成你原本使用的後端 IP
+const BASE = 'http://172.20.10.26:8000';
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
@@ -43,21 +46,27 @@ export default function HealthStatus() {
     try {
       const token = await AsyncStorage.getItem('access');
       const selected = await AsyncStorage.getItem('selectedMember');
-      if (!token || !selected) { setSteps(null); setBpData(null); return; }
+      if (!token || !selected) {
+        setSteps(null);
+        setBpData(null);
+        return;
+      }
       const member = JSON.parse(selected);
-      const dateStr = date.toLocaleDateString('sv-SE');
+      const dateStr = date.toLocaleDateString('sv-SE'); // YYYY-MM-DD
 
       try {
         const stepRes = await axios.get(
-          `http://172.20.10.26:8000/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+          `${BASE}/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setSteps(stepRes.data?.steps ?? null);
-      } catch { setSteps(null); }
+      } catch {
+        setSteps(null);
+      }
 
       try {
         const bpRes = await axios.get(
-          `http://172.20.10.26:8000/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
+          `${BASE}/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setBpData({
@@ -65,11 +74,17 @@ export default function HealthStatus() {
           diastolic: bpRes.data?.diastolic,
           pulse: bpRes.data?.pulse,
         });
-      } catch { setBpData(null); }
-    } catch { setSteps(null); setBpData(null); }
+      } catch {
+        setBpData(null);
+      }
+    } catch {
+      setSteps(null);
+      setBpData(null);
+    }
   };
 
-  useEffect(() => { fetchData(selectedDate); }, []);
+  useEffect(() => { fetchData(selectedDate); }, []); // 初次載入
+
   const bpValue = bpData ? `${bpData.systolic ?? '-'} / ${bpData.diastolic ?? '-'}` : '—';
   const pulseValue = bpData ? `${bpData.pulse ?? '-'}` : '—';
   const weekday = selectedDate.toLocaleDateString('zh-TW', { weekday: 'short' });
@@ -79,11 +94,21 @@ export default function HealthStatus() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('ChildHome_1' as never)} style={styles.backFab}>
+        {/* ← 保留你自己的返回鍵（feature/ip_family_frontend） */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ChildHome_1' as never)}
+          style={styles.backFab}
+        >
           <FontAwesome name="arrow-left" size={20} color={COLORS.black} />
         </TouchableOpacity>
+
         <View style={styles.headerCenter}>
-          <MaterialCommunityIcons name="heart-pulse" size={24} color={COLORS.black} style={{ marginRight: 8 }} />
+          <MaterialCommunityIcons
+            name="heart-pulse"
+            size={24}
+            color={COLORS.black}
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.headerTitle}>健康狀態</Text>
         </View>
       </View>
@@ -97,7 +122,9 @@ export default function HealthStatus() {
           <FontAwesome name="calendar" size={20} color={COLORS.black} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.dateMain}>{selectedDate.toLocaleDateString('sv-SE')}（{weekday}）</Text>
+          <Text style={styles.dateMain}>
+            {selectedDate.toLocaleDateString('sv-SE')}（{weekday}）
+          </Text>
           <Text style={styles.dateSub}>點我更改日期</Text>
         </View>
       </Pressable>
@@ -107,7 +134,10 @@ export default function HealthStatus() {
           value={selectedDate}
           mode="date"
           display="default"
-          onChange={(event, date) => { setShowPicker(false); if (date) { setSelectedDate(date); fetchData(date); } }}
+          onChange={(event, date) => {
+            setShowPicker(false);
+            if (date) { setSelectedDate(date); fetchData(date); }
+          }}
         />
       )}
 
@@ -141,6 +171,7 @@ export default function HealthStatus() {
   );
 }
 
+/* ====== 子元件 ====== */
 function MiniBox({ title, value, suffix }: { title: string; value: string; suffix?: string }) {
   return (
     <View style={mini.box}>
@@ -179,6 +210,7 @@ function FeatureCard({
   );
 }
 
+/* ====== Styles ====== */
 const styles = StyleSheet.create({
   header: {
     marginHorizontal: 16,

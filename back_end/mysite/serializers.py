@@ -1,7 +1,7 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
 
-from .models import User,Med,FitData,Family,MedTimeSetting
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -61,3 +61,31 @@ class FamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = Family
         fields = '__all__'
+
+
+class ReminderItemSerializer(serializers.Serializer):
+    at = serializers.CharField()
+    med_name = serializers.CharField()
+    freq = serializers.CharField()
+    prescription_id = serializers.CharField()
+    disease = serializers.CharField()
+    user_id = serializers.IntegerField()
+    
+class UserMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID']
+
+class FamilySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Family
+        fields = ['id', 'Fcode'] 
+
+
+class HosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hos
+        fields = '__all__'
+        extra_kwargs = {
+            'UserID': {'read_only': True}  # ✅ 這行是關鍵
+        }

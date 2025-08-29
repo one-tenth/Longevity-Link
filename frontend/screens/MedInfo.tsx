@@ -22,13 +22,67 @@ const COLORS = {
 };
 
 export default function MedicationInfoScreen() {
-  // 若仍想進來就做些初始化，可留空的 useFocusEffect
-  useFocusEffect(
-    useCallback(() => {
-      // 需要時可在這裡做初始化
-      return () => {};
-    }, [])
-  );
+
+  const navigation = useNavigation<NavigationProp>();
+  const [groupedData, setGroupedData] = useState<GroupedPrescription[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      const selected = await AsyncStorage.getItem('selectedMember');
+      if (!token || !selected) {
+        console.warn('⚠️ 找不到 JWT 或 selectedMember');
+        return;
+      }
+
+
+      const member = JSON.parse(selected);
+
+      const response = await axios.get(`http://192.168.0.55:8000/api/mednames/?user_id=${member.UserID}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setGroupedData(response.data);
+    } catch (error) {
+      console.error('❌ 撈資料錯誤:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (prescriptionID: string) => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      const selected = await AsyncStorage.getItem('selectedMember');
+      if (!token || !selected) {
+        console.warn('⚠️ 找不到 JWT 或 selectedMember');
+        return;
+      }
+
+      const member = JSON.parse(selected);
+      console.log('🧪 刪除藥單：selectedMember:', member); // ✅ 印出來看清楚
+
+      await axios.delete(
+        `http://192.168.0.55:8000/api/delete-prescription/${prescriptionID}/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { user_id: member.UserID },
+        }
+      );
+
+      console.log('🧪 要刪的成員：', member);
+      
+      setGroupedData(prev =>
+        prev.filter(group => group.PrescriptionID !== prescriptionID)
+      );
+    } catch (error) {
+      console.error('❌ 刪除失敗:', error);
+    }
+  };
+
 
   const handleTakePhoto = () => {
     Alert.alert(
@@ -88,8 +142,22 @@ export default function MedicationInfoScreen() {
         },
       });
 
-      console.log('✅ 圖片上傳成功:', res.data);
-      Alert.alert('成功', '圖片上傳成功');
+
+      const response = await axios.post(
+        'http://192.168.0.55:8000/ocr-analyze/',
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      console.log('✅ 圖片上傳成功:', response.data);
+      alert('圖片上傳成功');
+      fetchData(); // 上傳成功後刷新資料
+
     } catch (error) {
       console.error('❌ 圖片上傳失敗:', error);
       Alert.alert('失敗', '圖片上傳失敗');

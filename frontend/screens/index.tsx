@@ -31,7 +31,7 @@ const HomeScreen: React.FC = () => {
       if (!token) return;
 
       try {
-        const res = await fetch('http://172.20.10.26:8000/account/me/', {
+        const res = await fetch('http://192.168.0.55:8000/account/me/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -102,7 +102,7 @@ const HomeScreen: React.FC = () => {
 
         <TouchableOpacity
           style={[styles.gridBox, { backgroundColor: '#F58402' }]}
-          onPress={() => navigation.navigate('ChildHome_1')}>
+          onPress={() => navigation.navigate('ChildHome')}>
           <Image
             source={require('../img/setting/young.png')}
             style={styles.young}
