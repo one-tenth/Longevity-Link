@@ -138,8 +138,8 @@ const App: React.FC = () => {
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {/* 首頁 / 登入註冊 */}
-        <Stack.Screen name="index" component={index} />
         <Stack.Screen name="LoginScreen" component={LoginScreen} />
+        <Stack.Screen name="index" component={index} />
         <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
 
         {/* 長者端 */}

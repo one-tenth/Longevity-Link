@@ -35,7 +35,7 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 6 },
 } as const;
 
-const BASE = 'http://192.168.0.55:8000';
+const BASE = 'http://192.168.0.19:8000';
 
 export default function TimeSettingInput() {
   const [times, setTimes] = useState<TimeItem[]>([

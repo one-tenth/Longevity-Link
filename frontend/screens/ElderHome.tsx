@@ -1,4 +1,4 @@
-// ElderHome.tsx (base: 第一支，吃藥提醒區塊改成第二支樣式 + 初始化通知)
+// ElderHome.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -65,38 +65,115 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://192.168.0.55:8000';
+const BASE = 'http://192.168.0.19:8000';
 
 // ---- Types ----
 type HospitalRecord = {
   HosId?: number;
   HosID?: number;
   id?: number;
-  ClinicDate: string; // YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+  ClinicDate: string;
   ClinicPlace: string;
   Doctor: string;
   Num: number;
 };
 
+type MeInfo = {
+  UserID: number;
+  RelatedID?: number | null;
+  isElder?: boolean;
+  Name?: string;
+};
+
+// 解析 elderId：優先 localStorage('elder_id') → /api/account/me/ 的 RelatedID
+async function resolveElderId(): Promise<number | null> {
+  try {
+    const saved = await AsyncStorage.getItem('elder_id');
+    const fromStore = saved ? Number(saved) : NaN;
+    if (!Number.isNaN(fromStore)) return fromStore;
+
+    const token = await AsyncStorage.getItem('access');
+    if (!token) return null;
+
+    const me = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000,
+    });
+
+    const info = me.data || {};
+    if (typeof info.RelatedID === 'number' && !Number.isNaN(info.RelatedID)) {
+      await AsyncStorage.setItem('elder_id', String(info.RelatedID));
+      return info.RelatedID;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ===== 日期處理（修正版，支援多種格式） =====
+const normalizeDateStr = (s?: string) => {
+  if (!s) return '';
+  const core = s.includes('T') ? s.split('T')[0] : s;
+  return core.replace(/[./]/g, '-'); // 支援 YYYY/MM/DD, YYYY.MM.DD
+};
+
+const parseDate = (s?: string) => {
+  const d = normalizeDateStr(s);
+  const parts = d.split('-');
+  if (parts.length === 3) {
+    const [y, m, dd] = parts.map((x) => Number(x));
+    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(dd)) {
+      return new Date(y, Math.max(0, m - 1), dd);
+    }
+  }
+  return new Date(NaN);
+};
+
+const onlyDate = (s?: string) => normalizeDateStr(s);
+const normalizeDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+// ===== 取最近看診資料（修正版） =====
+const pickUpcomingNearest = (list: HospitalRecord[]) => {
+  const today = normalizeDay(new Date());
+  const parsed = list
+    .map((r) => ({ d: parseDate(r.ClinicDate), r }))
+    .filter((x) => !isNaN(+x.d))
+    .sort((a, b) => +a.d - +b.d);
+
+  if (parsed.length > 0) {
+    const upcoming = parsed.find((x) => normalizeDay(x.d).getTime() >= +today);
+    if (upcoming) return upcoming.r;
+    return parsed[parsed.length - 1].r;
+  }
+  return list.length ? list[0] : null; // 保底：解析不到也回傳第一筆
+};
+
 export default function ElderHome() {
   const navigation = useNavigation<ElderHomeNav>();
 
-  // 吃藥提醒（列表＋Modal 控制）
+  // 吃藥提醒
   const [medCards, setMedCards] = useState<Array<{ id: string; period: string; time?: string; meds: string[] }>>([]);
   const [showMedModal, setShowMedModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
-  // 每 60 秒觸發重算（讓「下一筆」會自動更新）
+
+  // 每 60 秒刷新一次「下一筆吃藥」
   const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 取使用者名稱
   useEffect(() => {
     (async () => {
       try {
-        const storedName = await AsyncStorage.getItem('user_name'); // 登入時記得存這個
+        const storedName = await AsyncStorage.getItem('user_name');
         if (storedName) {
           setUserName(storedName);
         } else {
-          // 如果沒存，就去後端拿
           const token = await AsyncStorage.getItem('access');
           if (token) {
             const res = await axios.get(`${BASE}/api/account/me/`, {
@@ -104,7 +181,7 @@ export default function ElderHome() {
             });
             if (res.data?.Name) {
               setUserName(res.data.Name);
-              await AsyncStorage.setItem('user_name', res.data.Name); // 順便快取
+              await AsyncStorage.setItem('user_name', res.data.Name);
             }
           }
         }
@@ -114,7 +191,7 @@ export default function ElderHome() {
     })();
   }, []);
 
-
+  // Modal 控制
   const openMedModal = (startIndex = 0) => {
     setCurrentIndex(startIndex);
     setShowMedModal(true);
@@ -133,7 +210,7 @@ export default function ElderHome() {
     flatRef.current?.scrollToIndex({ index: currentIndex, animated: true });
   }, [currentIndex, showMedModal]);
 
-  // 取藥物提醒資料
+  // 抓藥物提醒
   useEffect(() => {
     (async () => {
       const token = await AsyncStorage.getItem('access');
@@ -165,32 +242,11 @@ export default function ElderHome() {
 
   const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, setTick]);
   const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
-  
 
-  // 看診提醒（動態）
+  // 看診提醒
   const [loading, setLoading] = useState(false);
   const [reminder, setReminder] = useState<HospitalRecord | null>(null);
   const [hint, setHint] = useState<string>('');
-
-  const onlyDate = (s?: string) => {
-    if (!s) return '';
-    return s.includes('T') ? s.split('T')[0] : s;
-  };
-  const parseDate = (s?: string) => new Date(onlyDate(String(s || '')));
-  const normalize = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-
-  const pickUpcomingNearest = (list: HospitalRecord[]) => {
-    const today = normalize(new Date());
-    const items = list
-      .map((r) => ({ d: parseDate(r.ClinicDate), r }))
-      .filter((x) => !isNaN(+x.d))
-      .sort((a, b) => +a.d - +b.d);
-
-    const upcoming = items.find((x) => normalize(x.d).getTime() >= +today);
-    if (upcoming) return upcoming.r;
-    if (items.length) return items[items.length - 1].r;
-    return null;
-  };
 
   const loadReminder = useCallback(async () => {
     try {
@@ -199,31 +255,40 @@ export default function ElderHome() {
       setReminder(null);
 
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        setHint('尚未登入');
+      if (!token) { setHint('尚未登入'); return; }
+
+      const elderId = await resolveElderId();
+      if (typeof elderId !== 'number' || Number.isNaN(elderId)) {
+        setHint('找不到長者身分');
         return;
       }
 
-      const elderIdStr = await AsyncStorage.getItem('elder_id');
-      const elderId = elderIdStr ? Number(elderIdStr) : NaN;
-      if (!elderIdStr || Number.isNaN(elderId)) {
-        setHint('尚未指定長者');
-        return;
-      }
-
-      const res = await axios.get<HospitalRecord[]>(
+      const urls = [
         `${BASE}/api/hospital/list/?user_id=${elderId}`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
-      );
+        `${BASE}/api/hospital/list/`,
+      ];
 
-      const nearest = pickUpcomingNearest(res.data ?? []);
-      if (!nearest) {
-        setHint('尚無看診資料');
-        return;
+      let rows: HospitalRecord[] = [];
+      for (const url of urls) {
+        try {
+          console.log('[ElderHome] fetch:', url);
+          const res = await axios.get<HospitalRecord[]>(url, {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 10000,
+          });
+          console.log('[ElderHome] got count:', Array.isArray(res.data) ? res.data.length : 'N/A');
+          if (Array.isArray(res.data) && res.data.length) { rows = res.data; break; }
+        } catch (e) {
+          console.log('[ElderHome] fetch fail for', url);
+        }
       }
+
+      if (!rows.length) { setHint('尚無看診資料'); return; }
+
+      const nearest = pickUpcomingNearest(rows);
+      if (!nearest) { setHint('尚無看診資料'); return; }
       setReminder(nearest);
-    } catch (e: any) {
-      console.log('載入看診提醒失敗:', e?.response?.status, e?.response?.data);
+    } catch {
       setHint('載入失敗');
     } finally {
       setLoading(false);
@@ -236,7 +301,7 @@ export default function ElderHome() {
     return unsub;
   }, [navigation, loadReminder]);
 
-  // ✅ 進到 ElderHome（或返回）時初始化/刷新通知排程
+  // ✅ 初始化通知排程
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -268,7 +333,6 @@ export default function ElderHome() {
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
             <Text style={styles.userName}>{userName}</Text>
-
           </View>
         </View>
       </View>
@@ -317,7 +381,7 @@ export default function ElderHome() {
           {/* ===== 吃藥提醒（改成第二支樣式） ===== */}
           <TouchableOpacity
             activeOpacity={0.9}
-            disabled={!preview} // ✅ 沒有資料時禁用
+            disabled={!preview}
             onPress={() => {
               if (previewIndex >= 0) {
                 openMedModal(previewIndex);
@@ -326,7 +390,7 @@ export default function ElderHome() {
             style={[
               styles.rowCard,
               styles.cardShadow,
-              { backgroundColor: COLORS.green, opacity: preview ? 1 : 0.5 }, // ✅ 無資料時變淡
+              { backgroundColor: COLORS.green, opacity: preview ? 1 : 0.5 },
             ]}
           >
             <View style={styles.rowTop}>
@@ -545,7 +609,7 @@ const styles = StyleSheet.create({
   noteBox: { marginTop: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   notePlaceholder: { fontSize: 30, fontWeight: '800', color: COLORS.textMid },
 
-  // 新增：看診提醒分行顯示
+  // 看診提醒分行顯示
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   infoText: { fontSize: 24, fontWeight: '800', color: COLORS.textMid },
 

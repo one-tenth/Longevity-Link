@@ -195,8 +195,9 @@ export default function ChildHome() {
               {`日期 ${today}`}
             </Text>
           </View>
+          {/* ✅ 設定鈕改為跳選擇家人頁面 */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('Setting' as never)}
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
           >
             <Feather name="settings" size={22} color={COLORS.black} />
