@@ -30,6 +30,7 @@ import ReminderScreen from './screens/ReminderScreen';
 import CreateFamily from './screens/CreateFamily';
 import FamilySetting from './screens/FamilySetting';
 import JoinFamily from './screens/JoinFamily';
+import EditHospitalRecord from './screens/EditHospitalRecord';
 import Profile from './screens/Profile';
 import FamilyHospitalList from './screens/FamilyHospitalList';
 import FamilyAddHospital from './screens/FamilyAddHospital';
@@ -52,7 +53,9 @@ export type RootStackParamList = {
   MedTimeSetting: undefined;
   Setting: undefined;
   LoginScreen: undefined;
-  RegisterScreen: { mode: 'register' } | { mode: 'addElder'; creatorId: number };
+  RegisterScreen:
+    | { mode: 'register' }
+    | { mode: 'addElder'; creatorId: number };
   Health: undefined;
 
   // 通知相關
@@ -63,6 +66,7 @@ export type RootStackParamList = {
   FamilyScreen: { mode?: 'select' | 'full' } | undefined;
   FamilySetting: undefined;
   JoinFamily: undefined;
+  EditHospitalRecord: undefined;
   CreateFamily: undefined;
   CreateFamilyScreen: undefined;
 
@@ -76,7 +80,6 @@ export type RootStackParamList = {
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
-// ✅ 只保留這個 App
 const App: React.FC = () => {
   useEffect(() => {
     async function initNotifee() {
@@ -98,7 +101,11 @@ const App: React.FC = () => {
             meds: storedMeds ? storedMeds.split(',') : undefined,
             time: storedTime ?? undefined,
           });
-          await AsyncStorage.multiRemove(['notificationPeriod', 'notificationMeds', 'notificationTime']);
+          await AsyncStorage.multiRemove([
+            'notificationPeriod',
+            'notificationMeds',
+            'notificationTime',
+          ]);
         }
       } catch (e) {
         console.warn('initNotifee error:', e);
@@ -107,6 +114,7 @@ const App: React.FC = () => {
 
     initNotifee();
 
+    // 前景點擊通知 → 導到 ElderMedRemind（與冷啟一致）
     const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
       if (type === EventType.PRESS && detail.notification?.data) {
         const { period, meds, time } = detail.notification.data as {
@@ -115,7 +123,7 @@ const App: React.FC = () => {
           time?: string;
         };
         if (navigationRef.isReady() && (period || meds)) {
-          navigationRef.navigate('ElderHome', {
+          navigationRef.navigate('ElderMedRemind', {
             period,
             meds: meds ? meds.split(',') : undefined,
             time,
@@ -130,8 +138,8 @@ const App: React.FC = () => {
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {/* 首頁 / 登入註冊 */}
-        <Stack.Screen name="index" component={index} />
         <Stack.Screen name="LoginScreen" component={LoginScreen} />
+        <Stack.Screen name="index" component={index} />
         <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
 
         {/* 長者端 */}
@@ -146,10 +154,15 @@ const App: React.FC = () => {
         <Stack.Screen name="ChildHome_1" component={ChildHome_1} />
         <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
         <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
+        <Stack.Screen name="EditHospitalRecord" component={EditHospitalRecord} />
         <Stack.Screen name="Health" component={Health} />
         <Stack.Screen name="Medicine" component={Medicine} />
         <Stack.Screen name="MedInfo" component={MedInfo} />
-        <Stack.Screen name="MedInfo_1" component={MedInfo_1} initialParams={{ prescriptionId: '' }} />
+        <Stack.Screen
+          name="MedInfo_1"
+          component={MedInfo_1}
+          initialParams={{ prescriptionId: '' }}
+        />
         <Stack.Screen name="MedRemind" component={MedRemind} />
         <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
         <Stack.Screen name="Setting" component={Setting} />

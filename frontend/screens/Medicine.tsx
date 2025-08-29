@@ -1,149 +1,156 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+import MedInfoScreen from './MedInfo';
+import MedTimeScreen from './MedTimeSetting';
 
 type MedicineNavProp = StackNavigationProp<RootStackParamList, 'Medicine'>;
 
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  textDark: '#111',
+  textMid: '#333',
+  green: '#A6CFA1',
+  gray: '#9AA0A6',
+};
+
+const R = 22;
+const outerShadow = {
+  elevation: 4,
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+};
+
 export default function Medicine() {
   const navigation = useNavigation<MedicineNavProp>();
+  const [activeTab, setActiveTab] = useState<'info' | 'time'>('info');
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-     {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('ChildHome')}>
-          <FontAwesome name="arrow-left" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={{ fontFamily: 'FascinateInline-Regular', fontSize: 40, color: '#FFF' }}>.CareMate.</Text>
+
+    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+      {/* ── Header：左白底返回鍵 + 中綠色用藥功能（置中） + 右占位對稱 */}
+      <View style={styles.headerRow}>
+        <View style={styles.sideSlot}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ChildHome' as never)}
+            style={[styles.backBtn]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <FontAwesome name="arrow-left" size={22} color={COLORS.black} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.centerSlot}>
+          <View style={[styles.featureBanner, outerShadow]}>
+            <MaterialCommunityIcons name="pill" size={28} color={COLORS.black} style={{ marginRight: 10 }} />
+            <Text style={styles.bannerTitle}>用藥功能</Text>
+          </View>
+        </View>
+
+        <View style={styles.sideSlot} />
+
       </View>
 
+      {/* ── Tabs（保留你的圖片；選中黑、未選中灰） */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('info')}>
+          <Image source={require('../img/childhome/file.png')} style={styles.tabIcon} />
+          <Text style={[styles.tabText, activeTab === 'info' ? styles.tabTextActive : styles.tabTextInactive]}>
+            用藥資訊
+          </Text>
+          {activeTab === 'info' && <View style={styles.activeDot} />}
+        </TouchableOpacity>
 
-
-      {/* 藥物功能卡片 */}
-      <View style={styles.labelCard}>
-        <View style={styles.sideBar} />
-        <TouchableOpacity style={styles.cardContent} onPress={() => navigation.navigate('MedTimeSetting')}>
-          <MaterialCommunityIcons name="alarm" size={26} color="#005757" />
-          <Text style={styles.labelText}>用藥時間設定</Text>
-
+        <TouchableOpacity style={styles.tab} onPress={() => setActiveTab('time')}>
+          <Image source={require('../img/childhome/clock.png')} style={styles.tabIcon} />
+          <Text style={[styles.tabText, activeTab === 'time' ? styles.tabTextActive : styles.tabTextInactive]}>
+            時間設定
+          </Text>
+          {activeTab === 'time' && <View style={styles.activeDot} />}
         </TouchableOpacity>
       </View>
 
-      <View style={styles.labelCard}>
-        <View style={styles.sideBar} />
-        <TouchableOpacity style={styles.cardContent} onPress={() => navigation.navigate('MedRemind')}>
-          <MaterialCommunityIcons name="pill" size={26} color="#005757" />
-          <Text style={styles.labelText}>用藥提醒</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── 內容 */}
+      {activeTab === 'info' ? <MedInfoScreen /> : <MedTimeScreen />}
 
-      <View style={styles.labelCard}>
-        <View style={styles.sideBar} />
-        <TouchableOpacity style={styles.cardContent} onPress={() => navigation.navigate('MedInfo')}>
-          <MaterialCommunityIcons name="clipboard-text" size={26} color="#005757" />
-          <Text style={styles.labelText}>用藥資訊</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 底部功能列 */}
-      <View style={styles.bottomBox}>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile')}>
-          <FontAwesome name="user" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>個人</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilySetting')}>
-          <FontAwesome name="home" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>家庭</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('ChildHome')}>
-          <FontAwesome name="exchange" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>切換</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center' },
-
-  header: {
-    width: '100%',
-    height: 70,
-    backgroundColor: '#005757',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 36,
-    color: '#FFF',
-    fontFamily: 'FascinateInline-Regular',
-  },
-  backButton: { position: 'absolute', left: 10 },
-  profileBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
-    padding: 12,
-    backgroundColor: '#F0F8FF',
-    borderRadius: 10,
-    width: '90%',
-  },
-  profileText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 10,
-    color: '#005757',
-  },
-
-  labelCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F0F8FF',
-    borderRadius: 12,
-    width: '90%',
-    height: 80,
-    marginTop: 20,
-    overflow: 'hidden',
-    elevation: 2,
-  },
-  sideBar: {
-    width: 10,
-    backgroundColor: '#007979',
-  },
-  cardContent: {
-    flex: 1,
+  /* 三欄：左 48 / 中 flex / 右 48，確保中間真正置中 */
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    gap: 12,
+    marginTop: 14,
+    marginBottom: 8,
+    minHeight: 76,
   },
-  labelText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#005757',
+  sideSlot: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerSlot: {
+    flex: 1,
+    alignItems: 'center',                  // 綠色卡片在中間欄置中
+    justifyContent: 'center',
+  },
+  featureBanner: {
+    width: '90%',                          // 綠色卡片寬度
+    minHeight: 64,
+    backgroundColor: COLORS.green,
+    borderRadius: R,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',              // icon + 文字置中
+  },
+  bannerTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.black,
+    letterSpacing: 0.3,
   },
 
-  bottomBox: {
-    position: 'absolute',
-    bottom: 20,
+  tabRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingVertical: 10,
-    borderRadius: 50,
-    width: '90%',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E6E6E6',
   },
-  settingItem: { alignItems: 'center' },
-  settingLabel: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 2,
-    fontWeight: '900',
+  tab: { alignItems: 'center' },
+  tabIcon: { width: 40, height: 40, marginBottom: 4 },
+  tabText: { fontSize: 15, fontWeight: '800' },
+  tabTextActive: { color: COLORS.black },
+  tabTextInactive: { color: COLORS.gray },
+  activeDot: {
+    marginTop: 6,
+    width: 24,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.black,
   },
 });

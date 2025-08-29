@@ -974,23 +974,43 @@ def _resolve_target_user_id(request):
     return None
 
 
+# views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Hos
+from .serializers import HosSerializer
+
+def _resolve_target_user_id(request):
+    """解析目標 elder user_id：家人端必帶 ?user_id，長者端預設用 request.user.id"""
+    q = request.query_params.get("user_id")
+    if q:
+        try:
+            return int(q)
+        except ValueError:
+            return None
+    return request.user.id
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def hospital_list(request):
-    """
-    查看診紀錄：
-    - 老人：自己的
-    - 家人：帶 ?user_id=老人ID（必帶），且需通過授權檢查
-    """
     target_id = _resolve_target_user_id(request)
     if not target_id:
         return Response({"error": "沒有指定老人"}, status=400)
 
-    qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
-    # 你已有 HosSerializer
-    from .serializers import HosSerializer
+    try:
+        # 嘗試 ForeignKey(User) 寫法
+        qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+        if not qs.exists():
+            # 若沒有 → 改用 IntegerField 寫法
+            qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
+    except Exception:
+        # 模型若沒有 UserID_id 這個屬性，直接 fallback 為 IntegerField
+        qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
+
     ser = HosSerializer(qs, many=True)
     return Response(ser.data)
+
 
 
 @api_view(['POST'])

@@ -47,7 +47,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://192.168.0.55:8000/api/account/login/', {
+      const response = await fetch('http://140.131.115.97:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
@@ -166,12 +166,7 @@ export default function LoginScreen() {
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.smallButton, { backgroundColor: '#37613C' }]} // 同登入顏色
-          onPress={() => navigation.navigate('index')}
-        >     
-        <Text style={styles.smallButtonText}>返回主頁</Text>
-        </TouchableOpacity>
+
       </View>
     </>
   );
