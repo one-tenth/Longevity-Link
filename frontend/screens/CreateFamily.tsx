@@ -67,7 +67,7 @@ export default function CreateFamily() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.button}
               onPress={() => navigation.navigate('JoinFamily')}
               activeOpacity={0.85}
@@ -75,7 +75,7 @@ export default function CreateFamily() {
               <View style={styles.buttonInner}>
                 <Text style={styles.buttonText}>加入家庭</Text>
               </View>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </ScrollView>
       </View>

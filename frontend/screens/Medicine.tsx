@@ -45,7 +45,7 @@ export default function Medicine() {
       <View style={styles.headerRow}>
         <View style={styles.sideSlot}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('ChildHome_1' as never)}
+            onPress={() => navigation.navigate('ChildHome' as never)}
             style={[styles.backBtn]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >

@@ -80,7 +80,7 @@ export default function ProfileScreen() {
       }
 
       try {
-        const res = await fetch('http://192.168.0.19:8000/account/me/', {
+        const res = await fetch('http://140.131.115.97:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');

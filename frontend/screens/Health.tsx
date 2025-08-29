@@ -33,7 +33,7 @@ const outerShadow = {
 } as const;
 
 // 改成你原本使用的後端 IP
-const BASE = 'http://192.168.0.19:8000';
+const BASE = 'http://140.131.115.97:8000';
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
@@ -96,7 +96,7 @@ export default function HealthStatus() {
       <View style={styles.header}>
         {/* ← 保留你自己的返回鍵（feature/ip_family_frontend） */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('ChildHome_1' as never)}
+          onPress={() => navigation.navigate('ChildHome' as never)}
           style={styles.backFab}
         >
           <FontAwesome name="arrow-left" size={20} color={COLORS.black} />

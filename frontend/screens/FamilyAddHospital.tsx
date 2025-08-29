@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://192.168.0.19:8000';
+const BASE = 'http://140.131.115.97:8000';
 
 // 自動帶 token；401 refresh 後重試一次
 async function authPost<T>(url: string, data: any) {
@@ -38,7 +38,6 @@ async function authPost<T>(url: string, data: any) {
 
 export default function FamilyAddHospital() {
   const route = useRoute<any>();
-  // ✅ 型別化 navigation，之後不需要 as never
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   // 參數 + 狀態
@@ -97,63 +96,63 @@ export default function FamilyAddHospital() {
   const openTime = () => setShowTime(true);
 
   const handleAdd = async () => {
-  setLoading(true);
-  try {
-    const token = await AsyncStorage.getItem('access');
-    if (!token) {
-      Alert.alert('錯誤', '尚未登入');
-      return;
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        Alert.alert('錯誤', '尚未登入');
+        return;
+      }
+
+      let effElderId: number | null =
+        typeof route?.params?.elderId === 'number' ? route.params.elderId :
+        (elderId !== null ? elderId : null);
+
+      if (effElderId === null) {
+        const savedIdStr = await AsyncStorage.getItem('elder_id');
+        const savedId = savedIdStr ? Number(savedIdStr) : NaN;
+        if (!Number.isNaN(savedId)) effElderId = savedId;
+      }
+
+      console.log('[Add] effElderId=', effElderId, 'state elderId=', elderId, 'route=', route?.params);
+
+      if (effElderId === null || Number.isNaN(effElderId)) {
+        Alert.alert('提醒', '尚未指定要寫入的長者，將帶您回去選擇', [
+          { text: '好', onPress: () => navigation.navigate('FamilyScreen', { mode: 'select' }) }
+        ]);
+        return;
+      }
+
+      if (!clinicPlace.trim()) {
+        Alert.alert('提醒', '請填寫地點');
+        return;
+      }
+      if (!doctor.trim()) {
+        Alert.alert('提醒', '請填寫醫師');
+        return;
+      }
+
+      const dateStr = clinicDate.toISOString().split('T')[0];
+
+      // ✅ 改成用 query 的 user_id，且不要在 body 放 elder_id
+      await authPost(`/api/hospital/create/?user_id=${effElderId}`, {
+        ClinicDate: dateStr,                 // YYYY-MM-DD
+        ClinicPlace: clinicPlace.trim(),
+        Doctor: doctor.trim(),
+        Num: Number(num) || 0
+      });
+
+      Alert.alert('成功', '新增成功');
+      navigation.goBack();
+    } catch (e: any) {
+      console.log('status=', e?.response?.status);
+      console.log('data=', e?.response?.data);
+      const msg = e?.response?.data?.error || e?.response?.data?.detail || '新增失敗，請稍後再試';
+      Alert.alert('錯誤', msg);
+    } finally {
+      setLoading(false);
     }
-
-    let effElderId: number | null =
-      typeof route?.params?.elderId === 'number' ? route.params.elderId :
-      (elderId !== null ? elderId : null);
-
-    if (effElderId === null) {
-      const savedIdStr = await AsyncStorage.getItem('elder_id');
-      const savedId = savedIdStr ? Number(savedIdStr) : NaN;
-      if (!Number.isNaN(savedId)) effElderId = savedId;
-    }
-
-    console.log('[Add] effElderId=', effElderId, 'state elderId=', elderId, 'route=', route?.params);
-
-    if (effElderId === null || Number.isNaN(effElderId)) {
-      Alert.alert('提醒', '尚未指定要寫入的長者，將帶您回去選擇', [
-        { text: '好', onPress: () => navigation.navigate('FamilyScreen', { mode: 'select' }) }
-      ]);
-      return;
-    }
-
-    if (!clinicPlace.trim()) {
-      Alert.alert('提醒', '請填寫地點');
-      return;
-    }
-    if (!doctor.trim()) {
-      Alert.alert('提醒', '請填寫醫師');
-      return;
-    }
-
-    const dateStr = clinicDate.toISOString().split('T')[0];
-
-    await authPost('/api/hospital/create/', {
-      elder_id: effElderId,
-      ClinicDate: dateStr,
-      ClinicPlace: clinicPlace.trim(),
-      Doctor: doctor.trim(),
-      Num: Number(num) || 0
-    });
-
-    Alert.alert('成功', '新增成功');
-    navigation.goBack();
-  } catch (e: any) {
-    console.log('status=', e?.response?.status);
-    console.log('data=', e?.response?.data);
-    Alert.alert('錯誤', e?.response?.data?.error || '新增失敗，請稍後再試');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const dateLabel = clinicDate.toLocaleDateString();
   const hour = clinicDate.getHours().toString().padStart(2, '0');
@@ -208,17 +207,17 @@ export default function FamilyAddHospital() {
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-        <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
-        <Text style={styles.cardTitle}>號碼</Text>
+          <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
+          <Text style={styles.cardTitle}>號碼</Text>
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="例如 25"
+          keyboardType="numeric"
+          value={num}
+          onChangeText={setNum}
+        />
       </View>
-  <TextInput
-    style={styles.input}
-    placeholder="例如 25"
-    keyboardType="numeric"
-    value={num}
-    onChangeText={setNum}
-  />
-</View>
 
       {loading ? (
         <ActivityIndicator size="large" style={{ marginTop: 20 }} />
