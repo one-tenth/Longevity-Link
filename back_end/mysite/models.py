@@ -151,10 +151,10 @@ class MedTimeSetting(models.Model):
 class CallRecord(models.Model):
     CallId = models.AutoField(primary_key=True)
     UserId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserId')
-    PhoneName = models.CharField(max_length=10)
-    Phone = models.CharField(max_length=15, validators=[RegexValidator(regex=r'^\+8869\d{8}$')], unique=True)
-    PhoneTime = models.CharField(max_length=10)
-    IsScam = models.BooleanField()
+    PhoneName = models.CharField(max_length=50)  
+    Phone = models.CharField(max_length=20)      
+    PhoneTime = models.CharField(max_length=20)  
+    IsScam = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "Call record"

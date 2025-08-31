@@ -1,75 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Platform,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// navigation 型別定義
-type MedTimeSettingNavProp = StackNavigationProp<RootStackParamList, 'MedTimeSetting'>;
+type TimeItem = { label: string; time: string; };
 
-type TimeItem = {
-  label: string;
-  time: string;
+const COLORS = {
+  screenBg: '#B7D77C',   // 外層綠
+  phoneBg: '#FFFFB9',
+  black: '#111111',
+  white: '#FFFFFF',
+  card: '#0E0E0E',
+  rail: '#7FB57B',
+  textLight: '#D9D9D9',
 };
 
-export default function TimeSettingInput() {
-  const navigation = useNavigation<MedTimeSettingNavProp>();
+const STEP = 110;                // 卡片垂直間距
+const RAIL_LEFT = 16;            // 直線左距
+const RAIL_WIDTH = 4;            // 直線寬（偶數較佳）
+const DOT_SIZE = 12;             // 圓點直徑
+const DOT_TOP_START = 18;        // 第一顆圓點的頂部位移
 
+// 卡片與綠線的水平距離
+const CARD_LEFT = 56;
+
+const outerShadow = {
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOpacity: 0.10,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 6 },
+} as const;
+
+const BASE = 'http://10.2.61.2:8000';
+
+export default function TimeSettingInput() {
   const [times, setTimes] = useState<TimeItem[]>([
     { label: '早上', time: '08:00' },
     { label: '中午', time: '12:00' },
     { label: '晚上', time: '18:00' },
     { label: '睡前', time: '20:00' },
   ]);
-
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [elderId, setElderId] = useState<number | null>(null);
 
-
-  // 🔽 載入時間設定
   useEffect(() => {
-    loadTimeSetting();
+    const fetchElderIdAndTime = async () => {
+      try {
+        const selectedMember = await AsyncStorage.getItem('selectedMember');
+        let id: number | null = null;
+        if (selectedMember) {
+          const parsed = JSON.parse(selectedMember);
+          id = parsed?.UserID ?? null;
+          setElderId(id);
+        }
+        await loadTimeSetting(id); // 直接用取得的 id，避免 state 未即時更新
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchElderIdAndTime();
   }, []);
 
-  const loadTimeSetting = async () => {
+  const loadTimeSetting = async (idFromArg?: number | null) => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('未登入', '請重新登入');
-        return;
-      }
+      const id = idFromArg ?? elderId;
+      if (!token || !id) return;
 
       const response = await axios.get(
-        'http://192.168.0.55:8000/api/get-med-time/',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        `${BASE}/api/get-med-time/?UserID=${id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const data = response.data;
-      const updated = [...times];
-      updated[0].time = data.MorningTime || '08:00';
-      updated[1].time = data.NoonTime || '12:00';
-      updated[2].time = data.EveningTime || '18:00';
-      updated[3].time = data.Bedtime || '20:00';
-      setTimes(updated);
-      console.log('✅ 成功載入時間設定:', data);
-    } catch (error: any) {
-      console.log('⚠️ 載入失敗或尚未設定:', error.response?.data || error.message);
+      const data = response.data || {};
+      setTimes([
+        { label: '早上', time: data.MorningTime || '08:00' },
+        { label: '中午', time: data.NoonTime || '12:00' },
+        { label: '晚上', time: data.EveningTime || '18:00' },
+        { label: '睡前', time: data.Bedtime || '20:00' },
+      ]);
+    } catch (e) {
+      // 可視需要提示
     }
   };
 
@@ -91,24 +107,21 @@ export default function TimeSettingInput() {
   const handleSave = async () => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('登入失效', '請重新登入');
+      if (!token || !elderId) {
+        Alert.alert('請先選擇長者或登入');
         return;
       }
 
       const response = await axios.post(
-        'http://192.168.0.55:8000/api/create-med-time/',
+        `${BASE}/api/create-med-time/`,
         {
+          UserID: elderId, // ✅ 傳送正確長者 ID
           MorningTime: times[0].time,
           NoonTime: times[1].time,
           EveningTime: times[2].time,
           Bedtime: times[3].time,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       console.log('✅ 儲存成功:', response.data);
@@ -120,152 +133,114 @@ export default function TimeSettingInput() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Medicine')}>
-          <FontAwesome name="arrow-left" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.title}>.CareMate.</Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: COLORS.screenBg }}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.screenBg} />
 
-      <Text style={styles.sectionTitle}>時間設定</Text>
-
-      <ScrollView style={styles.scrollContainer}>
-        {times.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.timeRow}
-            onPress={() => {
-              setPickerIndex(index);
-              setShowPicker(true);
-            }}
-          >
-            <View style={styles.timeBlock}>
-              <View style={styles.labelBox}><Text style={styles.labelText}>{item.label}</Text></View>
-              <View style={styles.line} />
-              <View style={styles.timeBox}><Text style={styles.timeText}>{item.time}</Text></View>
+      <View style={[styles.phone, outerShadow]}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 90 }}>
+          <View style={styles.timelineWrap}>
+            {/* 直線容器（圓點放裡面，水平必定置中） */}
+            <View style={[styles.rail, { left: RAIL_LEFT, width: RAIL_WIDTH }]}>
+              {times.map((_, i) => (
+                <View
+                  key={`dot-${i}`}
+                  style={[
+                    styles.dot,
+                    {
+                      top: DOT_TOP_START + i * STEP,
+                      left: (RAIL_WIDTH - DOT_SIZE) / 2,
+                      width: DOT_SIZE,
+                      height: DOT_SIZE,
+                      borderRadius: DOT_SIZE / 2,
+                    },
+                  ]}
+                />
+              ))}
             </View>
+
+            {/* 4 張卡片（整排右移，離綠線更遠） */}
+            {times.map((item, i) => (
+              <TouchableOpacity
+                key={item.label}
+                activeOpacity={0.9}
+                onPress={() => { setPickerIndex(i); setShowPicker(true); }}
+                style={[styles.taskCard, outerShadow, { top: i * STEP }]}
+              >
+                <Text style={styles.timeLabel}>
+                  {item.time} <Text style={styles.timeSub}>· {item.label}</Text>
+                </Text>
+                <Text style={styles.desc} numberOfLines={2}>修改 {item.label} 時間</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* 底部儲存 */}
+        <View pointerEvents="box-none" style={styles.fabWrap}>
+          <TouchableOpacity activeOpacity={0.9} onPress={handleSave} style={styles.saveBar}>
+            <Text style={styles.saveText}>儲存</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        </View>
+      </View>
 
       {showPicker && pickerIndex !== null && (
         <DateTimePicker
           value={new Date(`2023-01-01T${times[pickerIndex].time}`)}
           mode="time"
-          is24Hour={true}
+          is24Hour
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={handleTimeChange}
         />
       )}
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={[styles.button, { backgroundColor: '#005757' }]} onPress={handleSave}>
-          <Text style={styles.buttonText}>儲存</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    width: '100%',
-    height: 70,
-    backgroundColor: '#005757',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButton: { position: 'absolute', left: 10 },
-  title: {
-    fontSize: 36,
-    color: '#FFF',
-    fontFamily: 'FascinateInline-Regular',
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#005757',
-    textAlign: 'center',
-    marginVertical: 10,
-  },
-  scrollContainer: {
-    width: '90%',
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  timeRow: {
-    width: '100%',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  timeBlock: {
-    width: '90%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  labelBox: {
-    width: '30%',
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    borderColor:'#004B97',
-    borderWidth: 3,
-    padding: 10,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  labelText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#333',
-  },
-  line: {
+  phone: {
     flex: 1,
-    height: 5,
-    backgroundColor: '#000079',
-    marginHorizontal: 1,
+    margin: 16,
+    borderRadius: 34,
+    backgroundColor: COLORS.white, // ← 淡黃色
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
-  timeBox: {
-    width: '60%',
-    height: 65,
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    borderColor:'#004B97',
-    borderWidth: 3,
-    padding: 10,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-timeText: {
-  fontSize: 22,
-  fontWeight: 'bold',
-  color: '#333',
-  backgroundColor: '#FFF',
-  paddingHorizontal: 16,
-  paddingVertical: 6,
-},
 
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-    marginBottom: 20,
+  timelineWrap: {
+    marginTop: 8,
+    position: 'relative',
+    paddingLeft: CARD_LEFT,
+    minHeight: 18 + STEP * 3 + 100,
   },
-  button: {
-    width: '50%',
-    height: 60,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#000',
-    alignItems: 'center',
+
+  rail: {
+    position: 'absolute',
+    top: 12,
+    bottom: 12,
+    backgroundColor: COLORS.rail,
+    borderRadius: 2,
+    overflow: 'visible',
   },
-  buttonText: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#fff',
-    alignItems: 'center',
+  dot: {
+    position: 'absolute',
+    backgroundColor: COLORS.rail,
   },
+
+  taskCard: {
+    position: 'absolute',
+    left: CARD_LEFT,
+    right: 8,
+    backgroundColor: COLORS.card,
+    borderRadius: 22,
+    padding: 16,
+    marginTop: 12,
+  },
+  timeLabel: { fontSize: 20, fontWeight: '900', color: COLORS.white, marginBottom: 6 },
+  timeSub:   { fontSize: 18, color: COLORS.textLight, fontWeight: '900' },
+  desc:      { fontSize: 13, color: COLORS.textLight },
+
+  fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 14, alignItems: 'center' },
+  saveBar: { backgroundColor: COLORS.black, borderRadius: 22, height: 54, paddingHorizontal: 28, alignItems: 'center', justifyContent: 'center' },
+  saveText: { fontSize: 18, fontWeight: '900', color: COLORS.white },
 });

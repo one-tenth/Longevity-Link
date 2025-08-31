@@ -31,7 +31,7 @@ const HomeScreen: React.FC = () => {
       if (!token) return;
 
       try {
-        const res = await fetch('http://192.168.1.84:8000/account/me/', {
+        const res = await fetch('http://10.2.61.2:8000/account/me/', {
           headers: {
             Authorization: `Bearer ${token}`,
           },

@@ -14,6 +14,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+// 0822(onetenth)
+import { initMedicationNotifications } from '../utils/initNotification'; // 根據實際路徑調整
+
 
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -44,7 +47,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://192.168.1.84:8000/api/account/login/', {
+      const response = await fetch('http://10.2.61.2:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
@@ -70,6 +73,10 @@ export default function LoginScreen() {
         await AsyncStorage.setItem('FamilyID', String(user.FamilyID || ''));
         await AsyncStorage.setItem('RelatedID', String(user.RelatedID || ''));
         await AsyncStorage.setItem('userID', String(user.UserID));
+
+
+        // ✅ 登入成功後初始化吃藥通知(0822)
+        await initMedicationNotifications();
 
         Alert.alert('登入成功', `歡迎 ${user.Name}`);
 
@@ -159,12 +166,7 @@ export default function LoginScreen() {
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.smallButton, { backgroundColor: '#37613C' }]} // 同登入顏色
-          onPress={() => navigation.navigate('index')}
-        >     
-        <Text style={styles.smallButtonText}>返回主頁</Text>
-        </TouchableOpacity>
+
       </View>
     </>
   );
