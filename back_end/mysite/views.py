@@ -880,3 +880,268 @@ from .serializers import UserMeSerializer
 def get_me(request):
     serializer = UserMeSerializer(request.user)
     return Response(serializer.data)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Hos
+from mysite.models import User  # 你的 User 模型
+from django.shortcuts import get_object_or_404
+
+def _resolve_target_user_id(request):
+    """
+    解析本次操作的老人 UserID：
+    - 老人登入：就是自己
+    - 家人登入：優先讀 ?user_id= 或 body 的 elder_id/user_id，
+      並檢查是否同家庭（或老人.RelatedID == 自己）才放行
+    """
+    me = request.user
+
+    # 1) 老人登入：直接回自己
+    if getattr(me, 'is_elder', False):
+        return getattr(me, 'UserID', None) or getattr(me, 'pk', None)
+
+    # 2) 家人登入：從參數拿 user_id / elder_id
+    raw = (
+        request.query_params.get('user_id')
+        or request.data.get('elder_id')
+        or request.data.get('user_id')
+    )
+    if not raw:
+        return None
+
+    try:
+        uid = int(raw)
+    except (TypeError, ValueError):
+        return None
+
+    elder = get_object_or_404(User, UserID=uid)
+
+    # 授權檢查（擇一或都檢）：
+    # A) 同家庭
+    same_family = (getattr(elder, 'FamilyID_id', None) and
+                   getattr(me, 'FamilyID_id', None) and
+                   elder.FamilyID_id == me.FamilyID_id)
+
+    # B) 老人的 RelatedID 指向自己（你建立長者時就這樣設）
+    related_to_me = (getattr(elder, 'RelatedID_id', None) == getattr(me, 'UserID', None))
+
+    if same_family or related_to_me:
+        return uid
+
+    return None
+
+
+# views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Hos
+from .serializers import HosSerializer
+
+def _resolve_target_user_id(request):
+    """解析目標 elder user_id：家人端必帶 ?user_id，長者端預設用 request.user.id"""
+    q = request.query_params.get("user_id")
+    if q:
+        try:
+            return int(q)
+        except ValueError:
+            return None
+    return request.user.id
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def hospital_list(request):
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    try:
+        # 嘗試 ForeignKey(User) 寫法
+        qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+        if not qs.exists():
+            # 若沒有 → 改用 IntegerField 寫法
+            qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
+    except Exception:
+        # 模型若沒有 UserID_id 這個屬性，直接 fallback 為 IntegerField
+        qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
+
+    ser = HosSerializer(qs, many=True)
+    return Response(ser.data)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def hospital_create(request):
+    """
+    新增看診紀錄：
+    - 老人：自己
+    - 家人：必須帶 elder_id/user_id 指定長者
+    """
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    data = request.data.copy()
+
+    # 日期只留 YYYY-MM-DD（若是 DateField）
+    if 'ClinicDate' in data and isinstance(data['ClinicDate'], str) and ' ' in data['ClinicDate']:
+        data['ClinicDate'] = data['ClinicDate'].split(' ')[0]
+
+    from .serializers import HosSerializer
+    ser = HosSerializer(data=data)
+    if ser.is_valid():
+        ser.save(UserID_id=target_id)  # ✅ 明確綁定老人
+        return Response(ser.data, status=201)
+    return Response(ser.errors, status=400)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def hospital_delete(request, pk):
+    """
+    刪除看診紀錄：
+    - 老人：可刪自己的
+    - 家人：帶 ?user_id=老人ID，且需通過授權檢查
+    """
+    target_id = _resolve_target_user_id(request)
+    if not target_id:
+        return Response({"error": "沒有指定老人"}, status=400)
+
+    deleted_count, _ = Hos.objects.filter(pk=pk, UserID_id=target_id).delete()
+    if deleted_count == 0:
+        return Response({"error": "找不到資料或無權限刪除"}, status=404)
+
+    return Response({"message": "已刪除"}, status=200)
+
+
+#定位----------
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.throttling import UserRateThrottle
+from django.db.models import OuterRef, Subquery
+from django.contrib.auth import get_user_model
+
+from .models import LocaRecord
+from .permissions import IsElder
+from .serializers import LocationUploadSerializer, LocationLatestSerializer
+
+User = get_user_model()
+
+class UploadLocationThrottle(UserRateThrottle):
+    rate = '60/min'  #可調整
+
+def _same_family(u1, u2) -> bool:
+    return (
+        getattr(u1, 'FamilyID_id', None) is not None and
+        getattr(u2, 'FamilyID_id', None) is not None and
+        u1.FamilyID_id == u2.FamilyID_id
+    )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsElder])   # 僅長者可上傳
+@throttle_classes([UploadLocationThrottle])
+def upload_location(request):
+    ser = LocationUploadSerializer(data=request.data, context={'user': request.user})
+    if not ser.is_valid():
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    rec = ser.save()
+    out = LocationLatestSerializer(rec).data  # lat,lon,ts
+    return Response({'ok': True, 'user': request.user.pk, **out}, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_latest_location(request, user_id: int):
+    # 本人和同家庭才可查訊
+    if request.user.pk == user_id:
+        target = request.user
+    else:
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': '使用者不存在'}, status=status.HTTP_404_NOT_FOUND)
+        if not getattr(target, 'is_elder', False):
+            return Response({'error': '不是長者帳號'}, status=status.HTTP_400_BAD_REQUEST)
+        if not _same_family(request.user, target):
+            return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    rec = (LocaRecord.objects
+           .filter(UserID=target)
+           .order_by('-Timestamp')
+           .only('Latitude', 'Longitude', 'Timestamp')
+           .first())
+    if not rec:
+        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
+
+    out = LocationLatestSerializer(rec).data
+    return Response({'ok': True, 'user': target.pk, **out}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_family_locations(request, family_id: int):
+    # 僅可查詢自己的家庭
+    if request.user.FamilyID_id is None:
+        return Response({'error': '尚未加入任何家庭'}, status=status.HTTP_400_BAD_REQUEST)
+    if request.user.FamilyID_id != family_id:
+        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    latest_qs = (LocaRecord.objects
+                 .filter(UserID_id=OuterRef('pk'))
+                 .order_by('-Timestamp'))
+
+    elders = (User.objects
+              .filter(FamilyID_id=family_id, is_elder=True)
+              .annotate(
+                  last_time=Subquery(latest_qs.values('Timestamp')[:1]),
+                  last_lat =Subquery(latest_qs.values('Latitude')[:1]),
+                  last_lon =Subquery(latest_qs.values('Longitude')[:1]),
+              )
+              .filter(last_time__isnull=False)
+              .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lon', 'last_time'))
+
+    results = [{
+        'user': e['UserID'],
+        'name': e['Name'] or e['Phone'],
+        'lat': float(e['last_lat']),
+        'lon': float(e['last_lon']),
+        'ts': e['last_time'],
+    } for e in elders]
+
+    return Response({'ok': True, 'family_id': family_id, 'count': len(results), 'results': results},
+                    status=status.HTTP_200_OK)
+
+from django.conf import settings
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+import requests, functools
+from rest_framework.permissions import AllowAny
+
+
+@functools.lru_cache(maxsize=2048)
+def _google_reverse(lat, lng, lang):
+    r = requests.get(
+        "https://maps.googleapis.com/maps/api/geocode/json",
+        params={"latlng": f"{lat},{lng}", "language": lang, "key": settings.GOOGLE_MAPS_KEY},
+        timeout=8,
+    )
+    j = r.json()
+    if j.get("status") == "OK" and j.get("results"):
+        return j["results"][0]["formatted_address"]
+    return None
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def reverse_geocode(request):
+    lat = request.GET.get("lat")
+    lng = request.GET.get("lng")
+    lang = request.GET.get("lang", "zh-TW")
+    if not (lat and lng):
+        return Response({"error": "lat/lng required"}, status=400)
+    addr = _google_reverse(str(lat), str(lng), lang)
+    return Response({"address": addr})

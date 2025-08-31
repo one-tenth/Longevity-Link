@@ -56,7 +56,7 @@ dependencies {
     implementation "com.google.android.gms:play-services-location:21.0.1"
     //确保 base 版本
     implementation 'com.google.android.gms:play-services-base:18.2.0'
-
+    
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
     if (hermesEnabled.toBoolean()) {

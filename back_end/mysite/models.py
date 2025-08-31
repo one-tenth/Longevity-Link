@@ -189,5 +189,6 @@ class LocaRecord(models.Model):
         verbose_name = "LocaRecord"
         verbose_name_plural = "LocaRecords"
         indexes = [
-            models.Index(fields=['UserID', '-Timestamp']),  # ✅ 查最新更快
+            models.Index(fields=['UserID', '-Timestamp']),  
         ]
+        ordering = ['-Timestamp'] 

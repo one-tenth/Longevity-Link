@@ -17,6 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from mysite import views
+from django.http import JsonResponse
+from mysite.views import reverse_geocode
+
+def ping(_request):
+    return JsonResponse({"ok": True, "service": "backend", "path": "/api/ping/"})
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -38,9 +44,12 @@ urlpatterns = [
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
     path('me/', views.get_me),
+    path('api/hospital/list/', views.hospital_list),
+    path('api/hospital/create/', views.hospital_create),
+    path('api/hospital/<int:pk>/', views.hospital_delete, name='hospital_delete'),
     path('api/location/upload/',  views.upload_location, name='upload_location'),
     path('api/location/latest/<int:user_id>/', views.get_latest_location, name='get_latest_location'),
-    path('api/location/family/<int:family_id>/', views.get_family_locations, name='get_family_locations')
-   
-
+    path('api/location/family/<int:family_id>/', views.get_family_locations, name='get_family_locations'),
+    path("api/reverse_geocode/", reverse_geocode),
 ]
+

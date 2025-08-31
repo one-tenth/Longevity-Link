@@ -122,9 +122,9 @@ SIMPLE_JWT = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
+        'NAME': 'caremate_0830',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'root1234',  # ← 請重新貼上確認 
+        'PASSWORD': 'root1234',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }
@@ -176,3 +176,9 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+import os
+GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_KEY")  #金鑰在專案的 .env
+GOOGLE_GEOCODING_KEY = os.getenv("GOOGLE_GEOCODING_KEY")
+
+

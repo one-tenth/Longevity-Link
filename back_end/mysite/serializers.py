@@ -1,7 +1,7 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
 
-from .models import User,Med,FitData,Family,MedTimeSetting
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos,LocaRecord
 
 from .models import User,Med,FitData,LocaRecord
 
@@ -76,21 +76,50 @@ class FamilySerializer(serializers.ModelSerializer):
 
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
-        model = LocaRecord
-        fields = ['LocationID', 'UserID', 'Latitude', 'Longitude', 'Timestamp']
-        read_only_fields = ['LocationID', 'Timestamp']  # UserID 可保留可寫，或一律 read_only 由後端注入
+        model = Hos
+        fields = '__all__'
+        extra_kwargs = {
+            'UserID': {'read_only': True}  # ✅ 這行是關鍵
+        }
+
+
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import LocaRecord
+
+User = get_user_model()
+
+class LocationUploadSerializer(serializers.Serializer):
+    # 統一格式 lat/lon
+    lat = serializers.FloatField(required=True)
+    lon = serializers.FloatField(required=True)
 
     def validate(self, attrs):
-        lat = attrs.get('Latitude')
-        lng = attrs.get('Longitude')
-        if lat is None or lng is None:
-            raise serializers.ValidationError('缺少座標')
-        if not (-90.0 <= float(lat) <= 90.0) or not (-180.0 <= float(lng) <= 180.0):
-            raise serializers.ValidationError('座標超出範圍（lat:-90~90, lng:-180~180）')
+        lat, lon = attrs['lat'], attrs['lon']
+        if not (-90 <= lat <= 90):
+            raise serializers.ValidationError({"lat": "緯度必須在 -90 ~ 90"})
+        
+        if not (-180 <= lon <= 180):
+            raise serializers.ValidationError({"lon": "經度必須在 -180 ~ 180"})
         return attrs
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        if instance.Timestamp:
-            data['Timestamp'] = instance.Timestamp.isoformat()
-        return data
+    def create(self, validated_data):
+        user = self.context['user']  # view 傳入 request.user為長者
+        return LocaRecord.objects.create(
+            UserID=user,
+            Latitude=validated_data['lat'],
+            Longitude=validated_data['lon'],
+        )
+
+class LocationLatestSerializer(serializers.ModelSerializer):
+
+    lat = serializers.SerializerMethodField()
+    lon = serializers.SerializerMethodField()
+    ts  = serializers.DateTimeField(source='Timestamp')
+
+    class Meta:
+        model  = LocaRecord
+        fields = ['lat', 'lon', 'ts']
+
+    def get_lat(self, obj): return float(obj.Latitude)
+    def get_lon(self, obj): return float(obj.Longitude)
