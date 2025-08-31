@@ -24,9 +24,13 @@ android {
     defaultConfig {
         applicationId "com.frontend"
         minSdkVersion 24
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0"
+
+        manifestPlaceholders = [
+        GOOGLE_MAPS_API_KEY: project.findProperty("GOOGLE_MAPS_API_KEY") ?: ""
+    ]
     }
     signingConfigs {
         debug {
@@ -50,7 +54,14 @@ android {
 
 dependencies {
     implementation("com.facebook.react:react-android")
-    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+
+    //定位
+    
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'com.google.android.gms:play-services-maps:18.1.0'
+
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

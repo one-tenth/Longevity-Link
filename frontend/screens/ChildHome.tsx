@@ -20,7 +20,7 @@ interface Member {
   RelatedID?: number | null;
 }
 
-const API_BASE = 'http://140.131.115.97:8000';
+const API_BASE = 'http://10.2.61.2:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -177,6 +177,20 @@ export default function ChildHome() {
     } as never);
   };
 
+  // 定位按鈕
+  const goLocation = async () => {
+    if (!selectedMember) {
+      Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never); 
+      return;
+    }
+    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;      
+    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');   
+    await AsyncStorage.setItem('elder_id', String(elderId));                
+    navigation.navigate('Location' as never, { elderId, elderName: selectedMember.Name } as never); 
+  };
+
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -252,6 +266,14 @@ export default function ChildHome() {
             icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
             label="通話紀錄"
             onPress={() => navigation.navigate('CallRecord' as never)}
+            darkLabel={false}
+          />
+           <QuickIcon
+            big
+            bg={COLORS.green}
+            icon={<MaterialIcons name="location-on" size={32} color={COLORS.black} />}
+            label="家人定位"
+            onPress={goLocation}          
             darkLabel={false}
           />
         </View>

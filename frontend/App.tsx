@@ -35,6 +35,8 @@ import Profile from './screens/Profile';
 import FamilyHospitalList from './screens/FamilyHospitalList';
 import FamilyAddHospital from './screens/FamilyAddHospital';
 import ElderMedRemind from './screens/ElderMedRemind';
+import Location from './screens/Location';
+import ElderLocation from './screens/ElderLocation';
 
 // ---- Stack params ----
 export type RootStackParamList = {
@@ -69,6 +71,10 @@ export type RootStackParamList = {
   EditHospitalRecord: undefined;
   CreateFamily: undefined;
   CreateFamilyScreen: undefined;
+
+  //定位相關
+  Location: { elderId: number };
+  ElderLocation: undefined;
 
   // 其他
   Profile: undefined;
@@ -173,6 +179,12 @@ const App: React.FC = () => {
         <Stack.Screen name="JoinFamily" component={JoinFamily} />
         <Stack.Screen name="CreateFamily" component={CreateFamily} />
         <Stack.Screen name="CreateFamilyScreen" component={CreateFamily} />
+
+
+        {/* 定位 */}
+        <Stack.Screen name="Location" component={Location} />
+        <Stack.Screen name="ElderLocation" component={ElderLocation} />
+
 
         {/* 其他 */}
         <Stack.Screen name="Profile" component={Profile} />
