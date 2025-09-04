@@ -49,4 +49,6 @@ urlpatterns = [
     path('api/hospital/list/', views.hospital_list),
     path('api/hospital/create/', views.hospital_create),
     path('api/hospital/<int:pk>/', views.hospital_delete, name='hospital_delete'),
+    path('api/callrecords/add/', views.add_call_record, name='add_call_record'),
+    path('api/callrecords/<int:user_id>/', views.get_call_records, name='get_call_records'),
 ]

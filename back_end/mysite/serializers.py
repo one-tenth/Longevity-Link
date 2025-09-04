@@ -1,7 +1,6 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-
-from .models import User,Med,FitData,Family,MedTimeSetting,Hos
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos,CallRecord
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -89,3 +88,10 @@ class HosSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'UserID': {'read_only': True}  # ✅ 這行是關鍵
         }
+
+
+
+class CallRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CallRecord
+        fields = '__all__'

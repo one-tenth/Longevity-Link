@@ -1056,3 +1056,30 @@ def hospital_delete(request, pk):
         return Response({"error": "找不到資料或無權限刪除"}, status=404)
 
     return Response({"message": "已刪除"}, status=200)
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import CallRecord
+from .serializers import CallRecordSerializer
+
+# 新增通話紀錄
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_call_record(request):
+    serializer = CallRecordSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# 查詢某位使用者的通話紀錄
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_call_records(request, user_id):
+    records = CallRecord.objects.filter(UserId=user_id).order_by('-CallId')
+    serializer = CallRecordSerializer(records, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
