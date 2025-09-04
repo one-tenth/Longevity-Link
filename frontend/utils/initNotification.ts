@@ -15,7 +15,7 @@ import { navigationRef } from '../App';
 console.log('[initNotification] module loaded');
 
 // ✅ 集中管理 BASE
-const BASE = 'http://192.168.2.155:8000';
+const BASE = 'http://192.168.0.19:8000';
 
 /** 標準化 HH:mm（支援 08:00、8:0、08:00:00、08:00Z、全形冒號） */
 function extractHHMM(raw?: string): { h: number; m: number } | null {
