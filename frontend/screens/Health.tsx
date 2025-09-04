@@ -33,7 +33,7 @@ const outerShadow = {
 } as const;
 
 // 改成你原本使用的後端 IP
-const BASE = 'http://140.131.115.97:8000';
+const BASE = 'http://192.168.2.155:8000';
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();

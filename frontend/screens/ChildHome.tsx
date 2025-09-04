@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert, ActivityIndicator,
+  ScrollView, Pressable, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,7 +20,7 @@ interface Member {
   RelatedID?: number | null;
 }
 
-const API_BASE = 'http://140.131.115.97:8000';
+const API_BASE = 'http://192.168.2.155:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -177,6 +177,15 @@ export default function ChildHome() {
     } as never);
   };
 
+  // ✅ 通話紀錄導頁：Android 才可使用；iOS 給提示
+  const openCallLogs = () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');
+      return;
+    }
+    navigation.navigate('CallLogScreen' as never);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -246,12 +255,13 @@ export default function ChildHome() {
             onPress={goHospital}
             darkLabel={false}
           />
+          {/* ✅ 通話紀錄按鈕：呼叫 openCallLogs */}
           <QuickIcon
             big
             bg={COLORS.green}
             icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
             label="通話紀錄"
-            onPress={() => navigation.navigate('CallRecord' as never)}
+            onPress={openCallLogs}
             darkLabel={false}
           />
         </View>

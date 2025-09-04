@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://140.131.115.97:8000';
+const BASE = 'http://192.168.2.155:8000';
 
 // 自動帶 token；401 refresh 後重試一次
 async function authPost<T>(url: string, data: any) {
