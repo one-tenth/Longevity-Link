@@ -20,7 +20,7 @@ import {
   reverseGeocode,
 } from '../utils/locationUtils';
 
-const BASE_URL = 'http://10.2.61.2:8000';
+const BASE_URL = 'http://192.168.1.106:8000';
 
 export default function ElderLocation() {
   const [uploading, setUploading] = useState(false);
@@ -143,7 +143,7 @@ export default function ElderLocation() {
         經緯度：{coords ? `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}` : '尚未取得'}
       </Text>
 
-      <Text style={styles.info}>地址：{address || '尚未取得地址'}</Text>
+      
       <Text style={styles.info}>最近上傳時間：{lastUploadedAt || '—'}</Text>
 
       <TouchableOpacity style={styles.btn} onPress={handleUploadOnce} disabled={uploading}>
@@ -162,6 +162,9 @@ export default function ElderLocation() {
     </View>
   );
 }
+
+
+     //<Text style={styles.info}>地址：{address || '尚未取得地址'}</Text>
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: 'center' },

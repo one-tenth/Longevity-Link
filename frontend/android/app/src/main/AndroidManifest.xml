@@ -29,8 +29,10 @@
       android:usesCleartextTraffic="true">
   
       <meta-data
-        android:name="com.google.android.geo.API_KEY"
-        android:value="AIzaSyAMw9L20rtHPH6feNvaiFmOYNSuFa71oX0"/>
+      android:name="com.google.android.geo.API_KEY"
+      android:value="${GOOGLE_MAPS_API_KEY}" 
+      />
+
         
       <activity
         android:name=".MainActivity"
@@ -57,10 +59,6 @@
         android:exported="false"
       />
 
-      <meta-data
-      android:name="com.google.android.geo.API_KEY"
-      android:value="${GOOGLE_MAPS_API_KEY}" 
-      />
 
 
    

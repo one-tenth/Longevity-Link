@@ -2,6 +2,16 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+
+//讀取.env
+import java.util.Properties
+
+def envFile = rootProject.file(".env")
+def env = new Properties()
+if (envFile.exists()) {
+    env.load(new FileInputStream(envFile))
+}
+
 // fcm
 // apply plugin: 'com.google.gms.google-services' // ← 若使用 Firebase 再打開
 
@@ -28,10 +38,11 @@ android {
         targetSdkVersion 35
         versionCode 1
         versionName "1.0"
+         manifestPlaceholders = [
+            GOOGLE_MAPS_API_KEY: env.getProperty("GOOGLE_MAPS_API_KEY", "")
+        ]
 
-        manifestPlaceholders = [
-        GOOGLE_MAPS_API_KEY: project.findProperty("GOOGLE_MAPS_API_KEY") ?: ""
-    ]
+     
     }
     signingConfigs {
         debug {
@@ -51,6 +62,7 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    
 }
 
 
@@ -74,5 +86,6 @@ dependencies {
     implementation project(':react-native-maps')
 
 }
+
 
 

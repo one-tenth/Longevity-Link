@@ -178,7 +178,6 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 import os
-GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_KEY")  #金鑰在專案的 .env
-GOOGLE_GEOCODING_KEY = os.getenv("GOOGLE_GEOCODING_KEY")
-
+GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_API_KEY")  #金鑰在專案的 .env
+GOOGLE_GEOCODING_KEY = os.getenv("GEOCODING_KEY")
 

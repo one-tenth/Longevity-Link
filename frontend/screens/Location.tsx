@@ -1,7 +1,13 @@
 // screens/Location.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Dimensions,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -17,7 +23,7 @@ type LatestLocationResp = {
   ts: string;
 };
 
-const BASE_URL = 'http://10.2.61.2:8000'; 
+const BASE_URL = 'http://192.168.1.106:8000'; 
 
 export default function LocationScreen() {
   const route = useRoute<any>();
@@ -82,12 +88,17 @@ export default function LocationScreen() {
         timeout: 10000,
       });
 
+      console.log('API 回傳:', data);
+
       if (!data?.ok) {
         throw new Error('後端回傳失敗');
       }
 
       const lat = Number(data.lat);
       const lon = Number(data.lon);
+
+      console.log('解析後座標:', lat, lon);
+
       if (Number.isNaN(lat) || Number.isNaN(lon)) {
         throw new Error('無定位資料');
       }
@@ -101,7 +112,10 @@ export default function LocationScreen() {
 
       // 反向地理
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
+
+      console.log('反查地址結果:', addr);
       console.log('fetchLatest 反查地址:', addr);
+
       setAddress(addr || '無法取得地址');
     } catch (e: any) {
       Alert.alert('錯誤', String(e?.response?.data?.error || e?.message || e));
@@ -142,12 +156,16 @@ export default function LocationScreen() {
         <View style={{ marginTop: 12 }}>
           <Text style={styles.infoText}>緯度：{latest.lat}</Text>
           <Text style={styles.infoText}>經度：{latest.lon}</Text>
-          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text>
+          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text> 
+          <Text style={styles.infoText}>地址：{address}</Text>
         </View>
       )}
     </View>
   );
 }
+            
+
+
 
 const { width, height } = Dimensions.get('window');
 
