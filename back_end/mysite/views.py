@@ -6,69 +6,99 @@ from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
-# 血壓功能
+import base64
+import re
+from django.utils import timezone
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser
-from django.core.files.storage import default_storage
-import os
-import uuid
-from datetime import datetime
+from rest_framework.response import Response
+from rest_framework import status
+from openai import OpenAI
+from django.core.exceptions import ValidationError
 from .models import HealthCare
-from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
+from config import OPENAI_API_KEY
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 class BloodOCRView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser]
 
-    def post(self, request):
-        print("🔐 目前登入的使用者：", request.user)
-
-        image_file = request.FILES.get('image')
-        if not image_file:
-            return Response({"error": "未收到圖片"}, status=400)
-
-        # 暫存圖片
-        filename = f"temp_{uuid.uuid4()}.jpg"
-        file_path = os.path.join('temp', filename)
-        full_path = default_storage.save(file_path, image_file)
+    def post(self, request, *args, **kwargs):
+        # === Debug 開始 ===
+        print("DEBUG: API called")
 
         try:
-            # ✅ 模擬 YOLO + OCR 假資料
-            result = {
-                "systolic": 120,
-                "diastolic": 80,
-                "pulse": 72,
-            }
+            # 1. 準備圖片
+            if "image" in request.FILES:
+                image_file = request.FILES["image"]
+                image_bytes = image_file.read()
+                image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+            elif "image_base64" in request.data:
+                image_b64 = request.data["image_base64"]
+            else:
+                return Response({"error": "需要提供 image 或 image_base64"}, status=400)
 
-            systolic = result["systolic"]
-            diastolic = result["diastolic"]
-            pulse = result["pulse"]
-
-            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-            local_now = timezone.localtime(timezone.now())
-            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
-
-            HealthCare.objects.create(
-                UserID=request.user,
-                Systolic=systolic,
-                Diastolic=diastolic,
-                Pulse=pulse,
-                Date=local_now
+            # 2. 呼叫 OpenAI
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "你是一個醫療助手，請只輸出數字，格式：收縮壓=<數字>, 舒張壓=<數字>, 心跳=<數字>"},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "請讀出這張血壓計上的數字"},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                        ]
+                    }
+                ],
+                max_tokens=200,
             )
 
-            return Response({
-                "message": "✅ 模擬分析完成",
-                "data": {
-                    "systolic": systolic,
-                    "diastolic": diastolic,
-                    "pulse": pulse
-                }
-            })
+            print("DEBUG GPT =", response)
 
-        finally:
-            default_storage.delete(full_path)  # 清除暫存圖片
+            result_text = response.choices[0].message.content.strip()
+            print("DEBUG Result Text =", result_text)
+
+            # 3. 嘗試解析數字
+            match = re.findall(r"(\d+)", result_text)
+            if len(match) < 3:
+                return Response({"error": f"無法解析數據: {result_text}"}, status=400)
+
+            systolic, diastolic, pulse = map(int, match[:3])
+            print("DEBUG Parsed Values =", systolic, diastolic, pulse)
+
+            # 4. 數值驗證
+            if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
+                return Response({"error": f"數值超出範圍: {systolic}/{diastolic}/{pulse}"}, status=400)
+
+            # 5. 存入資料庫
+            try:
+                health = HealthCare.objects.create(
+                    UserID=request.user,
+                    Systolic=systolic,
+                    Diastolic=diastolic,
+                    Pulse=pulse,
+                    Date=timezone.now()
+                )
+            except ValidationError as ve:
+                return Response({"error": f"DB ValidationError: {ve}"}, status=400)
+
+            return Response({
+                "ok": True,
+                "parsed": {
+                    "Systolic": systolic,
+                    "Diastolic": diastolic,
+                    "Pulse": pulse,
+                    "Date": health.Date
+                },
+                "raw": result_text
+            }, status=200)
+
+        except Exception as e:
+            print("DEBUG Exception =", str(e))
+            return Response({"error": str(e)}, status=500)
 
 # from rest_framework.views import APIView
 # from rest_framework.response import Response
