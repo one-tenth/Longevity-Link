@@ -5,7 +5,9 @@ load_dotenv()
 
 # settings.py
 import os
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 """
@@ -109,16 +111,6 @@ SIMPLE_JWT = {
 }
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'mysql.connector.django',
-#         'NAME': 'railway',
-#         'USER': 'root',
-#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
-#         'HOST': 'mysql.railway.internal',
-#         'PORT': '3306',
-#     }
-# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -176,3 +168,8 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# YOLO 設定
+YOLO_DEVICE = "cpu"  # 0 = GPU, "cpu" = 強制用 CPU
+YOLO_MODELS_DIR = os.path.join(BASE_DIR, "models_yolo")

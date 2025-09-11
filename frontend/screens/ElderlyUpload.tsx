@@ -58,12 +58,12 @@ export default function ElderlyUpload() {
     }
   };
 
-  const uploadImageToBackend = async (uri: string, apiEndpoint: string) => {
+  const uploadImageToBackend = async (uri: string, apiEndpoint: string, mime = 'image/jpeg') => {
     const token = await AsyncStorage.getItem('access');
     const formData = new FormData();
     formData.append('image', {
       uri,
-      type: 'image/jpeg',
+      type: mime,
       name: 'photo.jpg',
     } as any);
 
@@ -76,16 +76,25 @@ export default function ElderlyUpload() {
         },
       });
 
-      const { message, duplicate } = response.data;
-      if (duplicate) {
-        Alert.alert("⚠️ 提醒", message);
+      const data = response.data;
+      if (data?.ok && data?.parsed) {
+        const p = data.parsed;
+        // Alert.alert(
+        //   '✅ 成功',
+        //   `收縮壓: ${p.Systolic ?? '-'}\n舒張壓: ${p.Diastolic ?? '-'}\n脈搏: ${p.Pulse ?? '-'}`
+        // );
+      } else if (data?.message) {
+        Alert.alert('結果', data.message);
+      } else if (data?.error) {
+        Alert.alert('伺服器回應', String(data.error));
       } else {
-        Alert.alert("✅ 成功", message);
+        Alert.alert('已上傳', '伺服器已回應。');
       }
       setPhotoUri(null);
     } catch (error: any) {
-      console.error('上傳錯誤:', error?.message ?? error);
-      Alert.alert('上傳或辨識錯誤', error?.message ?? '請確認後端服務');
+      console.error('上傳錯誤:', error?.response?.data ?? error?.message ?? error);
+      const msg = error?.response?.data?.error || error?.message || '請確認後端服務';
+      Alert.alert('上傳或辨識錯誤', String(msg));
     } finally {
       setLoading(false);
     }
@@ -98,12 +107,11 @@ export default function ElderlyUpload() {
       Alert.alert('權限不足', '請到設定開啟相機權限');
       return;
     }
-
     launchCamera({ mediaType: 'photo', saveToPhotos: true }, async response => {
       if (!response.didCancel && !response.errorCode && response.assets?.[0]?.uri) {
-        const uri = response.assets[0].uri;
-        setPhotoUri(uri);
-        await uploadImageToBackend(uri, apiEndpoint);
+        const asset = response.assets[0];
+        setPhotoUri(asset.uri);
+        await uploadImageToBackend(asset.uri, apiEndpoint, asset.type || 'image/jpeg');
       }
     });
   };
@@ -112,11 +120,21 @@ export default function ElderlyUpload() {
     if (loading) return;
     launchImageLibrary({ mediaType: 'photo' }, async response => {
       if (!response.didCancel && !response.errorCode && response.assets?.[0]?.uri) {
-        const uri = response.assets[0].uri;
-        setPhotoUri(uri);
-        await uploadImageToBackend(uri, apiEndpoint);
+        const asset = response.assets[0];
+        setPhotoUri(asset.uri);
+        await uploadImageToBackend(asset.uri, apiEndpoint, asset.type || 'image/jpeg');
       }
     });
+  };
+
+  // 🔸 新增：按鈕點擊先跳出選擇來源
+  const chooseSource = (apiEndpoint: string) => {
+    if (loading) return;
+    Alert.alert('選擇來源', '要使用相機還是從相簿選擇？', [
+      { text: '相機', onPress: () => openCamera(apiEndpoint) },
+      { text: '相簿', onPress: () => openGallery(apiEndpoint) },
+      { text: '取消', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -137,15 +155,15 @@ export default function ElderlyUpload() {
       <View style={styles.panel}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }} // ✅ 預留按鈕空間
+          contentContainerStyle={{ paddingBottom: 100 }}
           style={{ flex: 1 }}
         >
 
-          {/* 血壓按鈕 */}
+          {/* 血壓按鈕（保持原樣，只改 onPress 行為） */}
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://192.168.0.55:8000/api/ocrblood/')}
+            onPress={() => chooseSource('http://192.168.0.55:8000/api/ocrblood/')}
             disabled={loading}
             activeOpacity={0.9}
           >
@@ -157,11 +175,11 @@ export default function ElderlyUpload() {
             </View>
           </TouchableOpacity>
 
-          {/* 藥袋按鈕 */}
+          {/* 藥袋按鈕（保持原樣，只改 onPress 行為） */}
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://192.168.0.55:8000/ocr-analyze/')}
+            onPress={() => chooseSource('http://192.168.0.55:8000/ocr-analyze/')}
             disabled={loading}
             activeOpacity={0.9}
           >
@@ -175,7 +193,7 @@ export default function ElderlyUpload() {
         </ScrollView>
       </View>
 
-      {/* ✅ 底部圓形回首頁按鈕 */}
+      {/* 底部圓形回首頁按鈕 */}
       <TouchableOpacity
         style={[styles.homeButton, loading && styles.disabledButton]}
         onPress={() => navigation.navigate('ElderHome')}

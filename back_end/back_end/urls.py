@@ -27,7 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/ping/', ping, name='api-ping'),
     path('api/hello/', views.hello_world),
-    path('api/ocrblood/', views.BloodOCRView.as_view(), name='ocr_blood'),
+    path('api/ocrblood/', views.BloodYOLOView.as_view(), name='ocr_blood'),
     path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
     path('api/fitdata/by-date/', views.FitDataByDateAPI.as_view()),
     path('api/healthcare/by-date/', views.HealthCareByDateAPI.as_view()),
