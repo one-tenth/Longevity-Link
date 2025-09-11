@@ -750,6 +750,131 @@ def login(request):
         }
     }, status=status.HTTP_200_OK)
 
+
+# 定位 
+from rest_framework.throttling import UserRateThrottle
+from rest_framework.decorators import throttle_classes
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import OuterRef, Subquery
+from .models import LocaRecord, User
+
+class UploadLocationThrottle(UserRateThrottle):
+    rate = '60/min'  # 可調：每使用者每分鐘 60 次
+
+def _same_family(u1: User, u2: User) -> bool:
+    return (
+        u1.FamilyID_id is not None
+        and u2.FamilyID_id is not None
+        and u1.FamilyID_id == u2.FamilyID_id
+    )
+
+# 上傳定位
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([UploadLocationThrottle])
+def upload_location(request):
+    user = request.user  # 登入
+
+    lat = request.data.get('Latitude', request.data.get('latitude'))
+    lng = request.data.get('Longitude', request.data.get('longitude'))
+
+    if lat is None or lng is None:
+        return Response({'error': '缺少座標'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return Response({'detail': '座標格式錯誤'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return Response({'detail': '座標超出範圍（lat:-90~90, lng:-180~180）'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not user.is_elder:
+        return Response({'error': '只有長者帳號可以上傳定位'}, status=status.HTTP_403_FORBIDDEN)
+
+    record = LocaRecord.objects.create(UserID=user, Latitude=lat, Longitude=lng)
+
+    return Response({
+        'status': 'success',
+        'UserID': user.pk,
+        'FamilyID': user.FamilyID_id,
+        'Latitude': record.Latitude,
+        'Longitude': record.Longitude,
+        'Timestamp': record.Timestamp,
+    }, status=status.HTTP_201_CREATED)
+
+
+# 取得長者最新定位
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_latest_location(request, user_id: int):
+    try:
+        target_user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return Response({'error': '使用者不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not target_user.is_elder:
+        return Response({'error': '不是長者帳號'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # 同家庭成員才可查
+    if not _same_family(request.user, target_user):
+        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    # 僅取一筆最新
+    record = (LocaRecord.objects
+              .filter(UserID=target_user)
+              .order_by('-Timestamp')
+              .only('Latitude', 'Longitude', 'Timestamp')
+              .first())
+    if not record:
+        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response({
+        'UserID': target_user.pk,
+        'UserName': target_user.Name or target_user.Phone,
+        'FamilyID': target_user.FamilyID_id,
+        'Latitude': record.Latitude,
+        'Longitude': record.Longitude,
+        'Timestamp': record.Timestamp.isoformat(),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_family_locations(request, family_id: int):
+
+    #同一個家庭
+    if request.user.FamilyID_id != family_id:
+        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+    #最新一筆
+    latest_qs = LocaRecord.objects.filter(UserID=OuterRef('pk')).order_by('-Timestamp')
+
+    elders = (User.objects
+              .filter(FamilyID_id=family_id, is_elder=True)
+              .annotate(
+                  last_time=Subquery(latest_qs.values('Timestamp')[:1]),
+                  last_lat=Subquery(latest_qs.values('Latitude')[:1]),
+                  last_lng=Subquery(latest_qs.values('Longitude')[:1]),
+              )
+              .filter(last_time__isnull=False)
+              .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lng', 'last_time'))
+
+    results = [{
+        'UserID': e['UserID'],
+        'UserName': e['Name'] or e['Phone'],
+        'Latitude': e['last_lat'],
+        'Longitude': e['last_lng'],
+        'Timestamp': e['last_time'].isoformat() if e['last_time'] else None,
+    } for e in elders]
+
+    return Response({'family_id': family_id, 'count': len(results), 'results': results}, status=status.HTTP_200_OK)
+
+
+
 #------------------------------------------------------------------------
 #創建家庭
 from rest_framework.views import APIView
@@ -1056,3 +1181,136 @@ def hospital_delete(request, pk):
         return Response({"error": "找不到資料或無權限刪除"}, status=404)
 
     return Response({"message": "已刪除"}, status=200)
+
+
+#定位----------
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.throttling import UserRateThrottle
+from django.db.models import OuterRef, Subquery
+from django.contrib.auth import get_user_model
+
+from .models import LocaRecord
+from .permissions import IsElder
+from .serializers import LocationUploadSerializer, LocationLatestSerializer
+
+User = get_user_model()
+
+class UploadLocationThrottle(UserRateThrottle):
+    rate = '60/min'  #可調整
+
+def _same_family(u1, u2) -> bool:
+    return (
+        getattr(u1, 'FamilyID_id', None) is not None and
+        getattr(u2, 'FamilyID_id', None) is not None and
+        u1.FamilyID_id == u2.FamilyID_id
+    )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsElder])   # 僅長者可上傳
+@throttle_classes([UploadLocationThrottle])
+def upload_location(request):
+    ser = LocationUploadSerializer(data=request.data, context={'user': request.user})
+    if not ser.is_valid():
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    rec = ser.save()
+    out = LocationLatestSerializer(rec).data  # lat,lon,ts
+    return Response({'ok': True, 'user': request.user.pk, **out}, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_latest_location(request, user_id: int):
+    # 本人和同家庭才可查訊
+    if request.user.pk == user_id:
+        target = request.user
+    else:
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': '使用者不存在'}, status=status.HTTP_404_NOT_FOUND)
+        if not getattr(target, 'is_elder', False):
+            return Response({'error': '不是長者帳號'}, status=status.HTTP_400_BAD_REQUEST)
+        if not _same_family(request.user, target):
+            return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    rec = (LocaRecord.objects
+           .filter(UserID=target)
+           .order_by('-Timestamp')
+           .only('Latitude', 'Longitude', 'Timestamp')
+           .first())
+    if not rec:
+        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
+
+    out = LocationLatestSerializer(rec).data
+    return Response({'ok': True, 'user': target.pk, **out}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_family_locations(request, family_id: int):
+    # 僅可查詢自己的家庭
+    if request.user.FamilyID_id is None:
+        return Response({'error': '尚未加入任何家庭'}, status=status.HTTP_400_BAD_REQUEST)
+    if request.user.FamilyID_id != family_id:
+        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    latest_qs = (LocaRecord.objects
+                 .filter(UserID_id=OuterRef('pk'))
+                 .order_by('-Timestamp'))
+
+    elders = (User.objects
+              .filter(FamilyID_id=family_id, is_elder=True)
+              .annotate(
+                  last_time=Subquery(latest_qs.values('Timestamp')[:1]),
+                  last_lat =Subquery(latest_qs.values('Latitude')[:1]),
+                  last_lon =Subquery(latest_qs.values('Longitude')[:1]),
+              )
+              .filter(last_time__isnull=False)
+              .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lon', 'last_time'))
+
+    results = [{
+        'user': e['UserID'],
+        'name': e['Name'] or e['Phone'],
+        'lat': float(e['last_lat']),
+        'lon': float(e['last_lon']),
+        'ts': e['last_time'],
+    } for e in elders]
+
+    return Response({'ok': True, 'family_id': family_id, 'count': len(results), 'results': results},
+                    status=status.HTTP_200_OK)
+
+from django.conf import settings
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+import requests, functools
+from rest_framework.permissions import AllowAny
+
+
+@functools.lru_cache(maxsize=2048)
+def _google_reverse(lat, lng, lang):
+    r = requests.get(
+        "https://maps.googleapis.com/maps/api/geocode/json",
+        params={"latlng": f"{lat},{lng}", "language": lang, "key": settings.GOOGLE_MAPS_KEY},
+        timeout=8,
+    )
+    j = r.json()
+    print('Google Geocode API 回傳 status:', j.get("status"))  # 可看API錯誤訊息
+
+    if j.get("status") == "OK" and j.get("results"):
+        first = j["results"][0]
+        return first.get("formatted_address")
+
+    return None
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def reverse_geocode(request):
+    lat = request.GET.get("lat")
+    lng = request.GET.get("lng")
+    lang = request.GET.get("lang", "zh-TW")
+    if not (lat and lng):
+        return Response({"error": "lat/lng required"}, status=400)
+    addr = _google_reverse(str(lat), str(lng), lang)
+    return Response({"address": addr})

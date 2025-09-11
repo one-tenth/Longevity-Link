@@ -46,7 +46,9 @@ urlpatterns = [
     path('update_related/', views.update_related),
     path('family/members/', views.get_family_members),
     path('me/', views.get_me),
-    path('api/hospital/list/', views.hospital_list),
-    path('api/hospital/create/', views.hospital_create),
-    path('api/hospital/<int:pk>/', views.hospital_delete, name='hospital_delete'),
+    path("api/location/upload/", views.upload_location, name="location-upload"),
+    path("api/location/latest/<int:user_id>/", views.get_latest_location, name="location-latest"),
+    path("api/location/family/<int:family_id>/", views.get_family_locations, name="location-family"),
+    path("api/reverse_geocode/", views.reverse_geocode, name="reverse-geocode"),
+
 ]

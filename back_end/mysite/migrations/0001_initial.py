@@ -14,151 +14,338 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('auth', '0012_alter_user_first_name_max_length'),
+        ("auth", "0012_alter_user_first_name_max_length"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Family',
+            name="Family",
             fields=[
-                ('FamilyID', models.AutoField(primary_key=True, serialize=False)),
-                ('Fcode', models.CharField(default=mysite.models.generate_family_code, max_length=10, unique=True)),
-                ('FamilyName', models.CharField(max_length=10)),
-                ('Created_Time', models.DateTimeField(auto_now_add=True)),
+                ("FamilyID", models.AutoField(primary_key=True, serialize=False)),
+                (
+                    "Fcode",
+                    models.CharField(
+                        default=mysite.models.generate_family_code,
+                        max_length=10,
+                        unique=True,
+                    ),
+                ),
+                ("FamilyName", models.CharField(max_length=10)),
+                ("Created_Time", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'verbose_name': 'Family',
-                'verbose_name_plural': 'Family',
+                "verbose_name": "Family",
+                "verbose_name_plural": "Family",
             },
         ),
         migrations.CreateModel(
-            name='User',
+            name="User",
             fields=[
-                ('password', models.CharField(max_length=128, verbose_name='password')),
-                ('last_login', models.DateTimeField(blank=True, null=True, verbose_name='last login')),
-                ('is_superuser', models.BooleanField(default=False, help_text='Designates that this user has all permissions without explicitly assigning them.', verbose_name='superuser status')),
-                ('UserID', models.AutoField(primary_key=True, serialize=False)),
-                ('Name', models.CharField(blank=True, max_length=10, null=True)),
-                ('Gender', models.CharField(blank=True, choices=[('M', 'Male'), ('F', 'Female')], max_length=1, null=True)),
-                ('Borndate', models.DateField(blank=True, null=True)),
-                ('Phone', models.CharField(max_length=10, unique=True, validators=[django.core.validators.RegexValidator(regex='^09\\d{8}$')])),
-                ('Created_time', models.DateTimeField(auto_now_add=True)),
-                ('is_family', models.BooleanField(default=True)),
-                ('is_elder', models.BooleanField(default=False)),
-                ('is_active', models.BooleanField(default=True)),
-                ('is_staff', models.BooleanField(default=False)),
-                ('RelatedID', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='related_family', to=settings.AUTH_USER_MODEL)),
-                ('groups', models.ManyToManyField(blank=True, related_name='mysite_user_set', to='auth.group')),
-                ('user_permissions', models.ManyToManyField(blank=True, related_name='mysite_user_permissions_set', to='auth.permission')),
-                ('FamilyID', models.ForeignKey(blank=True, db_column='FamilyID', null=True, on_delete=django.db.models.deletion.CASCADE, to='mysite.family')),
+                ("password", models.CharField(max_length=128, verbose_name="password")),
+                (
+                    "last_login",
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="last login"
+                    ),
+                ),
+                (
+                    "is_superuser",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Designates that this user has all permissions without explicitly assigning them.",
+                        verbose_name="superuser status",
+                    ),
+                ),
+                ("UserID", models.AutoField(primary_key=True, serialize=False)),
+                ("Name", models.CharField(blank=True, max_length=10, null=True)),
+                (
+                    "Gender",
+                    models.CharField(
+                        blank=True,
+                        choices=[("M", "Male"), ("F", "Female")],
+                        max_length=1,
+                        null=True,
+                    ),
+                ),
+                ("Borndate", models.DateField(blank=True, null=True)),
+                (
+                    "Phone",
+                    models.CharField(
+                        max_length=10,
+                        unique=True,
+                        validators=[
+                            django.core.validators.RegexValidator(regex="^09\\d{8}$")
+                        ],
+                    ),
+                ),
+                ("Created_time", models.DateTimeField(auto_now_add=True)),
+                ("is_family", models.BooleanField(default=True)),
+                ("is_elder", models.BooleanField(default=False)),
+                ("is_active", models.BooleanField(default=True)),
+                ("is_staff", models.BooleanField(default=False)),
+                (
+                    "RelatedID",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="related_family",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "groups",
+                    models.ManyToManyField(
+                        blank=True, related_name="mysite_user_set", to="auth.group"
+                    ),
+                ),
+                (
+                    "user_permissions",
+                    models.ManyToManyField(
+                        blank=True,
+                        related_name="mysite_user_permissions_set",
+                        to="auth.permission",
+                    ),
+                ),
+                (
+                    "FamilyID",
+                    models.ForeignKey(
+                        blank=True,
+                        db_column="FamilyID",
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="mysite.family",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'User',
+                "db_table": "User",
             },
         ),
         migrations.CreateModel(
-            name='CallRecord',
+            name="CallRecord",
             fields=[
-                ('CallId', models.AutoField(primary_key=True, serialize=False)),
-                ('PhoneName', models.CharField(max_length=10)),
-                ('Phone', models.CharField(max_length=15, unique=True, validators=[django.core.validators.RegexValidator(regex='^\\+8869\\d{8}$')])),
-                ('PhoneTime', models.CharField(max_length=10)),
-                ('IsScam', models.BooleanField()),
-                ('UserId', models.ForeignKey(db_column='UserId', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("CallId", models.AutoField(primary_key=True, serialize=False)),
+                ("PhoneName", models.CharField(max_length=10)),
+                (
+                    "Phone",
+                    models.CharField(
+                        max_length=15,
+                        unique=True,
+                        validators=[
+                            django.core.validators.RegexValidator(
+                                regex="^\\+8869\\d{8}$"
+                            )
+                        ],
+                    ),
+                ),
+                ("PhoneTime", models.CharField(max_length=10)),
+                ("IsScam", models.BooleanField()),
+                (
+                    "UserId",
+                    models.ForeignKey(
+                        db_column="UserId",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Call record',
-                'verbose_name_plural': 'Call record',
+                "verbose_name": "Call record",
+                "verbose_name_plural": "Call record",
             },
         ),
         migrations.CreateModel(
-            name='FitData',
+            name="FitData",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('steps', models.IntegerField()),
-                ('timestamp', models.DateTimeField()),
-                ('UserID', models.ForeignKey(db_column='UserID', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("steps", models.IntegerField()),
+                ("timestamp", models.DateTimeField()),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'FitData',
-                'verbose_name_plural': 'FitData',
+                "verbose_name": "FitData",
+                "verbose_name_plural": "FitData",
             },
         ),
         migrations.CreateModel(
-            name='HealthCare',
+            name="HealthCare",
             fields=[
-                ('HealthID', models.AutoField(primary_key=True, serialize=False)),
-                ('Systolic', models.IntegerField(validators=[django.core.validators.MinValueValidator(70), django.core.validators.MaxValueValidator(250)])),
-                ('Diastolic', models.IntegerField(validators=[django.core.validators.MinValueValidator(40), django.core.validators.MaxValueValidator(150)])),
-                ('Pulse', models.IntegerField(validators=[django.core.validators.MinValueValidator(30), django.core.validators.MaxValueValidator(200)])),
-                ('Date', models.DateTimeField()),
-                ('UserID', models.ForeignKey(db_column='UserID', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("HealthID", models.AutoField(primary_key=True, serialize=False)),
+                (
+                    "Systolic",
+                    models.IntegerField(
+                        validators=[
+                            django.core.validators.MinValueValidator(70),
+                            django.core.validators.MaxValueValidator(250),
+                        ]
+                    ),
+                ),
+                (
+                    "Diastolic",
+                    models.IntegerField(
+                        validators=[
+                            django.core.validators.MinValueValidator(40),
+                            django.core.validators.MaxValueValidator(150),
+                        ]
+                    ),
+                ),
+                (
+                    "Pulse",
+                    models.IntegerField(
+                        validators=[
+                            django.core.validators.MinValueValidator(30),
+                            django.core.validators.MaxValueValidator(200),
+                        ]
+                    ),
+                ),
+                ("Date", models.DateTimeField()),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Health care',
-                'verbose_name_plural': 'Health care',
+                "verbose_name": "Health care",
+                "verbose_name_plural": "Health care",
             },
         ),
         migrations.CreateModel(
-            name='Hos',
+            name="Hos",
             fields=[
-                ('HosId', models.AutoField(primary_key=True, serialize=False)),
-                ('ClinicPlace', models.CharField(max_length=20)),
-                ('ClinicDate', models.DateField()),
-                ('Doctor', models.CharField(max_length=10)),
-                ('Num', models.IntegerField()),
-                ('UserID', models.ForeignKey(db_column='UserID', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("HosId", models.AutoField(primary_key=True, serialize=False)),
+                ("ClinicPlace", models.CharField(max_length=20)),
+                ("ClinicDate", models.DateField()),
+                ("Doctor", models.CharField(max_length=10)),
+                ("Num", models.IntegerField()),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Hos',
-                'verbose_name_plural': 'Hos',
+                "verbose_name": "Hos",
+                "verbose_name_plural": "Hos",
             },
         ),
         migrations.CreateModel(
-            name='Med',
+            name="LocaRecord",
             fields=[
-                ('MedId', models.AutoField(primary_key=True, serialize=False)),
-                ('Disease', models.CharField(max_length=50)),
-                ('MedName', models.CharField(max_length=50)),
-                ('AdministrationRoute', models.CharField(max_length=10)),
-                ('DosageFrequency', models.CharField(max_length=50)),
-                ('Effect', models.CharField(max_length=100)),
-                ('SideEffect', models.CharField(max_length=100)),
-                ('PrescriptionID', models.UUIDField(default=uuid.uuid4)),
-                ('created_at', models.DateTimeField(default=django.utils.timezone.now)),
-                ('UserID', models.ForeignKey(db_column='UserID', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("LocationID", models.AutoField(primary_key=True, serialize=False)),
+                ("Latitude", models.FloatField()),
+                ("Longitude", models.FloatField()),
+                ("Timestamp", models.DateTimeField(auto_now_add=True)),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Med',
-                'verbose_name_plural': 'Med',
+                "verbose_name": "LocaRecord",
+                "verbose_name_plural": "LocaRecords",
             },
         ),
         migrations.CreateModel(
-            name='MedTimeSetting',
+            name="Med",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('MorningTime', models.TimeField(blank=True, null=True)),
-                ('NoonTime', models.TimeField(blank=True, null=True)),
-                ('EveningTime', models.TimeField(blank=True, null=True)),
-                ('Bedtime', models.TimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('UserID', models.ForeignKey(db_column='UserID', on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ("MedId", models.AutoField(primary_key=True, serialize=False)),
+                ("Disease", models.CharField(max_length=50)),
+                ("MedName", models.CharField(max_length=50)),
+                ("AdministrationRoute", models.CharField(max_length=10)),
+                ("DosageFrequency", models.CharField(max_length=50)),
+                ("Effect", models.CharField(max_length=100)),
+                ("SideEffect", models.CharField(max_length=100)),
+                ("PrescriptionID", models.UUIDField(default=uuid.uuid4)),
+                ("created_at", models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'MedTimeSetting',
-                'verbose_name_plural': 'MedTimeSetting',
+                "verbose_name": "Med",
+                "verbose_name_plural": "Med",
             },
         ),
         migrations.CreateModel(
-            name='Scam',
+            name="MedTimeSetting",
             fields=[
-                ('ScamId', models.AutoField(primary_key=True, serialize=False)),
-                ('Category', models.CharField(max_length=10)),
-                ('Phone', models.ForeignKey(db_column='Phone', on_delete=django.db.models.deletion.CASCADE, to='mysite.callrecord')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("MorningTime", models.TimeField(blank=True, null=True)),
+                ("NoonTime", models.TimeField(blank=True, null=True)),
+                ("EveningTime", models.TimeField(blank=True, null=True)),
+                ("Bedtime", models.TimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "UserID",
+                    models.ForeignKey(
+                        db_column="UserID",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Scam',
-                'verbose_name_plural': 'Scam',
+                "verbose_name": "MedTimeSetting",
+                "verbose_name_plural": "MedTimeSetting",
+            },
+        ),
+        migrations.CreateModel(
+            name="Scam",
+            fields=[
+                ("ScamId", models.AutoField(primary_key=True, serialize=False)),
+                ("Category", models.CharField(max_length=10)),
+                (
+                    "Phone",
+                    models.ForeignKey(
+                        db_column="Phone",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="mysite.callrecord",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "Scam",
+                "verbose_name_plural": "Scam",
             },
         ),
     ]
