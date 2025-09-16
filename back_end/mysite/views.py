@@ -1063,6 +1063,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .models import CallRecord
+from django.db import IntegrityError
 from .serializers import CallRecordSerializer
 
 # 新增通話紀錄
@@ -1084,3 +1085,29 @@ def get_call_records(request, user_id):
     serializer = CallRecordSerializer(records, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bulk_add_call_records(request):
+    items = request.data.get('items', [])
+    if not items:
+        return Response({"error": "No data provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # 使用 request.data 中的 UserId 查找 User 實例
+        user_id = request.data.get('UserId')
+        user = User.objects.get(UserID=user_id)  # 根據 UserID 查找 User
+
+        # 準備新增的通話紀錄
+        call_records = []
+        for item in items:
+            item['UserId'] = user  # 賦值給 User 欄位，這邊使用的是 User 實例
+            call_records.append(CallRecord(**item))
+
+        # 批量創建 CallRecord 實例
+        CallRecord.objects.bulk_create(call_records)
+
+        return Response({"message": "Records successfully added"}, status=status.HTTP_201_CREATED)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

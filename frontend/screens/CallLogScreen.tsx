@@ -1,4 +1,3 @@
-// screens/CallLogScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
@@ -22,7 +21,16 @@ type DeviceCall = {
   type?: string; // INCOMING/OUTGOING/MISSED/REJECTED
 };
 
-type TabKey = 'device';  // 只有本機紀錄
+type ServerCall = {
+  CallId: number;
+  UserId: number;
+  PhoneName: string;
+  Phone: string;
+  PhoneTime: string;
+  IsScam: boolean;
+};
+
+type TabKey = 'device' | 'server';
 
 // ===== 工具 =====
 function typeLabel(t?: string) {
@@ -43,7 +51,7 @@ function fmt(ts?: string | number, dt?: string) {
   const day = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0'); // 加上秒
+  const ss = String(d.getSeconds()).padStart(2, '0'); // ← 加上秒
   return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
 }
 
@@ -68,15 +76,20 @@ export default function CallLogScreen() {
   const [elderName, setElderName] = useState<string>('');
 
   // Tabs
-  const [tab, setTab] = useState<TabKey>('device');  // Only using 'device' tab
+  const [tab, setTab] = useState<TabKey>('server');
 
   // Device
   const [deviceLogs, setDeviceLogs] = useState<DeviceCall[]>([]);
   const [loadingDevice, setLoadingDevice] = useState(false);
 
+  // Server
+  const [serverLogs, setServerLogs] = useState<ServerCall[]>([]);
+  const [loadingServer, setLoadingServer] = useState(false);
+
   // Common
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [syncing, setSyncing] = useState(false);
+  const [autoSyncMsg, setAutoSyncMsg] = useState<string>(''); // 自動同步狀態顯示
 
   // ===== 讀取選定長者 =====
   async function loadSelectedElder() {
@@ -128,6 +141,8 @@ export default function CallLogScreen() {
       if (!list.length) {
         setErrorMsg('本機沒有可顯示的通話紀錄。');
       }
+      // ←← 自動同步（有選長者 & 有 token 才做）
+      await autoSyncNewDeviceLogs(list);
     } catch (err: any) {
       console.error('抓本機失敗:', err);
       setErrorMsg('無法讀取本機通話紀錄，請稍後再試。');
@@ -137,7 +152,95 @@ export default function CallLogScreen() {
     }
   }
 
-  // 同步到後端資料庫
+  // 後端撈資料（用 elderId）
+  async function loadServerLogs() {
+    setErrorMsg('');
+    if (!elderId) {
+      setServerLogs([]);
+      setErrorMsg('尚未選擇長者，請先至家庭頁面選擇。');
+      return;
+    }
+    setLoadingServer(true);
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        setErrorMsg('尚未登入，無法讀取資料庫通話紀錄。');
+        setServerLogs([]);
+        return;
+      }
+      const res = await axios.get<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setServerLogs(res.data ?? []);
+      if (!res.data || res.data.length === 0) {
+        setErrorMsg('資料庫目前沒有通話紀錄。');
+      }
+    } catch (err: any) {
+      console.error('撈後端失敗:', err?.response?.status, err?.response?.data || err?.message);
+      setErrorMsg('連線資料庫失敗，請稍後重試。');
+      Alert.alert('錯誤', err?.message ?? '讀取資料庫通話紀錄失敗');
+    } finally {
+      setLoadingServer(false);
+    }
+  }
+
+  // ===== 自動同步：把「本機有、資料庫沒有」的紀錄存進後端 =====
+  async function autoSyncNewDeviceLogs(list: DeviceCall[]) {
+    setAutoSyncMsg('');
+    if (!elderId) return; // 未選長者就不做
+    const token = await AsyncStorage.getItem('access');
+    if (!token) return;   // 未登入就不做
+    try {
+      setSyncing(true);
+      setAutoSyncMsg('自動同步中…');
+
+      // 1) 先取資料庫現有（拿來做去重）
+      const res = await axios.get<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const exists = new Set(
+        (res.data || []).map((r) => `${r.Phone}|${r.PhoneTime}`)
+      );
+
+      // 2) 過濾出「新」的本機紀錄
+      const newOnDevice = list
+        .map((it) => toPayload(elderId, it))
+        .filter((p) => p.Phone && p.PhoneTime && !exists.has(`${p.Phone}|${p.PhoneTime}`));
+
+      if (newOnDevice.length === 0) {
+        setAutoSyncMsg('無需同步（已最新）');
+        return;
+      }
+
+      // 3) 優先嘗試「批次上傳」，若 404/501 之類就 fallback 逐筆
+      try {
+        await axios.post(`${API_BASE}/api/callrecords/bulk_add/`, { items: newOnDevice }, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (e: any) {
+        // 批次沒有就逐筆
+        await Promise.allSettled(
+          newOnDevice.map((payload) =>
+            axios.post(`${API_BASE}/api/callrecords/add/`, payload, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          )
+        );
+      }
+
+      setAutoSyncMsg(`已同步 ${newOnDevice.length} 筆`);
+      // 同步後刷新資料庫分頁（如果當下顯示的是資料庫分頁）
+      await loadServerLogs();
+    } catch (e: any) {
+      console.error('自動同步失敗:', e?.response?.status, e?.response?.data || e?.message);
+      setErrorMsg('自動同步失敗，請稍後再試。');
+      setAutoSyncMsg('');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // 手動同步（保留：如果你想手動按）
   async function syncDeviceToServer() {
     if (!elderId) {
       Alert.alert('提醒', '請先於家庭頁面選擇要同步的長者');
@@ -147,50 +250,14 @@ export default function CallLogScreen() {
       Alert.alert('提示', '沒有可上傳的本機通話紀錄');
       return;
     }
-    setSyncing(true);
-
-    try {
-      const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('提示', '尚未登入，無法同步到後端');
-        return;
-      }
-
-      // 過濾去重（防止重複上傳相同的通話紀錄）
-      const res = await axios.get(`${API_BASE}/api/callrecords/${elderId}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const exists = new Set(
-        (res.data || []).map((r) => `${r.Phone}|${r.PhoneTime}`)
-      );
-
-      const newLogs = deviceLogs
-        .map((log) => toPayload(elderId, log))
-        .filter((p) => p.Phone && p.PhoneTime && !exists.has(`${p.Phone}|${p.PhoneTime}`));
-
-      if (newLogs.length === 0) {
-        Alert.alert('提示', '沒有新的通話紀錄需要同步');
-        return;
-      }
-
-      // 批量上傳新紀錄
-      await axios.post(`${API_BASE}/api/callrecords/bulk_add/`, { items: newLogs }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      Alert.alert('提示', `已同步 ${newLogs.length} 筆新的通話紀錄`);
-      setSyncing(false);
-    } catch (e: any) {
-      console.error('同步失敗:', e?.response?.status, e?.response?.data || e?.message);
-      setSyncing(false);
-      Alert.alert('錯誤', '同步失敗，請稍後再試');
-    }
+    await autoSyncNewDeviceLogs(deviceLogs);
+    setTab('server');
   }
 
   // 初次載入
   useEffect(() => { (async () => { await loadSelectedElder(); })(); }, []);
-  useEffect(() => { loadDeviceLogs(); }, []); // 開頁就抓本機通話紀錄
+  useEffect(() => { if (elderId) loadServerLogs(); }, [elderId]);
+  useEffect(() => { loadDeviceLogs(); }, []); // 開頁就抓本機，並自動同步
 
   // ===== Renderers =====
   const renderDeviceItem = ({ item }: { item: DeviceCall }) => {
@@ -206,9 +273,37 @@ export default function CallLogScreen() {
     );
   };
 
+  const renderServerItem = ({ item }: { item: ServerCall }) => (
+    <View style={styles.item}>
+      <Text style={styles.phone}>{item.Phone || '未知號碼'}</Text>
+      <Text style={styles.detail}>
+        {(item.PhoneName ? `${item.PhoneName} · ` : '') + (item.IsScam ? '（疑似詐騙）' : '正常')}
+      </Text>
+      <Text style={styles.time}>{item.PhoneTime || ''}</Text>
+    </View>
+  );
+
+  // 這裡是 renderSyncButton 函式，當有新的紀錄時顯示同步按鈕
+  const renderSyncButton = () => {
+    return (
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#111' }]}
+          onPress={syncDeviceToServer}
+          disabled={syncing || !elderId}
+        >
+          <Text style={styles.actionText}>
+            {syncing ? '上傳中…' : '同步到後端'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
 
       {/* Header */}
       <View style={styles.header}>
@@ -222,46 +317,35 @@ export default function CallLogScreen() {
         <View style={{ width: 64 }} />
       </View>
 
-      {/* 錯誤訊息條 */}
-      {errorMsg ? (
+      {/* 顯示錯誤訊息 */}
+      {errorMsg && (
         <View style={styles.errorBar}>
           <Feather name="alert-circle" size={18} color="#fff" />
-          <Text style={styles.errorText} numberOfLines={2}>{errorMsg}</Text>
+          <Text style={styles.errorText}>{errorMsg}</Text>
         </View>
-      ) : null}
+      )}
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          onPress={() => setTab('device')}
-          style={[styles.tabBtn, tab === 'device' && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, tab === 'device' && styles.tabTextActive]}>本機紀錄</Text>
-        </TouchableOpacity>
-      </View>
+      {/* 顯示同步狀態訊息 */}
+      {autoSyncMsg && (
+        <View style={styles.infoBar}>
+          <Feather name="cloud" size={16} color="#111" />
+          <Text style={styles.infoText}>{autoSyncMsg}</Text>
+        </View>
+      )}
 
-      {/* List */}
-      {tab === 'device' ? (
-        <>
-          <FlatList
-            data={deviceLogs}
-            keyExtractor={(_, idx) => `d-${idx}`}
-            renderItem={renderDeviceItem}
-            refreshing={loadingDevice}
-            onRefresh={loadDeviceLogs}
-            ListEmptyComponent={<Text style={styles.empty}>目前沒有本機通話紀錄</Text>}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-          <View style={styles.bottomBar}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4E6E62' }]} onPress={loadDeviceLogs} disabled={loadingDevice || syncing}>
-              <Text style={styles.actionText}>{loadingDevice ? '讀取中…' : '重新整理'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#111' }]} onPress={syncDeviceToServer} disabled={loadingDevice || syncing || !elderId}>
-              <Text style={styles.actionText}>{syncing ? '上傳中…' : '同步到後端'}</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : null}
+      {/* 顯示通話紀錄列表 */}
+      <FlatList
+        data={deviceLogs}
+        keyExtractor={(_, idx) => `d-${idx}`}
+        renderItem={renderDeviceItem}
+        refreshing={loadingDevice}
+        onRefresh={loadDeviceLogs}
+        ListEmptyComponent={<Text style={styles.empty}>目前沒有本機通話紀錄</Text>}
+        contentContainerStyle={{ paddingBottom: 16 }}
+      />
+
+      {/* 顯示同步按鈕 */}
+      {autoSyncMsg && renderSyncButton()}
     </View>
   );
 }
@@ -295,6 +379,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   errorText: { color: '#fff', fontSize: 14, flex: 1 },
+
+  infoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F1F2F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 8,
+  },
+  infoText: { color: '#111', fontSize: 13 },
 
   tabs: {
     flexDirection: 'row',
