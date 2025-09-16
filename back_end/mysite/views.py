@@ -1083,3 +1083,4 @@ def get_call_records(request, user_id):
     records = CallRecord.objects.filter(UserId=user_id).order_by('-CallId')
     serializer = CallRecordSerializer(records, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
