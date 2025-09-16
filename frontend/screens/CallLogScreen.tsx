@@ -10,7 +10,7 @@ import CallLogs from 'react-native-call-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://172.20.10.4:8000'; // ← 換成你的後端 IP
+const API_BASE = 'http://192.168.0.24:8000'; // ← 換成你的後端 IP
 
 // ===== 型別 =====
 type DeviceCall = {
@@ -43,6 +43,7 @@ function typeLabel(t?: string) {
     default: return '未知';
   }
 }
+
 function fmt(ts?: string | number, dt?: string) {
   const d = ts != null ? new Date(Number(ts)) : (dt ? new Date(dt) : null);
   if (!d || isNaN(+d)) return '';
@@ -51,8 +52,10 @@ function fmt(ts?: string | number, dt?: string) {
   const day = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day} ${hh}:${mm}`;
+  const ss = String(d.getSeconds()).padStart(2, '0'); // ← 加上秒
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
 }
+
 const safeStr = (v: any) => (v == null ? '' : String(v));
 
 // 把手機端格式轉後端 payload
@@ -61,8 +64,8 @@ function toPayload(elderId: number, log: DeviceCall) {
     UserId: elderId,
     PhoneName: safeStr(log.name || '未知'),
     Phone: safeStr(log.phoneNumber || ''),
-    PhoneTime: fmt(log.timestamp, log.dateTime),
-    IsScam: false,
+    PhoneTime: fmt(log.timestamp, log.dateTime),  // 使用時間戳與時間來做比較
+    IsScam: false,  // 目前設定為 false，你可以根據需要修改這部分邏輯
   };
 }
 
@@ -283,6 +286,7 @@ export default function CallLogScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
 
       {/* Header */}
       <View style={styles.header}>

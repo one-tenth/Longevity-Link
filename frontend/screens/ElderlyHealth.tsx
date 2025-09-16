@@ -68,7 +68,7 @@ export default function ElderlyHealth() {
     if (!token) return;
     try {
       const response = await axios.post(
-        'http://172.20.10.4:8000/api/fitdata/',
+        'http://192.168.0.24:8000/api/fitdata/',
         { steps, timestamp: timestamp.toISOString() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -84,7 +84,7 @@ export default function ElderlyHealth() {
     const dateStr = date.toLocaleDateString('sv-SE');
     try {
       const response = await axios.get(
-        `http://172.20.10.4:8000/api/healthcare/by-date/?date=${dateStr}`,
+        `http://192.168.0.24:8000/api/healthcare/by-date/?date=${dateStr}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.data) {
