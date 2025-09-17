@@ -27,7 +27,7 @@ type ServerCall = {
   PhoneName: string;
   Phone: string;
   PhoneTime: string;
-  IsScam: boolean;
+  IsScam: boolean; // 新增詐騙標記
 };
 
 type TabKey = 'device' | 'server';
@@ -51,47 +51,36 @@ function fmt(ts?: string | number, dt?: string) {
   const day = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0'); // ← 加上秒
+  const ss = String(d.getSeconds()).padStart(2, '0');
   return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
 }
 
 const safeStr = (v: any) => (v == null ? '' : String(v));
 
-// 把手機端格式轉後端 payload
 function toPayload(elderId: number, log: DeviceCall) {
   return {
     UserId: elderId,
     PhoneName: safeStr(log.name || '未知'),
     Phone: safeStr(log.phoneNumber || ''),
     PhoneTime: fmt(log.timestamp, log.dateTime),  // 使用時間戳與時間來做比較
-    IsScam: false,  // 目前設定為 false，你可以根據需要修改這部分邏輯
+    IsScam: false,
   };
 }
 
 export default function CallLogScreen() {
   const navigation = useNavigation();
 
-  // 選定長者
   const [elderId, setElderId] = useState<number | null>(null);
   const [elderName, setElderName] = useState<string>('');
-
-  // Tabs
   const [tab, setTab] = useState<TabKey>('server');
-
-  // Device
   const [deviceLogs, setDeviceLogs] = useState<DeviceCall[]>([]);
   const [loadingDevice, setLoadingDevice] = useState(false);
-
-  // Server
   const [serverLogs, setServerLogs] = useState<ServerCall[]>([]);
   const [loadingServer, setLoadingServer] = useState(false);
-
-  // Common
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [syncing, setSyncing] = useState(false);
-  const [autoSyncMsg, setAutoSyncMsg] = useState<string>(''); // 自動同步狀態顯示
+  const [autoSyncMsg, setAutoSyncMsg] = useState<string>('');
 
-  // ===== 讀取選定長者 =====
   async function loadSelectedElder() {
     try {
       const [eid, ename] = await Promise.all([
@@ -112,36 +101,25 @@ export default function CallLogScreen() {
     }
   }
 
-  // ===== 權限請求（僅 Android）+ 讀取本機 =====
-  async function requestPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android') {
-      Alert.alert('提示', '通話紀錄僅支援 Android');
-      return false;
-    }
+  async function loadDeviceLogs() {
+    setErrorMsg('');
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
       { title: '需要通話紀錄權限', message: 'App 需要讀取通話紀錄', buttonPositive: '允許' },
     );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  }
-
-  // 讀本機 → 讀完就觸發自動同步
-  async function loadDeviceLogs() {
-    setErrorMsg('');
-    const ok = await requestPermission();
-    if (!ok) {
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
       setErrorMsg('未取得通話紀錄權限，無法讀取本機紀錄。');
       return;
     }
+
     setLoadingDevice(true);
     try {
-      const result = await CallLogs.load(100); // 多抓一點
+      const result = await CallLogs.load(100);
       const list = (result as DeviceCall[]) || [];
       setDeviceLogs(list);
       if (!list.length) {
         setErrorMsg('本機沒有可顯示的通話紀錄。');
       }
-      // ←← 自動同步（有選長者 & 有 token 才做）
       await autoSyncNewDeviceLogs(list);
     } catch (err: any) {
       console.error('抓本機失敗:', err);
@@ -152,7 +130,6 @@ export default function CallLogScreen() {
     }
   }
 
-  // 後端撈資料（用 elderId）
   async function loadServerLogs() {
     setErrorMsg('');
     if (!elderId) {
@@ -176,7 +153,7 @@ export default function CallLogScreen() {
         setErrorMsg('資料庫目前沒有通話紀錄。');
       }
     } catch (err: any) {
-      console.error('撈後端失敗:', err?.response?.status, err?.response?.data || err?.message);
+      console.error('撈後端失敗:', err);
       setErrorMsg('連線資料庫失敗，請稍後重試。');
       Alert.alert('錯誤', err?.message ?? '讀取資料庫通話紀錄失敗');
     } finally {
@@ -184,17 +161,16 @@ export default function CallLogScreen() {
     }
   }
 
-  // ===== 自動同步：把「本機有、資料庫沒有」的紀錄存進後端 =====
   async function autoSyncNewDeviceLogs(list: DeviceCall[]) {
     setAutoSyncMsg('');
-    if (!elderId) return; // 未選長者就不做
+    if (!elderId) return;
     const token = await AsyncStorage.getItem('access');
-    if (!token) return;   // 未登入就不做
+    if (!token) return;
+
     try {
       setSyncing(true);
       setAutoSyncMsg('自動同步中…');
 
-      // 1) 先取資料庫現有（拿來做去重）
       const res = await axios.get<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -202,7 +178,6 @@ export default function CallLogScreen() {
         (res.data || []).map((r) => `${r.Phone}|${r.PhoneTime}`)
       );
 
-      // 2) 過濾出「新」的本機紀錄
       const newOnDevice = list
         .map((it) => toPayload(elderId, it))
         .filter((p) => p.Phone && p.PhoneTime && !exists.has(`${p.Phone}|${p.PhoneTime}`));
@@ -212,13 +187,11 @@ export default function CallLogScreen() {
         return;
       }
 
-      // 3) 優先嘗試「批次上傳」，若 404/501 之類就 fallback 逐筆
       try {
         await axios.post(`${API_BASE}/api/callrecords/bulk_add/`, { items: newOnDevice }, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch (e: any) {
-        // 批次沒有就逐筆
         await Promise.allSettled(
           newOnDevice.map((payload) =>
             axios.post(`${API_BASE}/api/callrecords/add/`, payload, {
@@ -229,10 +202,9 @@ export default function CallLogScreen() {
       }
 
       setAutoSyncMsg(`已同步 ${newOnDevice.length} 筆`);
-      // 同步後刷新資料庫分頁（如果當下顯示的是資料庫分頁）
       await loadServerLogs();
     } catch (e: any) {
-      console.error('自動同步失敗:', e?.response?.status, e?.response?.data || e?.message);
+      console.error('自動同步失敗:', e);
       setErrorMsg('自動同步失敗，請稍後再試。');
       setAutoSyncMsg('');
     } finally {
@@ -240,7 +212,6 @@ export default function CallLogScreen() {
     }
   }
 
-  // 手動同步（保留：如果你想手動按）
   async function syncDeviceToServer() {
     if (!elderId) {
       Alert.alert('提醒', '請先於家庭頁面選擇要同步的長者');
@@ -254,12 +225,18 @@ export default function CallLogScreen() {
     setTab('server');
   }
 
-  // 初次載入
-  useEffect(() => { (async () => { await loadSelectedElder(); })(); }, []);
-  useEffect(() => { if (elderId) loadServerLogs(); }, [elderId]);
-  useEffect(() => { loadDeviceLogs(); }, []); // 開頁就抓本機，並自動同步
+  useEffect(() => {
+    (async () => {
+      await loadSelectedElder();
+    })();
+  }, []);
+  useEffect(() => {
+    if (elderId) loadServerLogs();
+  }, [elderId]);
+  useEffect(() => {
+    loadDeviceLogs();
+  }, []);
 
-  // ===== Renderers =====
   const renderDeviceItem = ({ item }: { item: DeviceCall }) => {
     const dur = typeof item.duration === 'string' ? item.duration : String(item.duration ?? 0);
     return (
@@ -283,27 +260,23 @@ export default function CallLogScreen() {
     </View>
   );
 
-  // 這裡是 renderSyncButton 函式，當有新的紀錄時顯示同步按鈕
-  const renderSyncButton = () => {
-    return (
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: '#111' }]}
-          onPress={syncDeviceToServer}
-          disabled={syncing || !elderId}
-        >
-          <Text style={styles.actionText}>
-            {syncing ? '上傳中…' : '同步到後端'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderSyncButton = () => (
+    <View style={styles.bottomBar}>
+      <TouchableOpacity
+        style={[styles.actionBtn, { backgroundColor: '#111' }]}
+        onPress={syncDeviceToServer}
+        disabled={syncing || !elderId}
+      >
+        <Text style={styles.actionText}>
+          {syncing ? '上傳中…' : '同步到後端'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
 
       {/* Header */}
       <View style={styles.header}>

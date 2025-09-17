@@ -1112,13 +1112,50 @@ def bulk_add_call_records(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import CallRecord
+from .models import CallRecord, Scam
 
 @api_view(['GET'])
 def get_call_records(request, user_id):
-    # 假設 UserId 是外鍵
-    records = CallRecord.objects.filter(UserId=user_id)  # 使用外鍵的 id 字段查詢
-    data = [{"Phone": record.Phone, "PhoneTime": record.PhoneTime} for record in records]
+    # 查詢該長者的通話紀錄
+    records = CallRecord.objects.filter(UserId=user_id)
+    
+    # 查詢所有詐騙電話
+    scam_phones = Scam.objects.values_list('Phone', flat=True)
+    
+    # 標註詐騙電話
+    for record in records:
+        record.IsScam = record.Phone in scam_phones
+        record.save()
+    
+    # 將通話紀錄返回
+    data = [{"Phone": record.Phone, "PhoneTime": record.PhoneTime, "IsScam": record.IsScam} for record in records]
     return Response(data)
+
+
+#之後要刪掉
+from django.http import JsonResponse
+
+def add_scam_from_callrecord(request):
+    # 指定要測試的電話號碼
+    phone_number = "0905544552"
+    
+    # 從 `callrecord` 資料表中取得該電話號碼的資料
+    call_record = CallRecord.objects.filter(Phone=phone_number).first()
+
+    if call_record:
+        # 如果找到該電話號碼的紀錄，將其新增到 `Scam` 資料表
+        Scam.objects.create(
+            Phone=call_record,  # 這裡傳遞的是 `CallRecord` 實例
+            PhoneName=call_record.PhoneName,  # 從 `CallRecord` 實例中取出
+            PhoneTime=call_record.PhoneTime,  # 從 `CallRecord` 實例中取出
+            IsScam=1,  # 標記為詐騙
+            UserId=call_record.UserId  # 從 `CallRecord` 實例中取出
+        )
+        return JsonResponse({"message": f"電話號碼 {phone_number} 已成功新增到詐騙資料表"}, status=200)
+    else:
+        return JsonResponse({"error": f"找不到電話號碼 {phone_number} 的紀錄"}, status=404)
+
+#到這

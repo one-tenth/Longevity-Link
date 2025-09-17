@@ -53,4 +53,5 @@ urlpatterns = [
     path('api/callrecords/<int:user_id>/', views.get_call_records, name='get_call_records'),
     path('api/callrecords/bulk_add/', views.bulk_add_call_records, name='bulk_add_callrecords'),
     path('api/callrecords/<int:user_id>/', views.get_call_records),
+    path('add_scam/', views.add_scam_from_callrecord, name='add_scam_from_callrecord'),#刪
 ]
