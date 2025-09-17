@@ -1111,3 +1111,16 @@ def bulk_add_call_records(request):
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import CallRecord
+from .serializers import CallRecordSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_call_records(request, elder_id):
+    logs = CallRecord.objects.filter(UserId=elder_id).order_by('-PhoneTime')
+    serializer = CallRecordSerializer(logs, many=True)
+    return Response(serializer.data)
