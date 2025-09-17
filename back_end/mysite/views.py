@@ -1112,15 +1112,13 @@ def bulk_add_call_records(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import CallRecord
-from .serializers import CallRecordSerializer
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_call_records(request, elder_id):
-    logs = CallRecord.objects.filter(UserId=elder_id).order_by('-PhoneTime')
-    serializer = CallRecordSerializer(logs, many=True)
-    return Response(serializer.data)
+def get_call_records(request, user_id):
+    # 假設 UserId 是外鍵
+    records = CallRecord.objects.filter(UserId=user_id)  # 使用外鍵的 id 字段查詢
+    data = [{"Phone": record.Phone, "PhoneTime": record.PhoneTime} for record in records]
+    return Response(data)
