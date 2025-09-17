@@ -34,7 +34,7 @@
     "react-native-haptic-feedback": "^2.3.3",
     "react-native-image-picker": "^8.2.1",
     "react-native-linear-gradient": "^2.8.3",
-    "react-native-maps": "^1.25.3",
+    "react-native-maps": "^1.26.6",
     "react-native-mlkit-ocr": "^0.3.0",
     "react-native-permissions": "^5.4.1",
     "react-native-reanimated": "^3.18.0",
