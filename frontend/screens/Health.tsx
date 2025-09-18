@@ -1,3 +1,4 @@
+// screens/HealthStatus.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Pressable } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -32,8 +33,16 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-// 改成你原本使用的後端 IP
-const BASE = 'http://10.2.61.2:8000';
+// ✅ 改成你的後端位址（模擬器請用 http://10.0.2.2:8000）
+const BASE = 'http://192.168.0.91:8000';
+
+// ✅ YYYY-MM-DD 統一格式
+function formatDateYYYYMMDD(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
@@ -52,29 +61,31 @@ export default function HealthStatus() {
         return;
       }
       const member = JSON.parse(selected);
-      const dateStr = date.toLocaleDateString('sv-SE'); // YYYY-MM-DD
+      const dateStr = formatDateYYYYMMDD(date); // ✅ 固定成 YYYY-MM-DD
 
+      // 讀步數
       try {
-        const stepRes = await axios.get(
-          `${BASE}/api/fitdata/by-date/?date=${dateStr}&user_id=${member.UserID}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const stepRes = await axios.get(`${BASE}/api/fitdata/by-date/`, {
+          params: { date: dateStr, user_id: member.UserID },
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setSteps(stepRes.data?.steps ?? null);
-      } catch {
+      } catch (e) {
         setSteps(null);
       }
 
+      // 讀血壓
       try {
-        const bpRes = await axios.get(
-          `${BASE}/api/healthcare/by-date/?date=${dateStr}&user_id=${member.UserID}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const bpRes = await axios.get(`${BASE}/api/healthcare/by-date/`, {
+          params: { date: dateStr, user_id: member.UserID },
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setBpData({
           systolic: bpRes.data?.systolic,
           diastolic: bpRes.data?.diastolic,
           pulse: bpRes.data?.pulse,
         });
-      } catch {
+      } catch (e) {
         setBpData(null);
       }
     } catch {
@@ -83,7 +94,10 @@ export default function HealthStatus() {
     }
   };
 
-  useEffect(() => { fetchData(selectedDate); }, []); // 初次載入
+  useEffect(() => {
+    fetchData(selectedDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const bpValue = bpData ? `${bpData.systolic ?? '-'} / ${bpData.diastolic ?? '-'}` : '—';
   const pulseValue = bpData ? `${bpData.pulse ?? '-'}` : '—';
@@ -94,7 +108,7 @@ export default function HealthStatus() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       <View style={styles.header}>
-        {/* ← 保留你自己的返回鍵（feature/ip_family_frontend） */}
+        {/* ← 返回 ChildHome */}
         <TouchableOpacity
           onPress={() => navigation.navigate('ChildHome' as never)}
           style={styles.backFab}
@@ -123,7 +137,7 @@ export default function HealthStatus() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.dateMain}>
-            {selectedDate.toLocaleDateString('sv-SE')}（{weekday}）
+            {formatDateYYYYMMDD(selectedDate)}（{weekday}）
           </Text>
           <Text style={styles.dateSub}>點我更改日期</Text>
         </View>
@@ -136,7 +150,10 @@ export default function HealthStatus() {
           display="default"
           onChange={(event, date) => {
             setShowPicker(false);
-            if (date) { setSelectedDate(date); fetchData(date); }
+            if (date) {
+              setSelectedDate(date);
+              fetchData(date); // ✅ 換日即重查
+            }
           }}
         />
       )}
