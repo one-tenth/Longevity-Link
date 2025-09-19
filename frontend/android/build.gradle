@@ -1,3 +1,5 @@
+// android/build.gradle  ← 根專案
+
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
@@ -12,13 +14,16 @@ buildscript {
         mavenCentral()
     }
     dependencies {
+        // 版本由 settings.gradle 的 pluginManagement 管理，這裡保留座標即可
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
-        classpath 'com.google.gms:google-services:4.3.15'
-
+        // 只放在 classpath，**不要在根專案 apply**，真正的 apply 放到 app 模組
+        classpath("com.google.gms:google-services:4.3.15")
     }
 }
 
+// React Native 根專案外掛（必要）
 apply plugin: "com.facebook.react.rootproject"
-apply plugin: 'com.google.gms.google-services'
+
+// ⚠️ 不要在這裡：apply plugin: 'com.google.gms.google-services'
