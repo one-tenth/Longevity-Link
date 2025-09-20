@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
-  PermissionsAndroid, Platform, TouchableOpacity, Alert, StatusBar,
+  PermissionsAndroid, TouchableOpacity, Alert, StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
@@ -62,7 +62,7 @@ function toPayload(elderId: number, log: DeviceCall) {
     UserId: elderId,
     PhoneName: safeStr(log.name || '未知'),
     Phone: safeStr(log.phoneNumber || ''),
-    PhoneTime: fmt(log.timestamp, log.dateTime),  // 使用時間戳與時間來做比較
+    PhoneTime: fmt(log.timestamp, log.dateTime),
     IsScam: false,
   };
 }
@@ -284,10 +284,11 @@ export default function CallLogScreen() {
           <Feather name="arrow-left" size={24} color="#111" />
           <Text style={styles.backText}>返回</Text>
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>
           通話紀錄{elderName ? `（${elderName}）` : ''}
         </Text>
-        <View style={{ width: 64 }} />
+
       </View>
 
       {/* 顯示錯誤訊息 */}
@@ -341,6 +342,17 @@ const styles = StyleSheet.create({
   backText: { color: '#111', fontSize: 16, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#111' },
 
+  scamAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#111',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  scamAddText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
   errorBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -379,7 +391,12 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 15, color: '#666', fontWeight: '700' },
   tabTextActive: { color: '#111' },
 
-  item: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  item: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
   phone: { fontSize: 18, fontWeight: 'bold', color: '#222' },
   detail: { fontSize: 15, color: '#555', marginTop: 2 },
   time: { fontSize: 13, color: '#888', marginTop: 2 },

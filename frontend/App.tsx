@@ -36,7 +36,7 @@ import FamilyHospitalList from './screens/FamilyHospitalList';
 import FamilyAddHospital from './screens/FamilyAddHospital';
 import ElderMedRemind from './screens/ElderMedRemind';
 import CallLogScreen from './screens/CallLogScreen';
-
+import ScamScreen from './screens/ScamScreen';
 // ---- Stack params ----
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
@@ -58,6 +58,7 @@ export type RootStackParamList = {
     | { mode: 'register' }
     | { mode: 'addElder'; creatorId: number };
   Health: undefined;
+  ScamScreen: undefined;
 
   // 通知相關
   ElderMedRemind: { period?: string; meds?: string[]; time?: string };
@@ -181,6 +182,7 @@ const App: React.FC = () => {
         <Stack.Screen name="Profile" component={Profile} />
         <Stack.Screen name="FamilyHospitalList" component={FamilyHospitalList} />
         <Stack.Screen name="FamilyAddHospital" component={FamilyAddHospital} />
+        <Stack.Screen name="ScamScreen" component={ScamScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
