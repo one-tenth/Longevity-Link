@@ -108,16 +108,6 @@ SIMPLE_JWT = {
 }
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'mysql.connector.django',
-#         'NAME': 'railway',
-#         'USER': 'root',
-#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
-#         'HOST': 'mysql.railway.internal',
-#         'PORT': '3306',
-#     }
-# }
 
 DATABASES = {
     'default': {

@@ -169,14 +169,21 @@ class Scam(models.Model):
         verbose_name = "Scam"
         verbose_name_plural = "Scam"
 
+from django.db import models
+from django.conf import settings
+
 class FitData(models.Model):
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+    UserID = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_column='UserID')
+    date = models.DateField()  # ✅ 改成日期
     steps = models.IntegerField()
-    timestamp = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)  # 建立時間
+    updated_at = models.DateTimeField(auto_now=True)      # 更新時間
 
     class Meta:
+        unique_together = ('UserID', 'date')  # ✅ 同一天只能有一筆
         verbose_name = "FitData"
         verbose_name_plural = "FitData"
+
 
 class LocaRecord(models.Model):
     LocationID = models.AutoField(primary_key=True)

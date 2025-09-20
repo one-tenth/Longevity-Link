@@ -126,7 +126,7 @@ export default function CreateFamily() {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setFamilyCode(code);
     try {
-      const response = await fetch('http://192.168.0.24:8000/api/family/create/', {
+      const response = await fetch('http://192.168.0.91:8000/api/family/create/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

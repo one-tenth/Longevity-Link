@@ -575,9 +575,8 @@ def get_med_reminders(request):
 
 #----------------------------------------------------------------
 #健康
-#新增步數
-from django.utils.timezone import is_naive, make_aware
-from datetime import datetime, time
+# views.py
+from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -589,85 +588,97 @@ class FitDataAPI(APIView):
     def post(self, request):
         user = request.user
         steps = request.data.get('steps')
-        timestamp_str = request.data.get('timestamp')
+        date_str = request.data.get('date')  # ✅ 改收 date
 
-        if steps is None or not timestamp_str:
-            return Response({'error': '缺少步數或時間'}, status=400)
+        if steps is None or not date_str:
+            return Response({'error': '缺少步數或日期'}, status=400)
 
-        timestamp = datetime.fromisoformat(timestamp_str)
-        if is_naive(timestamp):
-            timestamp = make_aware(timestamp)
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        # ✅ 改成以當日範圍查詢（最穩定）
-        start_of_day = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = timestamp.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        existing = FitData.objects.filter(
+        # ✅ 檢查是否已有當日紀錄
+        fitdata, created = FitData.objects.get_or_create(
             UserID=user,
-            timestamp__range=(start_of_day, end_of_day)
-        ).first()
+            date=date_obj,
+            defaults={'steps': steps}
+        )
 
-        if existing:
-            if existing.steps != steps:
-                existing.steps = steps
-                existing.timestamp = timestamp
-                existing.save()
-                return Response({'message': '✅ 同日已有資料，步數已更新'})
+        if not created:
+            if fitdata.steps != steps:
+                fitdata.steps = steps
+                fitdata.save()
+                return Response({'message': '✅ 已更新當日步數'})
             else:
-                return Response({'message': '🟡 同日步數相同，未更新'})
+                return Response({'message': '🟡 當日步數相同，未更新'})
         else:
-            FitData.objects.create(UserID=user, steps=steps, timestamp=timestamp)
             return Response({'message': '✅ 新增成功'})
 
-#查詢步數
+
+# 查詢步數（用 date 欄位）
+from datetime import datetime
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.utils.timezone import make_aware
-from datetime import datetime, time
+
 from .models import FitData
-from mysite.models import User  # ⚠️ 修改為你實際的 User 模型位置
+
+User = get_user_model()
 
 class FitDataByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        date_str = request.query_params.get('date')  # YYYY-MM-DD
-        user_id = request.query_params.get('user_id')  # 前端傳入的
+        # 1) 取得參數
+        date_str = request.query_params.get('date')      # 必填：YYYY-MM-DD
+        user_id = request.query_params.get('user_id')    # 選填：查指定使用者
 
         if not date_str:
-            return Response({'error': '缺少日期參數'}, status=400)
+            return Response({'error': '缺少日期參數 date（YYYY-MM-DD）'}, status=400)
 
+        # 2) 解析日期
         try:
             target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        start = make_aware(datetime.combine(target_date, time.min))
-        end = make_aware(datetime.combine(target_date, time.max))
-
-        # 🔍 若有 user_id 就查指定長者，否則查登入者
+        # 3) 決定目標使用者：有 user_id 就查該人，否則查登入者
         if user_id:
             try:
-                user_id = int(user_id)
-                target_user = User.objects.get(UserID=user_id)
-            except (ValueError, TypeError):
-                return Response({'error': 'user_id 需為整數'}, status=400)
+                uid = int(user_id)
+            except (TypeError, ValueError):
+                return Response({'error': 'user_id 必須為整數'}, status=400)
+
+            try:
+                # 用 get_user_model() 比較穩；一般用 pk/id 查就好
+                target_user = User.objects.get(pk=uid)
             except User.DoesNotExist:
                 return Response({'error': '查無此使用者'}, status=404)
         else:
             target_user = request.user
 
-        record = FitData.objects.filter(UserID=target_user, timestamp__range=(start, end)).order_by('-timestamp').first()
+        # 4) 以 date 精準查詢（模型已改為 date 欄位）
+        record = (
+            FitData.objects
+            .filter(UserID=target_user, date=target_date)
+            .order_by('-updated_at' if hasattr(FitData, 'updated_at') else 'pk')
+            .first()
+        )
 
-        if record:
-            return Response({
-                'steps': record.steps,
-                'timestamp': record.timestamp,
-            })
-        else:
+        if not record:
             return Response({'message': '當日無步數資料'}, status=404)
+
+        # 5) 回傳結果（保持簡潔）
+        return Response({
+            'user_id': getattr(target_user, 'pk', None),
+            'date': record.date.isoformat(),
+            'steps': record.steps,
+            'created_at': getattr(record, 'created_at', None),
+            'updated_at': getattr(record, 'updated_at', None),
+        })
+
 
 #----------------------------------------------------------------
 @api_view(['GET'])
