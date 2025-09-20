@@ -1135,37 +1135,135 @@ def get_call_records(request, user_id):
     return Response(data)
 
 # mysite/views.py
+# mysite/views.py
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny      
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from mysite.models import Scam
+from django.db.models import Subquery, OuterRef
+from mysite.models import Scam, CallRecord
 import re
 
 def normalize_phone(p: str) -> str:
-    """去掉非數字；把 +886 開頭轉成 0（依你需求可微調）"""
     p = re.sub(r'\D', '', p or '')
     if p.startswith('886') and len(p) >= 11:
         p = '0' + p[3:]
     return p
 
 @api_view(['POST'])
-@permission_classes([AllowAny]) 
+@permission_classes([AllowAny])   
 def scam_check_bulk(request):
-    """
-    body: { "phones": ["0905...", "+886905..."] }
-    return: { "matches": ["0905...","0922..."] }  # 全都已正規化
-    """
     raw_list = request.data.get('phones') or []
     phones = [normalize_phone(x) for x in raw_list if x]
     if not phones:
-        return Response({"matches": []}, status=status.HTTP_200_OK)
+        return Response({"matches": {}}, status=status.HTTP_200_OK)
 
-    # Scam.Phone 是外鍵 → 跨關聯到 CallRecord.Phone
-    qs = (Scam.objects
-          .filter(Phone__Phone__in=phones)
-          .values_list('Phone__Phone', flat=True)
-          .distinct())
+    # 取每支電話「最新一筆 Scam」的 Category
+    latest_category_subq = Subquery(
+        Scam.objects
+            .filter(Phone__Phone=OuterRef('Phone'))
+            .order_by('-ScamId')              # 以 ScamId 當最新依據；你也可改時間欄位
+            .values('Category')[:1]
+    )
 
-    return Response({"matches": list(qs)}, status=status.HTTP_200_OK)
+    # 以電話分組，套上最新分類
+    rows = (CallRecord.objects
+            .filter(Phone__in=phones)
+            .values('Phone')                       
+            .annotate(latest_category=latest_category_subq)
+            .filter(latest_category__isnull=False)
+            .values_list('Phone', 'latest_category'))
+
+    matches = {phone: category for phone, category in rows}
+    return Response({"matches": matches}, status=status.HTTP_200_OK)
+
+
+# 新增詐騙資料表
+from django.http import JsonResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+
+from mysite.models import Scam, CallRecord
+
+
+def add_scam_from_callrecord(request):
+    """
+    測試用：把固定的一支電話加入 Scam。
+    注意：Scam model 只有 Phone(FK) 與 Category，不能塞其他欄位。
+    """
+    phone_number = "0905544552"
+
+    call_record = CallRecord.objects.filter(Phone=phone_number).order_by('-PhoneTime').first()
+    if not call_record:
+        # 找不到就「建立一筆 CallRecord」再關聯（你也可以改成直接回 404）
+        call_record = CallRecord.objects.create(
+            Phone=phone_number,
+            PhoneName="未知來電",
+            PhoneTime=timezone.now(),
+        )
+
+    Scam.objects.create(
+        Phone=call_record,         # 外鍵要放 CallRecord 物件（或 Phone_id=call_record.pk）
+        Category="詐騙",
+    )
+    return JsonResponse({"message": f"電話號碼 {phone_number} 已成功新增到詐騙資料表"}, status=200)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated
+def scam_add(request):
+    """
+    支援兩種傳法：
+      1) { "Phone": "0905544552", "Category": "詐騙" }
+         → 自動找/建 CallRecord 再關聯
+      2) { "call_id": 123, "Category": "詐騙" }
+         → 直接綁既有的 CallRecord
+    """
+    phone = (request.data.get("Phone") or "").strip()
+    call_id = request.data.get("call_id")
+    category = (request.data.get("Category") or "詐騙").strip()[:10]
+
+    if not phone and not call_id:
+        return Response({"error": "缺少 Phone 或 call_id，至少擇一"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 取得/建立 CallRecord
+    if call_id:
+        try:
+            call = CallRecord.objects.get(pk=call_id)
+        except CallRecord.DoesNotExist:
+            return Response({"error": f"CallRecord(id={call_id}) 不存在"}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        # ⚠️ 這裡要用的是 `phone`，不是 phone_number（phone_number 在另一個函式才有）
+        call = (CallRecord.objects
+                .filter(Phone=phone)
+                .order_by('-PhoneTime')
+                .first())
+        if not call:
+            # 找不到就建立一筆（如果你不想自動建立，改成回 404 即可）
+            call = CallRecord.objects.create(
+                Phone=phone,
+                PhoneName="未知來電",
+                PhoneTime=timezone.now()
+            )
+
+    scam = Scam.objects.create(
+        Phone=call,          # 或寫 Phone_id=call.pk
+        Category=category
+    )
+
+    return Response({
+        "message": "Scam 新增成功",
+        "ScamId": scam.ScamId,
+        "Category": scam.Category,
+        "CallRecord": {
+            "CallId": getattr(call, 'CallId', getattr(call, 'id', None)),
+            "Phone": call.Phone,
+            "PhoneName": getattr(call, 'PhoneName', None),
+            "PhoneTime": getattr(call, 'PhoneTime', None),
+        }
+    }, status=status.HTTP_201_CREATED)
+
 
