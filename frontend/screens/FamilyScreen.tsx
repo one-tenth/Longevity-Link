@@ -17,7 +17,6 @@ interface Member {
   RelatedID: number | null;
 }
 
-/* ===== 主題（與 ChildHome 對齊） ===== */
 const COLORS = {
   white: '#FFFFFF',
   black: '#111111',
@@ -66,25 +65,40 @@ const FamilyScreen = () => {
       }
 
       try {
-        // 取得使用者資訊（維持原 API）
+        // 1) /account/me
         const resMe = await fetch('http://192.168.31.126:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
 
-        setUserId(user.UserID);
+        setUserId(user?.UserID ?? null);
 
-        // ✅ 優先顯示後端的 FamilyName（你 DB 裡的 "Family"）
-        const nameFromApi =
-          user.FamilyName ||
-          (user.Family && (user.Family.FamilyName || user.Family.name)) ||
-          `${user.Name}的家庭`;
-        setFamilyName(nameFromApi);
+        // ① 家庭名稱：後端 → 本地 → 退回
+        let nameFromApi =
+          user?.FamilyName ||
+          user?.family_name ||
+          user?.Family?.FamilyName ||
+          user?.Family?.name ||
+          user?.family?.FamilyName ||
+          user?.family?.name ||
+          '';
 
-        setFamilyCode(user.Fcode ?? null);
+        if (!nameFromApi) {
+          const localName = await AsyncStorage.getItem('family_name');
+          if (localName && localName.trim()) nameFromApi = localName.trim();
+        }
+        setFamilyName(nameFromApi || `${user?.Name ?? ''}的家庭`);
 
-        // 取得成員（維持原 API）
+        // ② 家庭代碼：後端 → 本地
+        let fcode = user?.Fcode ?? null;
+        if (!fcode) {
+          const localF = await AsyncStorage.getItem('fcode');
+          if (localF && localF.trim()) fcode = localF.trim();
+        }
+        setFamilyCode(fcode);
+
+        // 2) /family/members/
         const resMembers = await fetch('http://192.168.31.126:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -99,9 +113,31 @@ const FamilyScreen = () => {
         } else {
           setMembers([]);
         }
+
+        // ③ 若仍沒有名字，嘗試從 members 回傳猜測一次
+        if (!nameFromApi) {
+          let fromMembers: string | null = null;
+          if (Array.isArray(membersData)) {
+            for (const m of membersData as any[]) {
+              const n = m?.FamilyName || m?.family_name || m?.family?.name || m?.family?.FamilyName;
+              if (typeof n === 'string' && n.trim()) { fromMembers = n.trim(); break; }
+            }
+          } else if (membersData && typeof membersData === 'object') {
+            const n = (membersData as any).FamilyName || (membersData as any).family_name;
+            if (typeof n === 'string' && n.trim()) fromMembers = n.trim();
+          }
+          if (fromMembers) setFamilyName(fromMembers);
+        }
       } catch (error) {
         console.error('取得家庭資料失敗:', error);
         setMembers([]);
+
+        // 失敗亦用本地備援
+        const localName = await AsyncStorage.getItem('family_name');
+        if (localName && localName.trim()) setFamilyName(localName.trim());
+        const localF = await AsyncStorage.getItem('fcode');
+        if (localF && localF.trim()) setFamilyCode(localF.trim());
+
         Alert.alert('讀取失敗', '無法取得家庭資料，請稍後再試');
       }
     };
@@ -113,7 +149,7 @@ const FamilyScreen = () => {
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ===== 頂部黑色卡：只顯示家庭名稱與代碼 ===== */}
+      {/* ===== HERO（頂部黑色卡，僅顯示家庭資訊） ===== */}
       <View style={[styles.hero, outerShadow, { backgroundColor: COLORS.black }]}>
         <Text style={styles.familyTitle}>
           {familyName}（{members.length}）
@@ -126,7 +162,7 @@ const FamilyScreen = () => {
         ) : null}
       </View>
 
-      {/* ===== 成員網格（已移除成員圖片） ===== */}
+      {/* ===== 成員網格 ===== */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.grid}>
           {members.length > 0 ? (
@@ -163,7 +199,7 @@ const FamilyScreen = () => {
         </View>
       </ScrollView>
 
-      {/* ===== 底部按鈕 ===== */}
+      {/* ===== 底部兩顆主要動作 ===== */}
       <View style={styles.bottomBar}>
         <Pressable
           onPress={() => {
@@ -200,7 +236,7 @@ const FamilyScreen = () => {
   );
 };
 
-/* ===== Styles ===== */
+/* ===== Styles（原樣保留） ===== */
 const styles = StyleSheet.create({
   hero: {
     margin: 16,

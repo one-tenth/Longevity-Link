@@ -1,7 +1,7 @@
-#定義前端與後端交換資料的格式
+# serializers.py
 from rest_framework import serializers
 
-from .models import User,Med,FitData,Family,MedTimeSetting,Hos
+from .models import User, Med, FitData, Family, MedTimeSetting, Hos
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -33,6 +33,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
+
 class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -44,23 +45,30 @@ class MedNameSerializer(serializers.ModelSerializer):
         model = Med
         fields = ['MedId', 'Disease']
 
+
 class FitDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = FitData
         fields = ['steps', 'timestamp']
-        
-class MedSerializer(serializers.ModelSerializer):  # ✅ 正確
+
+
+class MedSerializer(serializers.ModelSerializer):  # ✅ 保持不變
     class Meta:
         model = Med
         fields = '__all__'
+
+
 class MedTimeSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = MedTimeSetting
         fields = '__all__'
+
+
+# ✅ 只保留「單一版本」的 FamilySerializer，包含 FamilyName 與 Fcode
 class FamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = Family
-        fields = '__all__'
+        fields = ['id', 'FamilyName', 'Fcode']  # 或用 '__all__' 亦可，只要包含 FamilyName 與 Fcode 即可
 
 
 class ReminderItemSerializer(serializers.Serializer):
@@ -70,16 +78,24 @@ class ReminderItemSerializer(serializers.Serializer):
     prescription_id = serializers.CharField()
     disease = serializers.CharField()
     user_id = serializers.IntegerField()
-    
+
+
+# ✅ /account/me/ 回傳中補上 FamilyName 與 Fcode（攤平成頂層）
 class UserMeSerializer(serializers.ModelSerializer):
+    FamilyName = serializers.SerializerMethodField()
+    Fcode = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID']
+        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID', 'FamilyName', 'Fcode']
 
-class FamilySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Family
-        fields = ['id', 'Fcode'] 
+    def get_FamilyName(self, obj):
+        fam = getattr(obj, 'FamilyID', None)
+        return getattr(fam, 'FamilyName', None) if fam else None
+
+    def get_Fcode(self, obj):
+        fam = getattr(obj, 'FamilyID', None)
+        return getattr(fam, 'Fcode', None) if fam else None
 
 
 class HosSerializer(serializers.ModelSerializer):
@@ -87,5 +103,5 @@ class HosSerializer(serializers.ModelSerializer):
         model = Hos
         fields = '__all__'
         extra_kwargs = {
-            'UserID': {'read_only': True}  # ✅ 這行是關鍵
+            'UserID': {'read_only': True}  # ✅ 保持不變
         }
