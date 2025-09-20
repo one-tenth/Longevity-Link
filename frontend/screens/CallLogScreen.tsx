@@ -27,7 +27,7 @@ type ServerCall = {
   PhoneName: string;
   Phone: string;
   PhoneTime: string;
-  IsScam: boolean; // 新增詐騙標記
+  IsScam: boolean;
 };
 
 type TabKey = 'device' | 'server';
@@ -67,6 +67,10 @@ function toPayload(elderId: number, log: DeviceCall) {
   };
 }
 
+// ❶ 新增：號碼正規化（去非數字，+886 → 0）
+const normalizePhone = (p: string) =>
+  (p || '').replace(/\D/g, '').replace(/^886(?=\d{9,})/, '0');
+
 export default function CallLogScreen() {
   const navigation = useNavigation();
 
@@ -80,6 +84,9 @@ export default function CallLogScreen() {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [syncing, setSyncing] = useState(false);
   const [autoSyncMsg, setAutoSyncMsg] = useState<string>('');
+
+  // ❷ 新增：命中 SCAM 的電話集合
+  const [scamPhones, setScamPhones] = useState<Set<string>>(new Set());
 
   async function loadSelectedElder() {
     try {
@@ -101,6 +108,29 @@ export default function CallLogScreen() {
     }
   }
 
+  // ❸ 新增：把本機清單的唯一電話批次丟去後端比對
+  async function refreshScamFlags(logs: DeviceCall[]) {
+    const phones = Array.from(
+      new Set(
+        logs.map(l => normalizePhone(l.phoneNumber || '')).filter(Boolean)
+      )
+    );
+    if (phones.length === 0) { setScamPhones(new Set()); return; }
+
+    try {
+      const token = await AsyncStorage.getItem('access');
+      const res = await axios.post(
+        `${API_BASE}/api/scam/check_bulk/`,
+        { phones },
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+      );
+      const matches: string[] = res.data?.matches || [];
+      setScamPhones(new Set(matches));
+    } catch (e) {
+      console.error('check_bulk 失敗:', e);
+    }
+  }
+
   async function loadDeviceLogs() {
     setErrorMsg('');
     const granted = await PermissionsAndroid.request(
@@ -117,6 +147,10 @@ export default function CallLogScreen() {
       const result = await CallLogs.load(100);
       const list = (result as DeviceCall[]) || [];
       setDeviceLogs(list);
+
+      // ❹ 新增：抓到本機通話後 → 立刻比對 SCAM
+      await refreshScamFlags(list);
+
       if (!list.length) {
         setErrorMsg('本機沒有可顯示的通話紀錄。');
       }
@@ -237,11 +271,19 @@ export default function CallLogScreen() {
     loadDeviceLogs();
   }, []);
 
+  // ❺ 加入命中標記（本機清單）
   const renderDeviceItem = ({ item }: { item: DeviceCall }) => {
     const dur = typeof item.duration === 'string' ? item.duration : String(item.duration ?? 0);
+    const phoneRaw = item.phoneNumber || '';
+    const phoneNorm = normalizePhone(phoneRaw);
+    const isScam = scamPhones.has(phoneNorm);
+
     return (
       <View style={styles.item}>
-        <Text style={styles.phone}>{item.phoneNumber || '未知號碼'}</Text>
+        <Text style={[styles.phone, isScam && { color: '#C62828' }]}>
+          {phoneRaw || '未知號碼'}
+          {isScam && <Text style={styles.scamTag}>  詐騙</Text>}
+        </Text>
         <Text style={styles.detail}>
           {(item.name ? `${item.name} · ` : '') + typeLabel(item.type)} · {dur}s
         </Text>
@@ -250,15 +292,23 @@ export default function CallLogScreen() {
     );
   };
 
-  const renderServerItem = ({ item }: { item: ServerCall }) => (
-    <View style={styles.item}>
-      <Text style={styles.phone}>{item.Phone || '未知號碼'}</Text>
-      <Text style={styles.detail}>
-        {(item.PhoneName ? `${item.PhoneName} · ` : '') + (item.IsScam ? '（疑似詐騙）' : '正常')}
-      </Text>
-      <Text style={styles.time}>{item.PhoneTime || ''}</Text>
-    </View>
-  );
+  // ❻ 也在 serverLogs 清單標記（可保留你原本的寫法）
+  const renderServerItem = ({ item }: { item: ServerCall }) => {
+    const phoneRaw = item.Phone || '';
+    const isScam = scamPhones.has(normalizePhone(phoneRaw));
+    return (
+      <View style={styles.item}>
+        <Text style={[styles.phone, isScam && { color: '#C62828' }]}>
+          {phoneRaw || '未知號碼'}
+          {isScam && <Text style={styles.scamTag}>  詐騙</Text>}
+        </Text>
+        <Text style={styles.detail}>
+          {(item.PhoneName ? `${item.PhoneName} · ` : '') + (item.IsScam ? '（疑似詐騙）' : '正常')}
+        </Text>
+        <Text style={styles.time}>{item.PhoneTime || ''}</Text>
+      </View>
+    );
+  };
 
   const renderSyncButton = () => (
     <View style={styles.bottomBar}>
@@ -288,7 +338,7 @@ export default function CallLogScreen() {
         <Text style={styles.headerTitle}>
           通話紀錄{elderName ? `（${elderName}）` : ''}
         </Text>
-
+        <View style={{ width: 64 }} />
       </View>
 
       {/* 顯示錯誤訊息 */}
@@ -307,7 +357,7 @@ export default function CallLogScreen() {
         </View>
       )}
 
-      {/* 顯示通話紀錄列表 */}
+      {/* 顯示通話紀錄列表（目前顯示本機；若要切 serverLogs，把 data/renderer 換掉即可） */}
       <FlatList
         data={deviceLogs}
         keyExtractor={(_, idx) => `d-${idx}`}
@@ -341,17 +391,6 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 64 },
   backText: { color: '#111', fontSize: 16, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#111' },
-
-  scamAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#111',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  scamAddText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 
   errorBar: {
     flexDirection: 'row',
@@ -412,4 +451,16 @@ const styles = StyleSheet.create({
   },
   actionBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 8 },
   actionText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+
+  // ❼ 新增：詐騙標籤樣式
+  scamTag: {
+    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+    backgroundColor: '#FDECEC',
+    color: '#C62828',
+    fontWeight: 'bold',
+  },
 });
