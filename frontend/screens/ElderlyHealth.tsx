@@ -10,7 +10,6 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -25,7 +24,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHealth'>;
 
 // ===== 基本設定 =====
-const BASE_URL = 'http://192.168.0.91:8000'; // 模擬器改成 http://10.0.2.2:8000
+const BASE_URL = 'http://192.168.0.91:8000'; // 模擬器請改成 http://10.0.2.2:8000
 
 const COLORS = {
   white: '#FFFFFF',
@@ -71,14 +70,18 @@ export default function ElderlyHealth() {
     return true;
   };
 
-  // ------- 上傳步數到後端 -------
-  const uploadStepsToBackend = async (steps: number, timestamp: Date) => {
+  // ------- 上傳步數到後端（✅ 只送 date 與 steps） -------
+  const uploadStepsToBackend = async (steps: number, dateStr: string) => {
     const token = await AsyncStorage.getItem('access');
     if (!token) return;
     try {
+      const payload = {
+        steps,       // 當日總步數
+        date: dateStr, // YYYY-MM-DD（優先用 Google Fit s.date）
+      };
       const res = await axios.post(
         `${BASE_URL}/api/fitdata/`,
-        { steps, timestamp: timestamp.toISOString() },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       console.log('✅ 步數成功上傳：', res.data);
@@ -122,7 +125,7 @@ export default function ElderlyHealth() {
     }
   };
 
-  // ------- 取得步數（指定日期 00:00~23:59）並上傳 -------
+  // ------- 取得步數（指定日期 00:00~23:59）並上傳（✅ 用 Google Fit 的 s.date） -------
   const fetchSteps = (date: Date) => {
     const startDate = new Date(date);
     startDate.setHours(0, 0, 0, 0);
@@ -138,26 +141,25 @@ export default function ElderlyHealth() {
       .then(results => {
         // Google Fit 常見來源：'com.google.android.gms:estimated_steps'
         const fitData = results.find(r => r.source === 'com.google.android.gms:estimated_steps');
-        const targetDateStr = formatDateYYYYMMDD(startDate); // 用我們的格式統一比對
-
-        const noonDate = new Date(startDate);
-        noonDate.setHours(12, 0, 0, 0); // 上傳用固定時間點
+        const fallbackDateStr = formatDateYYYYMMDD(startDate); // 若沒找到資料，使用所選日期
 
         if (fitData && Array.isArray(fitData.steps)) {
-          const stepData = fitData.steps.find(s => s.date === targetDateStr);
-          if (stepData) {
-            setTodaySteps(stepData.value);
+          // steps 的結構通常是 [{ date: 'YYYY-MM-DD', value: number }, ...]
+          const s = fitData.steps.find(x => x.date === fallbackDateStr);
+          if (s) {
+            setTodaySteps(s.value);
             setError('');
-            uploadStepsToBackend(stepData.value, noonDate);
+            // ✅ 用 Google Fit 回傳的日期字串 s.date 存到後端
+            uploadStepsToBackend(s.value, s.date);
           } else {
             setTodaySteps(0);
             setError('');
-            uploadStepsToBackend(0, noonDate);
+            uploadStepsToBackend(0, fallbackDateStr);
           }
         } else {
           setTodaySteps(0);
           setError('');
-          uploadStepsToBackend(0, noonDate);
+          uploadStepsToBackend(0, fallbackDateStr);
         }
 
         // 取完步數後順道查血壓

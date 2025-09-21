@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
     path('api/fitdata/by-date/', views.FitDataByDateAPI.as_view()),
     path('api/healthcare/by-date/', views.HealthCareByDateAPI.as_view()),
-    path('ocr-analyze/', views.OcrAnalyzeView.as_view(), name='ocr-analyze'),
+    path("api/med/analyze/", views.OcrAnalyzeView.as_view()),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
     path('api/meds/<uuid:prescription_id>/', views.get_med_by_prescription),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
