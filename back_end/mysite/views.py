@@ -274,22 +274,72 @@ class HealthCareByDateAPI(APIView):
 
 #----------------------------------------------------------------
 #藥單
-#藥單
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Med
-from django.utils import timezone
+from django.conf import settings
+from mysite.models import User  # ⚠️ 若路徑不同請調整
+from google.cloud import vision
+from config import GOOGLE_VISION_CREDENTIALS, OPENAI_API_KEY
+
 import openai
 import json
 import uuid
-from google.cloud import vision
-from google.oauth2 import service_account
-from django.conf import settings
-from config import GOOGLE_VISION_CREDENTIALS, OPENAI_API_KEY
+import re
 
 # 設定 OpenAI API 金鑰
 openai.api_key = OPENAI_API_KEY
+
+# 允許的頻率（與 Prompt 對齊）
+ALLOWED_FREQ = {"一天一次", "一天兩次", "一天三次", "一天四次", "睡前", "必要時", "未知"}
+
+
+def normalize_freq(text: str | None) -> str:
+    """
+    把各種寫法正規化成 ALLOWED_FREQ 之一。
+    支援：
+    - x1/x2/x3/x4 (+ x?x? 後面的天數忽略)
+    - 一天4次 / 每日 3 次 / 3次/日
+    - 睡前/睡覺前、必要時/PRN
+    - xlx3（視為 x1x3）
+    """
+    if not text:
+        return "未知"
+    t = str(text).strip()
+
+    # 去空白、大小寫、全形
+    t = t.replace("Ｘ", "x").replace("＊", "x").replace("×", "x")
+    t = t.replace("：", ":").replace("／", "/")
+    t = re.sub(r"\s+", "", t)
+
+    # 常見打字錯：xlx3 → x1x3
+    t = t.replace("xlx", "x1x")
+
+    # xNxD 形式
+    m = re.search(r"x(\d)x(\d+)", t, flags=re.IGNORECASE)
+    if m:
+        n = int(m.group(1))
+        return {1: "一天一次", 2: "一天兩次", 3: "一天三次", 4: "一天四次"}.get(n, "未知")
+
+    # 一天/每日 N 次
+    for n, lab in [(4, "一天四次"), (3, "一天三次"), (2, "一天兩次"), (1, "一天一次")]:
+        if re.search(fr"(一天|每日){n}次", t):
+            return lab
+        if re.search(fr"{n}次/日", t):
+            return lab
+
+    # 睡前 / 必要時
+    if re.search(r"睡前|睡覺前", t):
+        return "睡前"
+    if re.search(r"必要時|PRN", t, flags=re.IGNORECASE):
+        return "必要時"
+
+    # 有時 GPT 已經回正確字串，但含不可見空白
+    if t in ALLOWED_FREQ:
+        return t
+
+    return "未知"
 
 
 class OcrAnalyzeView(APIView):
@@ -299,149 +349,134 @@ class OcrAnalyzeView(APIView):
         print("目前登入的使用者是：", request.user)
         print("收到的檔案列表：", request.FILES)
 
-        image_file = request.FILES.get('image')
+        image_file = request.FILES.get("image")
         if not image_file:
-            return Response({'error': '沒有收到圖片'}, status=400)
+            return Response({"error": "沒有收到圖片"}, status=400)
 
         try:
-            # 1️⃣ OCR 圖片辨識
+            # 1) Google Vision OCR
             client = vision.ImageAnnotatorClient.from_service_account_info(GOOGLE_VISION_CREDENTIALS)
             image = vision.Image(content=image_file.read())
             response = client.text_detection(image=image)
             annotations = response.text_annotations
 
             if not annotations:
-                return Response({'error': '無法辨識文字'}, status=400)
+                return Response({"error": "無法辨識文字"}, status=400)
 
-            ocr_text = annotations[0].description.strip()
-            print("🔍 OCR 結果：", ocr_text)
+            ocr_text = (annotations[0].description or "").strip()
+            print("🔍 OCR 結果：", ocr_text[:300], "...")
 
-            # 2️⃣ GPT 分析藥品資訊
+            # 2) 丟 GPT 解析
             gpt_result = self.analyze_with_gpt(ocr_text)
-            print("🔍 gpt 結果：", gpt_result)
+            print("🔍 GPT 原始結果：", gpt_result)
+
             try:
                 parsed = json.loads(gpt_result)
             except json.JSONDecodeError:
-                print("❌ GPT 原始回傳：", gpt_result)  # ⬅️ 新增這行
-                return Response({'error': 'GPT 回傳非有效 JSON', 'raw': gpt_result}, status=400)
+                return Response({"error": "GPT 回傳非有效 JSON", "raw": gpt_result}, status=400)
 
-            # 3️⃣ 判斷是否有指定 user_id，否則預設為 request.user
-            user_id = request.POST.get('user_id')
+            # 3) 目標使用者（可傳 user_id，否則用登入者）
+            user_id = request.POST.get("user_id")
             if user_id:
                 try:
-                    from mysite.models import User  # ⚠️ 根據你的 User 模型路徑
                     target_user = User.objects.get(UserID=int(user_id))
                 except (User.DoesNotExist, ValueError):
-                    return Response({'error': '查無此使用者'}, status=404)
+                    return Response({"error": "查無此使用者"}, status=404)
             else:
                 target_user = request.user
 
-            # 4️⃣ 存入資料庫（先準備要新增的清單）
+            # 4) 入庫
             prescription_id = uuid.uuid4()
-            count = 0
+            disease_names = parsed.get("diseaseNames") or []
+            disease = (disease_names[0] if disease_names else "未知")[:50]
 
-            disease = parsed.get("diseaseNames", ["未知"])[0]  # 避免空陣列錯誤
-            for med in parsed.get("medications", []):
+            meds = parsed.get("medications") or []
+            created = 0
+            for m in meds:
+                raw_freq = (m.get("dosageFrequency") or "").strip()
+                freq_std = normalize_freq(raw_freq)
+
+                med_name = (m.get("medicationName") or "未知")[:50]
+                admin = (m.get("administrationRoute") or "未知")[:10]
+                effect = (m.get("effect") or "未知")[:100]
+                side = (m.get("sideEffect") or "未知")[:100]
+
+                print(f"[WRITE] {med_name} | raw_freq='{raw_freq}' -> save='{freq_std}'")
+
                 Med.objects.create(
                     UserID=target_user,
-                    Disease=disease[:50],
-                    MedName=med.get("medicationName", "未知")[:50],
-                    AdministrationRoute=med.get("administrationRoute", "未知")[:10],
-                    DosageFrequency=med.get("dosageFrequency", "未知")[:50],
-                    Effect=med.get("effect", "未知")[:100],
-                    SideEffect=med.get("sideEffect", "未知")[:100],
-                    PrescriptionID=prescription_id
+                    Disease=disease or "未知",
+                    MedName=med_name,
+                    AdministrationRoute=admin,
+                    DosageFrequency=freq_std,
+                    Effect=effect,
+                    SideEffect=side,
+                    PrescriptionID=prescription_id,
                 )
-                count += 1
+                created += 1
 
-            # 回傳訊息
-            return Response({
-                'message': f'✅ 成功寫入 {count} 筆藥單資料',
-                'duplicate': False,
-                'created_count': count,
-                'prescription_id': str(prescription_id)
-            })
+            return Response(
+                {
+                    "message": f"✅ 成功寫入 {created} 筆藥單資料",
+                    "created_count": created,
+                    "prescription_id": str(prescription_id),
+                    "parsed": parsed,  # 方便前端比對
+                },
+                status=200,
+            )
 
         except Exception as e:
             print("❌ 例外錯誤：", e)
-            return Response({'error': str(e)}, status=500)
+            return Response({"error": str(e)}, status=500)
 
-    def analyze_with_gpt(self, ocr_text):
-        prompt = f"""
-        你是一個藥物資料結構化助理，請從以下 OCR 辨識出的藥袋文字中，萃取藥品資訊並輸出乾淨 JSON 格式資料。
-
-        ⬇️ OCR 內容如下：
-        {ocr_text}
-
-        📌 請輸出以下 JSON 格式（請根據上下文**合理推論**，只有在**完全無線索**的情況下才填寫 "未知"）  
-
-        ```json
-        {{
-        "diseaseNames": ["高血壓", "糖尿病"],
-        "medications": [
-            {{
-            "medicationName": "藥品A",
-            "administrationRoute": "內服",
-            "dosageFrequency": "一天三次",
-            "effect": "抗過敏",
-            "sideEffect": "可能頭暈"
-            }},
-            {{
-            "medicationName": "藥品B",
-            "administrationRoute": "外用",
-            "dosageFrequency": "一天兩次",
-            "effect": "消炎止癢",
-            "sideEffect": "無明顯副作用"
-            }}
-        ]
-        }}
-        ⚠️ 請注意以下規則：
-
-        1.只輸出純 JSON 區塊，不要加註解、說明或其他文字
-
-        2.medications 每一筆資料都要有以下五個欄位：
-
-            medicationName
-
-            administrationRoute
-
-            dosageFrequency
-
-            effect
-
-            sideEffect
-
-        3.dosageFrequency 欄位只能是以下四種之一（若不確定請填 "未知"）：
-
-            一天一次
-
-            一天兩次
-
-            一天三次
-
-            睡前
-
-        4.diseaseNames 必須為一個字串陣列
+    def analyze_with_gpt(self, ocr_text: str) -> str:
         """
+        使用 gpt-4o-mini 解析台灣常見藥單格式：
+        - 內服 1.00 x4x3 → 一天四次
+        - 睡前、必要時（PRN）要能辨識
+        - effect/sideEffect 盡量從同列中文說明抽出
+        """
+        prompt = f"""
+你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+
+### OCR 內容
+{ocr_text}
+
+### 輸出 JSON Schema
+{{
+  "diseaseNames": string[],   
+  "medications": [
+    {{
+      "medicationName": string,                         
+      "administrationRoute": "內服"|"外用"|"其他",       
+      "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
+      "effect": string,                                  
+      "sideEffect": string                                
+    }}
+  ]
+}}
+
+### 規則
+1) xNxD → 一天 N 次，D 為天數（D 不需輸出）。
+   - 內服 1.00 x4x3 → 一天四次
+   - 內服 1.00 xlx3 → 一天一次
+2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
+3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
+4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
+5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
+"""
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
+            response_format={"type": "json_object"},  
             messages=[
-                {"role": "system", "content": "你是超級無敵專業藥劑師"},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "你是超級專業且嚴謹的藥劑師，會把藥單 OCR 結構化輸出。"},
+                {"role": "user", "content": prompt},
             ],
-            temperature=0.3
+            temperature=0.1,
         )
 
-        # 🔧 去除 markdown 格式的包裝
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]  # 移除 ```json\n
-        if content.endswith("```"):
-            content = content[:-3]  # 移除 \n```
-
-        return content.strip()
-
+        return (response.choices[0].message.content or "").strip()
 
 #藥單查詢
 from rest_framework.views import APIView
