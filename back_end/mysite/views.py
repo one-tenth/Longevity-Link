@@ -1076,7 +1076,7 @@ from .serializers import LocationUploadSerializer, LocationLatestSerializer
 User = get_user_model()
 
 class UploadLocationThrottle(UserRateThrottle):
-    rate = '60/min'  #可調整
+    rate = '3/min'  #可調整次數
 
 def _same_family(u1, u2) -> bool:
     return (
