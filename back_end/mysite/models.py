@@ -4,6 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 import uuid
 from django.utils import timezone
+from django.conf import settings
 
 
 import random
@@ -98,24 +99,50 @@ class Hos(models.Model):
         verbose_name = "Hos"
         verbose_name_plural = "Hos"
 
-class HealthCare(models.Model):
-    HealthID = models.AutoField(primary_key=True)
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
-    Systolic=models.IntegerField(    
-        validators=[MinValueValidator(70), MaxValueValidator(250)],
-    )
-    Diastolic=models.IntegerField(
-        validators=[MinValueValidator(40), MaxValueValidator(150)],
-    )
 
-    Pulse = models.IntegerField(
-        validators=[MinValueValidator(30), MaxValueValidator(200)],
-    )
-    Date = models.DateTimeField()
+
+from django.db import models
+from django.conf import settings
+
+class HealthCare(models.Model):
+    PERIOD_CHOICES = [
+        ('morning', '早上'),
+        ('evening', '晚上'),
+    ]
+
+    HealthID   = models.AutoField(primary_key=True)
+    UserID     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+
+    Systolic   = models.IntegerField()
+    Diastolic  = models.IntegerField()
+    Pulse      = models.IntegerField(null=True, blank=True)
+
+    # 原始時間欄位
+    Date       = models.DateTimeField(auto_now_add=True)          # 後端收到時間（UTC 儲存）
+    CapturedAt = models.DateTimeField(null=True, blank=True)      # 前端拍照時間（UTC 儲存，或你現在是已轉台北，但建議存 UTC）
+
+    # 裝置/輔助欄位
+    DeviceTZ   = models.CharField(max_length=64, null=True, blank=True)
+    EpochMs    = models.BigIntegerField(null=True, blank=True)
+
+    # 新增：時段 & 台北的日（用來做唯一性）
+    Period     = models.CharField(max_length=10, choices=PERIOD_CHOICES)     # morning/evening
+    LocalDate  = models.DateField()                                           # CapturedAt 轉 Asia/Taipei 後的日期
 
     class Meta:
         verbose_name = "Health care"
         verbose_name_plural = "Health care"
+        # ✅ 限制：同一個人、同一個「台北日」、同一個時段，不可重複
+        constraints = [
+            models.UniqueConstraint(
+                fields=["UserID", "LocalDate", "Period"],
+                name="uniq_user_localdate_period"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.UserID} {self.LocalDate} {self.Period} - {self.Systolic}/{self.Diastolic}"
+
 
 
 

@@ -92,54 +92,120 @@ def call_gpt_fallback(image_b64: str):
     }
 
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.conf import settings
+
+from datetime import timedelta
+import pytz
+
+# 假設你已有的工具/常數
+# from .yolo import _load_models, VALID_RANGES
+# from .utils import decode_image_from_request, call_gpt_fallback
+from .models import HealthCare
+
+TAIPEI = pytz.timezone("Asia/Taipei")
+
 class BloodYOLOView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
         try:
+            # 1) 取圖
             image, image_b64 = decode_image_from_request(request)
 
+            # 2) 取前端送來的時間（ISO/UTC）。若沒有，就以現在時間
+            ts_str  = request.POST.get("timestamp")  # e.g. "2025-09-20T14:35:32.343Z"
+            tz_str  = request.POST.get("tz")         # e.g. "Asia/Taipei"
+            epoch_ms = request.POST.get("epoch_ms")  # e.g. "1758378932343"
+
+            # 2a) 解析成 aware datetime（以 UTC 為主）
+            captured_at = None
+            if ts_str:
+                dt = parse_datetime(ts_str)
+                if dt is not None:
+                    if timezone.is_naive(dt):
+                        dt = timezone.make_aware(dt, timezone.utc)
+                    captured_at = dt
+            if captured_at is None:
+                captured_at = timezone.now()  # 後備：沒有給就用現在（UTC）
+
+            # 2b) 算出台北本地時間 & 本地「日期」與「早/晚」
+            captured_at_taipei = captured_at.astimezone(TAIPEI)
+            local_date = captured_at_taipei.date()
+            period = "morning" if captured_at_taipei.hour < 12 else "evening"
+
+            # 3) YOLO 辨識（出錯就走 GPT fallback）
             try:
-                # 嘗試 YOLO pipeline
                 region_model, digits_model = _load_models()
-                det = region_model.predict(image, conf=0.40, verbose=False, device=getattr(settings, "YOLO_DEVICE", 0))
+                det = region_model.predict(
+                    image, conf=0.40, verbose=False,
+                    device=getattr(settings, "YOLO_DEVICE", 0)
+                )
 
                 results = {"systolic": None, "diastolic": None, "pulse": None}
                 for r in det:
                     for b in getattr(r, "boxes", []):
                         cls_name = region_model.names.get(int(b.cls[0]), "")
                         if "sys" in cls_name.lower():
-                            results["systolic"] = 135  # TODO: 這裡放你數字模型辨識結果
+                            results["systolic"] = 135  # TODO: 用 digits_model 真的辨識
                         elif "dia" in cls_name.lower():
                             results["diastolic"] = 80
                         elif "pul" in cls_name.lower():
                             results["pulse"] = 70
 
-                # 檢查完整性 & 合法範圍
                 if any(v is None for v in results.values()):
                     raise ValueError("YOLO incomplete")
+
                 for k, (lo, hi) in VALID_RANGES.items():
                     if not (lo <= results[k] <= hi):
                         raise ValueError("YOLO out of range")
 
             except Exception:
-                # ⚡ YOLO pipeline 出錯 → fallback GPT
                 results = call_gpt_fallback(image_b64)
 
-            # 寫入資料庫
-            health = HealthCare.objects.create(
+            # 4) Upsert：同一人、同一台北日、同一時段 若已有 → 更新；否則建立
+            obj, created = HealthCare.objects.get_or_create(
                 UserID=request.user,
-                Systolic=results["systolic"],
-                Diastolic=results["diastolic"],
-                Pulse=results["pulse"],
-                Date=timezone.now(),
+                LocalDate=local_date,
+                Period=period,
+                defaults=dict(
+                    Systolic=results["systolic"],
+                    Diastolic=results["diastolic"],
+                    Pulse=results["pulse"],
+                    # 這裡建議 CapturedAt 存 UTC；如果你前面已轉台北，也可存 UTC 以利一致
+                    CapturedAt=captured_at,             # 建議存 UTC
+                    DeviceTZ=tz_str,
+                    EpochMs=epoch_ms,
+                )
             )
+
+            if not created:
+                # 覆蓋更新該時段資料
+                obj.Systolic = results["systolic"]
+                obj.Diastolic = results["diastolic"]
+                obj.Pulse = results["pulse"]
+                obj.CapturedAt = captured_at           # 建議存 UTC
+                obj.DeviceTZ = tz_str
+                obj.EpochMs = epoch_ms
+                obj.save()
 
             return Response({
                 "ok": True,
                 "parsed": results,
-                "health_id": health.HealthID,
+                "health_id": obj.HealthID,
+                "period": obj.Period,
+                "local_date": str(obj.LocalDate),                     # 台北的日期（字串）
+                "captured_at_utc": obj.CapturedAt.isoformat(),        # UTC
+                "captured_at_taipei": captured_at_taipei.strftime("%Y-%m-%d %H:%M:%S"),
+                "created": created,                                   # True=新增 / False=更新
+                "message": ("新增" if created else "已更新") + ("早上" if obj.Period=="morning" else "晚上") + "紀錄",
             }, status=200)
 
         except Exception as e:
@@ -152,7 +218,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils.timezone import get_current_timezone
 from datetime import datetime, time, timezone as dt_timezone
 from .models import HealthCare
-from mysite.models import User  # ✅ 根據你的 User 模型位置修改
+from mysite.models import User
 
 class HealthCareByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
@@ -170,16 +236,10 @@ class HealthCareByDateAPI(APIView):
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        # 🔧 時區處理
-        tz = get_current_timezone()
-        start = datetime.combine(target_date, time.min).replace(tzinfo=tz).astimezone(dt_timezone.utc)
-        end = datetime.combine(target_date, time.max).replace(tzinfo=tz).astimezone(dt_timezone.utc)
-
-        # ✅ 支援 user_id 查詢其他成員
         if user_id:
             try:
                 user_id = int(user_id)
-                target_user = User.objects.get(UserID=user_id)  # ✅ 用 UserID
+                target_user = User.objects.get(UserID=user_id)
             except (ValueError, TypeError):
                 return Response({'error': 'user_id 格式錯誤'}, status=400)
             except User.DoesNotExist:
@@ -187,23 +247,33 @@ class HealthCareByDateAPI(APIView):
         else:
             target_user = user
 
-        # 🔍 查詢資料
-        record = HealthCare.objects.filter(
+        # 撈當日兩筆
+        records = HealthCare.objects.filter(
             UserID=target_user,
-            Date__range=(start, end)
-        ).order_by('-Date').first()
+            LocalDate=target_date
+        )
 
-        if record:
-            return Response({
-                'systolic': record.Systolic,
-                'diastolic': record.Diastolic,
-                'pulse': record.Pulse,
-                'datetime': record.Date,
-            })
-        else:
-            return Response({'message': '當日無血壓資料'}, status=404)
+        morning = records.filter(Period="morning").first()
+        evening = records.filter(Period="evening").first()
+
+        return Response({
+            "date": date_str,
+            "morning": {
+                "systolic": morning.Systolic if morning else None,
+                "diastolic": morning.Diastolic if morning else None,
+                "pulse": morning.Pulse if morning else None,
+                "captured_at": morning.CapturedAt if morning else None,
+            } if morning else None,
+            "evening": {
+                "systolic": evening.Systolic if evening else None,
+                "diastolic": evening.Diastolic if evening else None,
+                "pulse": evening.Pulse if evening else None,
+                "captured_at": evening.CapturedAt if evening else None,
+            } if evening else None,
+        })
 
 #----------------------------------------------------------------
+#藥單
 #藥單
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -371,6 +441,7 @@ class OcrAnalyzeView(APIView):
             content = content[:-3]  # 移除 \n```
 
         return content.strip()
+
 
 #藥單查詢
 from rest_framework.views import APIView
@@ -570,8 +641,6 @@ def get_med_reminders(request):
                     "meds": schedule["bedtime"]},
     }
     return Response(result)
-
-
 
 #----------------------------------------------------------------
 #健康

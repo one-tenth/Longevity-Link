@@ -10,7 +10,7 @@ import { setupNotificationChannel, initMedicationNotifications } from './utils/i
 // ---- Screens ----
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
-import ChildHome_1 from './screens/ChildHome_1';
+
 import ElderHome from './screens/ElderHome';
 import ElderlyHealth from './screens/ElderlyHealth';
 import ElderlyUpload from './screens/ElderlyUpload';
@@ -42,7 +42,6 @@ import ElderLocation from './screens/ElderLocation';
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
   ChildHome: { mode: 'select' | 'full' } | undefined;
-  ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
   ElderlyUpload: undefined;
@@ -157,7 +156,6 @@ const App: React.FC = () => {
 
         {/* 家人端 / 共用 */}
         <Stack.Screen name="ChildHome" component={ChildHome} />
-        <Stack.Screen name="ChildHome_1" component={ChildHome_1} />
         <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
         <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
         <Stack.Screen name="EditHospitalRecord" component={EditHospitalRecord} />
