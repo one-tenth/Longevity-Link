@@ -20,7 +20,7 @@ interface Member {
   RelatedID?: number | null;
 }
 
-const API_BASE = 'http://10.2.61.2:8000';
+const API_BASE = 'http://192.168.1.106:8000';
 
 const COLORS = {
   white: '#FFFFFF',

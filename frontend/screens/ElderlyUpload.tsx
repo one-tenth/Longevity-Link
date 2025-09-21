@@ -145,7 +145,7 @@ export default function ElderlyUpload() {
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://10.2.61.2:8000/api/ocrblood/')}
+            onPress={() => openCamera('http://192.168.1.106:8000/api/ocrblood/')}
             disabled={loading}
             activeOpacity={0.9}
           >
@@ -161,7 +161,7 @@ export default function ElderlyUpload() {
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://10.2.61.2:8000/ocr-analyze/')}
+            onPress={() => openCamera('http://192.168.1.106:8000/ocr-analyze/')}
             disabled={loading}
             activeOpacity={0.9}
           >

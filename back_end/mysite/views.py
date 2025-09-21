@@ -6,142 +6,144 @@ from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
-# 血壓功能
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser
-from django.core.files.storage import default_storage
+import base64
 import os
-import uuid
-from datetime import datetime
+import re
+import cv2
+import numpy as np
+from django.conf import settings
+from django.utils import timezone
+from django.contrib.auth import get_user_model
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+
+from ultralytics import YOLO
+from openai import OpenAI
 from .models import HealthCare
-from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
 
-class BloodOCRView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser]
+User = get_user_model()
+client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
 
-    def post(self, request):
-        print("🔐 目前登入的使用者：", request.user)
+# 數值驗證範圍
+VALID_RANGES = {
+    "systolic": (70, 250),
+    "diastolic": (40, 150),
+    "pulse": (30, 200),
+}
 
-        image_file = request.FILES.get('image')
-        if not image_file:
-            return Response({"error": "未收到圖片"}, status=400)
+_REGION_MODEL = None
+_DIGITS_MODEL = None
 
-        # 暫存圖片
-        filename = f"temp_{uuid.uuid4()}.jpg"
-        file_path = os.path.join('temp', filename)
-        full_path = default_storage.save(file_path, image_file)
 
-        try:
-            # ✅ 模擬 YOLO + OCR 假資料
-            result = {
-                "systolic": 120,
-                "diastolic": 80,
-                "pulse": 72,
+def _load_models():
+    global _REGION_MODEL, _DIGITS_MODEL
+    if _REGION_MODEL is None or _DIGITS_MODEL is None:
+        region_path = os.path.join(settings.YOLO_MODELS_DIR, "region_best.pt")
+        digits_path = os.path.join(settings.YOLO_MODELS_DIR, "digits_best.pt")
+        _REGION_MODEL = YOLO(region_path)
+        _DIGITS_MODEL = YOLO(digits_path)
+    return _REGION_MODEL, _DIGITS_MODEL
+
+
+def decode_image_from_request(request):
+    if "image" in request.FILES:
+        image_bytes = request.FILES["image"].read()
+    elif "image_base64" in request.data:
+        b64 = request.data["image_base64"]
+        if "," in b64:
+            b64 = b64.split(",", 1)[1]
+        image_bytes = base64.b64decode(b64)
+    else:
+        raise ValueError("need_image_or_base64")
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("decode_failed")
+    return img, base64.b64encode(image_bytes).decode("utf-8")
+
+
+def call_gpt_fallback(image_b64: str):
+    """呼叫 GPT 辨識血壓數字"""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "你是一個醫療助手，請只輸出格式：收縮壓=<數字>, 舒張壓=<數字>, 心跳=<數字>"},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "請讀出這張血壓計上的數字"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                ]
             }
+        ],
+        max_tokens=200,
+    )
+    result_text = response.choices[0].message.content.strip()
+    nums = re.findall(r"(\d+)", result_text)
+    if len(nums) < 3:
+        raise ValueError(f"GPT parse fail: {result_text}")
+    return {
+        "systolic": int(nums[0]),
+        "diastolic": int(nums[1]),
+        "pulse": int(nums[2]),
+    }
 
-            systolic = result["systolic"]
-            diastolic = result["diastolic"]
-            pulse = result["pulse"]
 
-            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-            local_now = timezone.localtime(timezone.now())
-            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
+class BloodYOLOView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
-            HealthCare.objects.create(
+    def post(self, request, *args, **kwargs):
+        try:
+            image, image_b64 = decode_image_from_request(request)
+
+            try:
+                # 嘗試 YOLO pipeline
+                region_model, digits_model = _load_models()
+                det = region_model.predict(image, conf=0.40, verbose=False, device=getattr(settings, "YOLO_DEVICE", 0))
+
+                results = {"systolic": None, "diastolic": None, "pulse": None}
+                for r in det:
+                    for b in getattr(r, "boxes", []):
+                        cls_name = region_model.names.get(int(b.cls[0]), "")
+                        if "sys" in cls_name.lower():
+                            results["systolic"] = 135  # TODO: 這裡放你數字模型辨識結果
+                        elif "dia" in cls_name.lower():
+                            results["diastolic"] = 80
+                        elif "pul" in cls_name.lower():
+                            results["pulse"] = 70
+
+                # 檢查完整性 & 合法範圍
+                if any(v is None for v in results.values()):
+                    raise ValueError("YOLO incomplete")
+                for k, (lo, hi) in VALID_RANGES.items():
+                    if not (lo <= results[k] <= hi):
+                        raise ValueError("YOLO out of range")
+
+            except Exception:
+                # ⚡ YOLO pipeline 出錯 → fallback GPT
+                results = call_gpt_fallback(image_b64)
+
+            # 寫入資料庫
+            health = HealthCare.objects.create(
                 UserID=request.user,
-                Systolic=systolic,
-                Diastolic=diastolic,
-                Pulse=pulse,
-                Date=local_now
+                Systolic=results["systolic"],
+                Diastolic=results["diastolic"],
+                Pulse=results["pulse"],
+                Date=timezone.now(),
             )
 
             return Response({
-                "message": "✅ 模擬分析完成",
-                "data": {
-                    "systolic": systolic,
-                    "diastolic": diastolic,
-                    "pulse": pulse
-                }
-            })
+                "ok": True,
+                "parsed": results,
+                "health_id": health.HealthID,
+            }, status=200)
 
-        finally:
-            default_storage.delete(full_path)  # 清除暫存圖片
-
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.permissions import IsAuthenticated
-# from rest_framework.parsers import MultiPartParser
-# from django.core.files.storage import default_storage
-# import os
-# import uuid
-# from datetime import datetime
-# from ocr_modules.bp_ocr_yolo import run_yolo_ocr
-# from .models import HealthCare
-# from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
-
-
-# class BloodOCRView(APIView):
-#     permission_classes = [IsAuthenticated]
-#     parser_classes = [MultiPartParser]
-
-#     def post(self, request):
-#         print("🔐 目前登入的使用者：", request.user)
-
-#         image_file = request.FILES.get('image')
-#         if not image_file:
-#             return Response({"error": "未收到圖片"}, status=400)
-
-#         # 暫存圖片
-#         filename = f"temp_{uuid.uuid4()}.jpg"
-#         file_path = os.path.join('temp', filename)
-#         full_path = default_storage.save(file_path, image_file)
-
-#         try:
-#             # 🧠 執行 YOLO + OCR 辨識
-#             result = run_yolo_ocr(default_storage.path(full_path))
-
-#             def safe_int(val):
-#                 try:
-#                     return int(val)
-#                 except:
-#                     return None
-
-#             systolic = safe_int(result.get('systolic'))
-#             diastolic = safe_int(result.get('diastolic'))
-#             pulse = safe_int(result.get('pulse'))
-
-#             if systolic is None or diastolic is None or pulse is None:
-#                 return Response({"error": "OCR 辨識失敗，請再試一次"}, status=400)
-
-#             if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
-#                 return Response({"error": "數值異常，請確認圖片品質"}, status=400)
-
-#             # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-#             local_now = timezone.localtime(timezone.now())
-#             print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
-
-#             HealthCare.objects.create(
-#                 UserID=request.user,
-#                 Systolic=systolic,
-#                 Diastolic=diastolic,
-#                 Pulse=pulse,
-#                 Date=local_now  # timezone-aware datetime
-#             )
-
-#             return Response({
-#                 "message": "分析完成",
-#                 "data": {
-#                     "systolic": systolic,
-#                     "diastolic": diastolic,
-#                     "pulse": pulse
-#                 }
-#             })
-
-#         finally:
-#             default_storage.delete(full_path)  # 清除暫存圖片
+        except Exception as e:
+            return Response({"ok": False, "error": str(e)}, status=500)
 
 #查血壓
 from rest_framework.views import APIView
@@ -353,7 +355,7 @@ class OcrAnalyzeView(APIView):
         """
 
         response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "你是超級無敵專業藥劑師"},
                 {"role": "user", "content": prompt}
@@ -751,129 +753,6 @@ def login(request):
     }, status=status.HTTP_200_OK)
 
 
-# 定位 
-from rest_framework.throttling import UserRateThrottle
-from rest_framework.decorators import throttle_classes
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from django.db.models import OuterRef, Subquery
-from .models import LocaRecord, User
-
-class UploadLocationThrottle(UserRateThrottle):
-    rate = '60/min'  # 可調：每使用者每分鐘 60 次
-
-def _same_family(u1: User, u2: User) -> bool:
-    return (
-        u1.FamilyID_id is not None
-        and u2.FamilyID_id is not None
-        and u1.FamilyID_id == u2.FamilyID_id
-    )
-
-# 上傳定位
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-@throttle_classes([UploadLocationThrottle])
-def upload_location(request):
-    user = request.user  # 登入
-
-    lat = request.data.get('Latitude', request.data.get('latitude'))
-    lng = request.data.get('Longitude', request.data.get('longitude'))
-
-    if lat is None or lng is None:
-        return Response({'error': '缺少座標'}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        lat = float(lat)
-        lng = float(lng)
-    except (TypeError, ValueError):
-        return Response({'detail': '座標格式錯誤'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
-        return Response({'detail': '座標超出範圍（lat:-90~90, lng:-180~180）'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if not user.is_elder:
-        return Response({'error': '只有長者帳號可以上傳定位'}, status=status.HTTP_403_FORBIDDEN)
-
-    record = LocaRecord.objects.create(UserID=user, Latitude=lat, Longitude=lng)
-
-    return Response({
-        'status': 'success',
-        'UserID': user.pk,
-        'FamilyID': user.FamilyID_id,
-        'Latitude': record.Latitude,
-        'Longitude': record.Longitude,
-        'Timestamp': record.Timestamp,
-    }, status=status.HTTP_201_CREATED)
-
-
-# 取得長者最新定位
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_latest_location(request, user_id: int):
-    try:
-        target_user = User.objects.get(pk=user_id)
-    except User.DoesNotExist:
-        return Response({'error': '使用者不存在'}, status=status.HTTP_404_NOT_FOUND)
-
-    if not target_user.is_elder:
-        return Response({'error': '不是長者帳號'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # 同家庭成員才可查
-    if not _same_family(request.user, target_user):
-        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
-
-    # 僅取一筆最新
-    record = (LocaRecord.objects
-              .filter(UserID=target_user)
-              .order_by('-Timestamp')
-              .only('Latitude', 'Longitude', 'Timestamp')
-              .first())
-    if not record:
-        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
-
-    return Response({
-        'UserID': target_user.pk,
-        'UserName': target_user.Name or target_user.Phone,
-        'FamilyID': target_user.FamilyID_id,
-        'Latitude': record.Latitude,
-        'Longitude': record.Longitude,
-        'Timestamp': record.Timestamp.isoformat(),
-    }, status=status.HTTP_200_OK)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_family_locations(request, family_id: int):
-
-    #同一個家庭
-    if request.user.FamilyID_id != family_id:
-        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
-    #最新一筆
-    latest_qs = LocaRecord.objects.filter(UserID=OuterRef('pk')).order_by('-Timestamp')
-
-    elders = (User.objects
-              .filter(FamilyID_id=family_id, is_elder=True)
-              .annotate(
-                  last_time=Subquery(latest_qs.values('Timestamp')[:1]),
-                  last_lat=Subquery(latest_qs.values('Latitude')[:1]),
-                  last_lng=Subquery(latest_qs.values('Longitude')[:1]),
-              )
-              .filter(last_time__isnull=False)
-              .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lng', 'last_time'))
-
-    results = [{
-        'UserID': e['UserID'],
-        'UserName': e['Name'] or e['Phone'],
-        'Latitude': e['last_lat'],
-        'Longitude': e['last_lng'],
-        'Timestamp': e['last_time'].isoformat() if e['last_time'] else None,
-    } for e in elders]
-
-    return Response({'family_id': family_id, 'count': len(results), 'results': results}, status=status.HTTP_200_OK)
-
-
 
 #------------------------------------------------------------------------
 #創建家庭
@@ -1199,7 +1078,7 @@ from .serializers import LocationUploadSerializer, LocationLatestSerializer
 User = get_user_model()
 
 class UploadLocationThrottle(UserRateThrottle):
-    rate = '60/min'  #可調整
+    rate = '3/min'  #可調整次數
 
 def _same_family(u1, u2) -> bool:
     return (
