@@ -10,7 +10,7 @@ import { setupNotificationChannel, initMedicationNotifications } from './utils/i
 // ---- Screens ----
 import AddHospitalRecord from './screens/AddHospitalRecord';
 import ChildHome from './screens/ChildHome';
-import ChildHome_1 from './screens/ChildHome_1';
+
 import ElderHome from './screens/ElderHome';
 import ElderlyHealth from './screens/ElderlyHealth';
 import ElderlyUpload from './screens/ElderlyUpload';
@@ -37,11 +37,12 @@ import FamilyAddHospital from './screens/FamilyAddHospital';
 import ElderMedRemind from './screens/ElderMedRemind';
 import CallLogScreen from './screens/CallLogScreen';
 import ScamScreen from './screens/ScamScreen';
+import Location from './screens/Location';
+import ElderLocation from './screens/ElderLocation';
 // ---- Stack params ----
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
   ChildHome: { mode: 'select' | 'full' } | undefined;
-  ChildHome_1: undefined;
   ElderHome: undefined;
   ElderlyHealth: undefined;
   ElderlyUpload: undefined;
@@ -72,6 +73,10 @@ export type RootStackParamList = {
   CreateFamily: undefined;
   CreateFamilyScreen: undefined;
   CallLogScreen: undefined;
+
+  //定位相關
+  Location: { elderId: number };
+  ElderLocation: undefined;
 
   // 其他
   Profile: undefined;
@@ -154,7 +159,6 @@ const App: React.FC = () => {
 
         {/* 家人端 / 共用 */}
         <Stack.Screen name="ChildHome" component={ChildHome} />
-        <Stack.Screen name="ChildHome_1" component={ChildHome_1} />
         <Stack.Screen name="HospitalRecord" component={HospitalRecord} />
         <Stack.Screen name="AddHospitalRecord" component={AddHospitalRecord} />
         <Stack.Screen name="EditHospitalRecord" component={EditHospitalRecord} />
@@ -177,6 +181,12 @@ const App: React.FC = () => {
         <Stack.Screen name="CreateFamily" component={CreateFamily} />
         <Stack.Screen name="CreateFamilyScreen" component={CreateFamily} />
         <Stack.Screen name="CallLogScreen" component={CallLogScreen} />
+
+
+        {/* 定位 */}
+        <Stack.Screen name="Location" component={Location} />
+        <Stack.Screen name="ElderLocation" component={ElderLocation} />
+
 
         {/* 其他 */}
         <Stack.Screen name="Profile" component={Profile} />

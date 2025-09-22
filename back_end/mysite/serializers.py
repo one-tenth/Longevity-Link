@@ -1,7 +1,8 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-from .models import User,Med,FitData,Family,MedTimeSetting,Hos,CallRecord,Scam
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos,CallRecord,Scam,LocaRecord
 
+from .models import User,Med,FitData,LocaRecord
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     Phone = serializers.CharField(max_length=10)
@@ -80,7 +81,6 @@ class FamilySerializer(serializers.ModelSerializer):
         model = Family
         fields = ['id', 'Fcode'] 
 
-
 class HosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hos
@@ -110,3 +110,52 @@ class CallRecordSerializer(serializers.ModelSerializer):
             return scam.Category
         except Scam.DoesNotExist:
             return None
+class LocaRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hos
+        fields = '__all__'
+        extra_kwargs = {
+            'UserID': {'read_only': True}  
+        }
+
+
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import LocaRecord
+
+User = get_user_model()
+
+class LocationUploadSerializer(serializers.Serializer):
+    # 統一格式 lat/lon
+    lat = serializers.FloatField(required=True)
+    lon = serializers.FloatField(required=True)
+
+    def validate(self, attrs):
+        lat, lon = attrs['lat'], attrs['lon']
+        if not (-90 <= lat <= 90):
+            raise serializers.ValidationError({"lat": "緯度必須在 -90 ~ 90"})
+        
+        if not (-180 <= lon <= 180):
+            raise serializers.ValidationError({"lon": "經度必須在 -180 ~ 180"})
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context['user']  # view 傳入 request.user為長者
+        return LocaRecord.objects.create(
+            UserID=user,
+            Latitude=validated_data['lat'],
+            Longitude=validated_data['lon'],
+        )
+
+class LocationLatestSerializer(serializers.ModelSerializer):
+
+    lat = serializers.SerializerMethodField()
+    lon = serializers.SerializerMethodField()
+    ts  = serializers.DateTimeField(source='Timestamp')
+
+    class Meta:
+        model  = LocaRecord
+        fields = ['lat', 'lon', 'ts']
+
+    def get_lat(self, obj): return float(obj.Latitude)
+    def get_lon(self, obj): return float(obj.Longitude)

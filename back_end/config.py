@@ -24,3 +24,4 @@ GOOGLE_VISION_CREDENTIALS = {
     "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
     "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
 }
+

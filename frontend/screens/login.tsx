@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  
   button: {
     backgroundColor: '#37613C',
     paddingVertical: 12,

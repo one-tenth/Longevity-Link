@@ -8,6 +8,7 @@ import { RootStackParamList } from '../App';
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
 type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
 
+
 interface Member {
   UserID: number;
   Name: string;
@@ -26,7 +27,7 @@ const FamilyScreen = () => {
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
-      await AsyncStorage.removeItem('selectedMember');
+      //await AsyncStorage.removeItem('selectedMember');
 
       const token = await AsyncStorage.getItem('access');
       if (!token) {
@@ -94,9 +95,12 @@ const FamilyScreen = () => {
             <TouchableOpacity
               key={index}
               onPress={async () => {
-                await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
+                await AsyncStorage.setItem('selectedMember', JSON.stringify(m)); // 可選取的成員
+                const elderId = m.RelatedID ?? m.UserID;                          // RelatedID 優先
+                await AsyncStorage.setItem('elder_id', String(elderId));
+                await AsyncStorage.setItem('elder_name', m.Name);
                 navigation.navigate('ChildHome');
-              }}
+              }}  
             >
               <View style={styles.card}>
                 <Image source={require('../img/childhome/image.png')} style={styles.avatar} />

@@ -1,15 +1,8 @@
+// screens/ElderlyUpload.tsx
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  Alert,
-  PermissionsAndroid,
-  Platform,
-  ScrollView,
-  StatusBar,
+  View, Text, StyleSheet, Image, TouchableOpacity, Alert,
+  PermissionsAndroid, Platform, ScrollView, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
@@ -18,6 +11,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import * as RNLocalize from 'react-native-localize';   // ✅ 新增
 
 type ElderlyUploadNavProp = StackNavigationProp<RootStackParamList, 'ElderlyUpload'>;
 
@@ -29,6 +23,11 @@ const COLORS = {
   textMid: '#333',
   green: '#A6CFA1',
 };
+
+// ✅ 統一 API Base（自行修改成你的 IP / 網域）
+const API_BASE = 'http://172.20.10.4:8000';
+const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
+const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 
 export default function ElderlyUpload() {
   const navigation = useNavigation<ElderlyUploadNavProp>();
@@ -53,39 +52,41 @@ export default function ElderlyUpload() {
         console.warn('權限請求錯誤:', err);
         return false;
       }
-    } else {
-      return true;
     }
+    return true;
+  };
+
+  // ✅ 改用 react-native-localize 取得時區，避免 Intl 崩潰
+  const buildFormData = (uri: string) => {
+    const now = new Date();
+    const timestampUtc = now.toISOString();           // UTC ISO
+    const epochMs = String(now.getTime());
+    const deviceTz = RNLocalize.getTimeZone() || 'UTC'; // e.g. "Asia/Taipei"
+
+    const formData = new FormData();
+    formData.append('image', { uri, type: 'image/jpeg', name: 'photo.jpg' } as any);
+    formData.append('timestamp', timestampUtc);
+    formData.append('tz', deviceTz);
+    formData.append('epoch_ms', epochMs);
+    return formData;
   };
 
   const uploadImageToBackend = async (uri: string, apiEndpoint: string) => {
     const token = await AsyncStorage.getItem('access');
-    const formData = new FormData();
-    formData.append('image', {
-      uri,
-      type: 'image/jpeg',
-      name: 'photo.jpg',
-    } as any);
+    const formData = buildFormData(uri);
 
     try {
       setLoading(true);
       const response = await axios.post(apiEndpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'multipart/form-data', 'Authorization': `Bearer ${token}` },
+        timeout: 60_000,
       });
-
-      const { message, duplicate } = response.data;
-      if (duplicate) {
-        Alert.alert("⚠️ 提醒", message);
-      } else {
-        Alert.alert("✅ 成功", message);
-      }
+      const { message, duplicate } = response.data || {};
+      Alert.alert(duplicate ? '⚠️ 提醒' : '✅ 成功', message ?? '已完成上傳');
       setPhotoUri(null);
     } catch (error: any) {
       console.error('上傳錯誤:', error?.message ?? error);
-      Alert.alert('上傳或辨識錯誤', error?.message ?? '請確認後端服務');
+      Alert.alert('上傳或辨識錯誤', error?.message ?? '請確認後端服務與網路連線');
     } finally {
       setLoading(false);
     }
@@ -98,8 +99,7 @@ export default function ElderlyUpload() {
       Alert.alert('權限不足', '請到設定開啟相機權限');
       return;
     }
-
-    launchCamera({ mediaType: 'photo', saveToPhotos: true }, async response => {
+    launchCamera({ mediaType: 'photo', saveToPhotos: true }, async (response) => {
       if (!response.didCancel && !response.errorCode && response.assets?.[0]?.uri) {
         const uri = response.assets[0].uri;
         setPhotoUri(uri);
@@ -110,7 +110,7 @@ export default function ElderlyUpload() {
 
   const openGallery = async (apiEndpoint: string) => {
     if (loading) return;
-    launchImageLibrary({ mediaType: 'photo' }, async response => {
+    launchImageLibrary({ mediaType: 'photo' }, async (response) => {
       if (!response.didCancel && !response.errorCode && response.assets?.[0]?.uri) {
         const uri = response.assets[0].uri;
         setPhotoUri(uri);
@@ -137,15 +137,15 @@ export default function ElderlyUpload() {
       <View style={styles.panel}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }} // ✅ 預留按鈕空間
+          contentContainerStyle={{ paddingBottom: 120 }}
           style={{ flex: 1 }}
         >
-
-          {/* 血壓按鈕 */}
+          {/* 血壓卡片 */}
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://172.20.10.4:8000/api/ocrblood/')}
+            onPress={() => openCamera(ENDPOINT_BLOOD)}
+            onLongPress={() => openGallery(ENDPOINT_BLOOD)}
             disabled={loading}
             activeOpacity={0.9}
           >
@@ -155,13 +155,15 @@ export default function ElderlyUpload() {
                 <MaterialIcons name="bloodtype" size={40} color="#fff" />
               </View>
             </View>
+            <Text style={styles.hint}>點一下：相機　｜　長按：相簿</Text>
           </TouchableOpacity>
 
-          {/* 藥袋按鈕 */}
+          {/* 藥袋卡片 */}
           <View style={styles.topGrid}></View>
           <TouchableOpacity
             style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
-            onPress={() => openCamera('http://172.20.10.4:8000/ocr-analyze/')}
+            onPress={() => openCamera(ENDPOINT_MED)}
+            onLongPress={() => openGallery(ENDPOINT_MED)}
             disabled={loading}
             activeOpacity={0.9}
           >
@@ -171,11 +173,12 @@ export default function ElderlyUpload() {
                 <MaterialIcons name="medication" size={40} color="#fff" />
               </View>
             </View>
+            <Text style={styles.hint}>點一下：相機　｜　長按：相簿</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
 
-      {/* ✅ 底部圓形回首頁按鈕 */}
+      {/* 底部回首頁按鈕 */}
       <TouchableOpacity
         style={[styles.homeButton, loading && styles.disabledButton]}
         onPress={() => navigation.navigate('ElderHome')}
@@ -184,6 +187,14 @@ export default function ElderlyUpload() {
       >
         <MaterialIcons name="home" size={80} color={COLORS.white} />
       </TouchableOpacity>
+
+      {/* 載入中遮罩 */}
+      {loading && (
+        <View style={styles.loadingMask}>
+          <ActivityIndicator size="large" color={COLORS.white} />
+          <Text style={{ color: COLORS.white, marginTop: 8 }}>處理中…</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -226,7 +237,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     padding: 18,
-    height: 160,
+    height: 180,
     justifyContent: 'space-between',
   },
   squareTitle: { fontSize: 38, fontWeight: '900' },
@@ -235,6 +246,8 @@ const styles = StyleSheet.create({
     width: 50, height: 50, borderRadius: 30,
     alignItems: 'center', justifyContent: 'center',
   },
+  hint: { marginTop: 8, color: '#666', fontSize: 12 },
+
   disabledButton: { opacity: 0.5 },
 
   homeButton: {
@@ -252,5 +265,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+  },
+
+  loadingMask: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

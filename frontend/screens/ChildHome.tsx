@@ -199,6 +199,23 @@ export default function ChildHome() {
     navigation.navigate('CallLogScreen' as never);
   };
 
+  // 定位按鈕
+  const goLocation = async () => {
+    if (!selectedMember) {
+      Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never); 
+      return;
+    }
+    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;      
+    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');   
+    await AsyncStorage.setItem('elder_id', String(elderId));                
+    navigation.navigate('Location' as never, { elderId, elderName: selectedMember.Name } as never); 
+  };
+
+  const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
+
+  
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -275,6 +292,14 @@ export default function ChildHome() {
             icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
             label="通話紀錄"
             onPress={openCallLogs}
+            darkLabel={false}
+          />
+           <QuickIcon
+            big
+            bg={COLORS.green}
+            icon={<MaterialIcons name="location-on" size={32} color={COLORS.black} />}
+            label="家人定位"
+            onPress={goLocation}          
             darkLabel={false}
           />
         </View>

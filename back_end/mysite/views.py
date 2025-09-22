@@ -6,142 +6,210 @@ from config import OPENAI_API_KEY, GOOGLE_VISION_CREDENTIALS
 import openai
 from rest_framework.permissions import IsAuthenticated
 #----------------------------------------------------------------
-# 血壓功能
+import base64
+import os
+import re
+import cv2
+import numpy as np
+from django.conf import settings
+from django.utils import timezone
+from django.contrib.auth import get_user_model
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+
+from ultralytics import YOLO
+from openai import OpenAI
+from .models import HealthCare
+
+User = get_user_model()
+client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
+
+# 數值驗證範圍
+VALID_RANGES = {
+    "systolic": (70, 250),
+    "diastolic": (40, 150),
+    "pulse": (30, 200),
+}
+
+_REGION_MODEL = None
+_DIGITS_MODEL = None
+
+
+def _load_models():
+    global _REGION_MODEL, _DIGITS_MODEL
+    if _REGION_MODEL is None or _DIGITS_MODEL is None:
+        region_path = os.path.join(settings.YOLO_MODELS_DIR, "region_best.pt")
+        digits_path = os.path.join(settings.YOLO_MODELS_DIR, "digits_best.pt")
+        _REGION_MODEL = YOLO(region_path)
+        _DIGITS_MODEL = YOLO(digits_path)
+    return _REGION_MODEL, _DIGITS_MODEL
+
+
+def decode_image_from_request(request):
+    if "image" in request.FILES:
+        image_bytes = request.FILES["image"].read()
+    elif "image_base64" in request.data:
+        b64 = request.data["image_base64"]
+        if "," in b64:
+            b64 = b64.split(",", 1)[1]
+        image_bytes = base64.b64decode(b64)
+    else:
+        raise ValueError("need_image_or_base64")
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("decode_failed")
+    return img, base64.b64encode(image_bytes).decode("utf-8")
+
+
+def call_gpt_fallback(image_b64: str):
+    """呼叫 GPT 辨識血壓數字"""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "你是一個醫療助手，請只輸出格式：收縮壓=<數字>, 舒張壓=<數字>, 心跳=<數字>"},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "請讀出這張血壓計上的數字"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                ]
+            }
+        ],
+        max_tokens=200,
+    )
+    result_text = response.choices[0].message.content.strip()
+    nums = re.findall(r"(\d+)", result_text)
+    if len(nums) < 3:
+        raise ValueError(f"GPT parse fail: {result_text}")
+    return {
+        "systolic": int(nums[0]),
+        "diastolic": int(nums[1]),
+        "pulse": int(nums[2]),
+    }
+
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser
-from django.core.files.storage import default_storage
-import os
-import uuid
-from datetime import datetime
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.conf import settings
+
+from datetime import timedelta
+import pytz
+
+# 假設你已有的工具/常數
+# from .yolo import _load_models, VALID_RANGES
+# from .utils import decode_image_from_request, call_gpt_fallback
 from .models import HealthCare
-from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
 
-class BloodOCRView(APIView):
+TAIPEI = pytz.timezone("Asia/Taipei")
+
+class BloodYOLOView(APIView):
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser]
+    parser_classes = [MultiPartParser, FormParser]
 
-    def post(self, request):
-        print("🔐 目前登入的使用者：", request.user)
-
-        image_file = request.FILES.get('image')
-        if not image_file:
-            return Response({"error": "未收到圖片"}, status=400)
-
-        # 暫存圖片
-        filename = f"temp_{uuid.uuid4()}.jpg"
-        file_path = os.path.join('temp', filename)
-        full_path = default_storage.save(file_path, image_file)
-
+    def post(self, request, *args, **kwargs):
         try:
-            # ✅ 模擬 YOLO + OCR 假資料
-            result = {
-                "systolic": 120,
-                "diastolic": 80,
-                "pulse": 72,
-            }
+            # 1) 取圖
+            image, image_b64 = decode_image_from_request(request)
 
-            systolic = result["systolic"]
-            diastolic = result["diastolic"]
-            pulse = result["pulse"]
+            # 2) 取前端送來的時間（ISO/UTC）。若沒有，就以現在時間
+            ts_str  = request.POST.get("timestamp")  # e.g. "2025-09-20T14:35:32.343Z"
+            tz_str  = request.POST.get("tz")         # e.g. "Asia/Taipei"
+            epoch_ms = request.POST.get("epoch_ms")  # e.g. "1758378932343"
 
-            # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-            local_now = timezone.localtime(timezone.now())
-            print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
+            # 2a) 解析成 aware datetime（以 UTC 為主）
+            captured_at = None
+            if ts_str:
+                dt = parse_datetime(ts_str)
+                if dt is not None:
+                    if timezone.is_naive(dt):
+                        dt = timezone.make_aware(dt, timezone.utc)
+                    captured_at = dt
+            if captured_at is None:
+                captured_at = timezone.now()  # 後備：沒有給就用現在（UTC）
 
-            HealthCare.objects.create(
+            # 2b) 算出台北本地時間 & 本地「日期」與「早/晚」
+            captured_at_taipei = captured_at.astimezone(TAIPEI)
+            local_date = captured_at_taipei.date()
+            period = "morning" if captured_at_taipei.hour < 12 else "evening"
+
+            # 3) YOLO 辨識（出錯就走 GPT fallback）
+            try:
+                region_model, digits_model = _load_models()
+                det = region_model.predict(
+                    image, conf=0.40, verbose=False,
+                    device=getattr(settings, "YOLO_DEVICE", 0)
+                )
+
+                results = {"systolic": None, "diastolic": None, "pulse": None}
+                for r in det:
+                    for b in getattr(r, "boxes", []):
+                        cls_name = region_model.names.get(int(b.cls[0]), "")
+                        if "sys" in cls_name.lower():
+                            results["systolic"] = 135  # TODO: 用 digits_model 真的辨識
+                        elif "dia" in cls_name.lower():
+                            results["diastolic"] = 80
+                        elif "pul" in cls_name.lower():
+                            results["pulse"] = 70
+
+                if any(v is None for v in results.values()):
+                    raise ValueError("YOLO incomplete")
+
+                for k, (lo, hi) in VALID_RANGES.items():
+                    if not (lo <= results[k] <= hi):
+                        raise ValueError("YOLO out of range")
+
+            except Exception:
+                results = call_gpt_fallback(image_b64)
+
+            # 4) Upsert：同一人、同一台北日、同一時段 若已有 → 更新；否則建立
+            obj, created = HealthCare.objects.get_or_create(
                 UserID=request.user,
-                Systolic=systolic,
-                Diastolic=diastolic,
-                Pulse=pulse,
-                Date=local_now
+                LocalDate=local_date,
+                Period=period,
+                defaults=dict(
+                    Systolic=results["systolic"],
+                    Diastolic=results["diastolic"],
+                    Pulse=results["pulse"],
+                    # 這裡建議 CapturedAt 存 UTC；如果你前面已轉台北，也可存 UTC 以利一致
+                    CapturedAt=captured_at,             # 建議存 UTC
+                    DeviceTZ=tz_str,
+                    EpochMs=epoch_ms,
+                )
             )
 
+            if not created:
+                # 覆蓋更新該時段資料
+                obj.Systolic = results["systolic"]
+                obj.Diastolic = results["diastolic"]
+                obj.Pulse = results["pulse"]
+                obj.CapturedAt = captured_at           # 建議存 UTC
+                obj.DeviceTZ = tz_str
+                obj.EpochMs = epoch_ms
+                obj.save()
+
             return Response({
-                "message": "✅ 模擬分析完成",
-                "data": {
-                    "systolic": systolic,
-                    "diastolic": diastolic,
-                    "pulse": pulse
-                }
-            })
+                "ok": True,
+                "parsed": results,
+                "health_id": obj.HealthID,
+                "period": obj.Period,
+                "local_date": str(obj.LocalDate),                     # 台北的日期（字串）
+                "captured_at_utc": obj.CapturedAt.isoformat(),        # UTC
+                "captured_at_taipei": captured_at_taipei.strftime("%Y-%m-%d %H:%M:%S"),
+                "created": created,                                   # True=新增 / False=更新
+                "message": ("新增" if created else "已更新") + ("早上" if obj.Period=="morning" else "晚上") + "紀錄",
+            }, status=200)
 
-        finally:
-            default_storage.delete(full_path)  # 清除暫存圖片
-
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.permissions import IsAuthenticated
-# from rest_framework.parsers import MultiPartParser
-# from django.core.files.storage import default_storage
-# import os
-# import uuid
-# from datetime import datetime
-# from ocr_modules.bp_ocr_yolo import run_yolo_ocr
-# from .models import HealthCare
-# from django.utils import timezone  # ✅ 加上這行才有 timezone.localtime
-
-
-# class BloodOCRView(APIView):
-#     permission_classes = [IsAuthenticated]
-#     parser_classes = [MultiPartParser]
-
-#     def post(self, request):
-#         print("🔐 目前登入的使用者：", request.user)
-
-#         image_file = request.FILES.get('image')
-#         if not image_file:
-#             return Response({"error": "未收到圖片"}, status=400)
-
-#         # 暫存圖片
-#         filename = f"temp_{uuid.uuid4()}.jpg"
-#         file_path = os.path.join('temp', filename)
-#         full_path = default_storage.save(file_path, image_file)
-
-#         try:
-#             # 🧠 執行 YOLO + OCR 辨識
-#             result = run_yolo_ocr(default_storage.path(full_path))
-
-#             def safe_int(val):
-#                 try:
-#                     return int(val)
-#                 except:
-#                     return None
-
-#             systolic = safe_int(result.get('systolic'))
-#             diastolic = safe_int(result.get('diastolic'))
-#             pulse = safe_int(result.get('pulse'))
-
-#             if systolic is None or diastolic is None or pulse is None:
-#                 return Response({"error": "OCR 辨識失敗，請再試一次"}, status=400)
-
-#             if not (70 <= systolic <= 250 and 40 <= diastolic <= 150 and 30 <= pulse <= 200):
-#                 return Response({"error": "數值異常，請確認圖片品質"}, status=400)
-
-#             # 💾 儲存資料，時間轉為當地時間再存（會自動轉為 UTC 存入 DB）
-#             local_now = timezone.localtime(timezone.now())
-#             print("🕒 實際儲存時間（Asia/Taipei）:", local_now)
-
-#             HealthCare.objects.create(
-#                 UserID=request.user,
-#                 Systolic=systolic,
-#                 Diastolic=diastolic,
-#                 Pulse=pulse,
-#                 Date=local_now  # timezone-aware datetime
-#             )
-
-#             return Response({
-#                 "message": "分析完成",
-#                 "data": {
-#                     "systolic": systolic,
-#                     "diastolic": diastolic,
-#                     "pulse": pulse
-#                 }
-#             })
-
-#         finally:
-#             default_storage.delete(full_path)  # 清除暫存圖片
+        except Exception as e:
+            return Response({"ok": False, "error": str(e)}, status=500)
 
 #查血壓
 from rest_framework.views import APIView
@@ -150,7 +218,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils.timezone import get_current_timezone
 from datetime import datetime, time, timezone as dt_timezone
 from .models import HealthCare
-from mysite.models import User  # ✅ 根據你的 User 模型位置修改
+from mysite.models import User
 
 class HealthCareByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
@@ -168,16 +236,10 @@ class HealthCareByDateAPI(APIView):
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        # 🔧 時區處理
-        tz = get_current_timezone()
-        start = datetime.combine(target_date, time.min).replace(tzinfo=tz).astimezone(dt_timezone.utc)
-        end = datetime.combine(target_date, time.max).replace(tzinfo=tz).astimezone(dt_timezone.utc)
-
-        # ✅ 支援 user_id 查詢其他成員
         if user_id:
             try:
                 user_id = int(user_id)
-                target_user = User.objects.get(UserID=user_id)  # ✅ 用 UserID
+                target_user = User.objects.get(UserID=user_id)
             except (ValueError, TypeError):
                 return Response({'error': 'user_id 格式錯誤'}, status=400)
             except User.DoesNotExist:
@@ -185,21 +247,30 @@ class HealthCareByDateAPI(APIView):
         else:
             target_user = user
 
-        # 🔍 查詢資料
-        record = HealthCare.objects.filter(
+        # 撈當日兩筆
+        records = HealthCare.objects.filter(
             UserID=target_user,
-            Date__range=(start, end)
-        ).order_by('-Date').first()
+            LocalDate=target_date
+        )
 
-        if record:
-            return Response({
-                'systolic': record.Systolic,
-                'diastolic': record.Diastolic,
-                'pulse': record.Pulse,
-                'datetime': record.Date,
-            })
-        else:
-            return Response({'message': '當日無血壓資料'}, status=404)
+        morning = records.filter(Period="morning").first()
+        evening = records.filter(Period="evening").first()
+
+        return Response({
+            "date": date_str,
+            "morning": {
+                "systolic": morning.Systolic if morning else None,
+                "diastolic": morning.Diastolic if morning else None,
+                "pulse": morning.Pulse if morning else None,
+                "captured_at": morning.CapturedAt if morning else None,
+            } if morning else None,
+            "evening": {
+                "systolic": evening.Systolic if evening else None,
+                "diastolic": evening.Diastolic if evening else None,
+                "pulse": evening.Pulse if evening else None,
+                "captured_at": evening.CapturedAt if evening else None,
+            } if evening else None,
+        })
 
 #----------------------------------------------------------------
 #藥單
@@ -207,17 +278,68 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Med
-from django.utils import timezone
+from django.conf import settings
+from mysite.models import User  # ⚠️ 若路徑不同請調整
+from google.cloud import vision
+from config import GOOGLE_VISION_CREDENTIALS, OPENAI_API_KEY
+
 import openai
 import json
 import uuid
-from google.cloud import vision
-from google.oauth2 import service_account
-from django.conf import settings
-from config import GOOGLE_VISION_CREDENTIALS, OPENAI_API_KEY
+import re
 
 # 設定 OpenAI API 金鑰
 openai.api_key = OPENAI_API_KEY
+
+# 允許的頻率（與 Prompt 對齊）
+ALLOWED_FREQ = {"一天一次", "一天兩次", "一天三次", "一天四次", "睡前", "必要時", "未知"}
+
+
+def normalize_freq(text: str | None) -> str:
+    """
+    把各種寫法正規化成 ALLOWED_FREQ 之一。
+    支援：
+    - x1/x2/x3/x4 (+ x?x? 後面的天數忽略)
+    - 一天4次 / 每日 3 次 / 3次/日
+    - 睡前/睡覺前、必要時/PRN
+    - xlx3（視為 x1x3）
+    """
+    if not text:
+        return "未知"
+    t = str(text).strip()
+
+    # 去空白、大小寫、全形
+    t = t.replace("Ｘ", "x").replace("＊", "x").replace("×", "x")
+    t = t.replace("：", ":").replace("／", "/")
+    t = re.sub(r"\s+", "", t)
+
+    # 常見打字錯：xlx3 → x1x3
+    t = t.replace("xlx", "x1x")
+
+    # xNxD 形式
+    m = re.search(r"x(\d)x(\d+)", t, flags=re.IGNORECASE)
+    if m:
+        n = int(m.group(1))
+        return {1: "一天一次", 2: "一天兩次", 3: "一天三次", 4: "一天四次"}.get(n, "未知")
+
+    # 一天/每日 N 次
+    for n, lab in [(4, "一天四次"), (3, "一天三次"), (2, "一天兩次"), (1, "一天一次")]:
+        if re.search(fr"(一天|每日){n}次", t):
+            return lab
+        if re.search(fr"{n}次/日", t):
+            return lab
+
+    # 睡前 / 必要時
+    if re.search(r"睡前|睡覺前", t):
+        return "睡前"
+    if re.search(r"必要時|PRN", t, flags=re.IGNORECASE):
+        return "必要時"
+
+    # 有時 GPT 已經回正確字串，但含不可見空白
+    if t in ALLOWED_FREQ:
+        return t
+
+    return "未知"
 
 
 class OcrAnalyzeView(APIView):
@@ -227,148 +349,134 @@ class OcrAnalyzeView(APIView):
         print("目前登入的使用者是：", request.user)
         print("收到的檔案列表：", request.FILES)
 
-        image_file = request.FILES.get('image')
+        image_file = request.FILES.get("image")
         if not image_file:
-            return Response({'error': '沒有收到圖片'}, status=400)
+            return Response({"error": "沒有收到圖片"}, status=400)
 
         try:
-            # 1️⃣ OCR 圖片辨識
+            # 1) Google Vision OCR
             client = vision.ImageAnnotatorClient.from_service_account_info(GOOGLE_VISION_CREDENTIALS)
             image = vision.Image(content=image_file.read())
             response = client.text_detection(image=image)
             annotations = response.text_annotations
 
             if not annotations:
-                return Response({'error': '無法辨識文字'}, status=400)
+                return Response({"error": "無法辨識文字"}, status=400)
 
-            ocr_text = annotations[0].description.strip()
-            print("🔍 OCR 結果：", ocr_text)
+            ocr_text = (annotations[0].description or "").strip()
+            print("🔍 OCR 結果：", ocr_text[:300], "...")
 
-            # 2️⃣ GPT 分析藥品資訊
+            # 2) 丟 GPT 解析
             gpt_result = self.analyze_with_gpt(ocr_text)
-            print("🔍 gpt 結果：", gpt_result)
+            print("🔍 GPT 原始結果：", gpt_result)
+
             try:
                 parsed = json.loads(gpt_result)
             except json.JSONDecodeError:
-                print("❌ GPT 原始回傳：", gpt_result)  # ⬅️ 新增這行
-                return Response({'error': 'GPT 回傳非有效 JSON', 'raw': gpt_result}, status=400)
+                return Response({"error": "GPT 回傳非有效 JSON", "raw": gpt_result}, status=400)
 
-            # 3️⃣ 判斷是否有指定 user_id，否則預設為 request.user
-            user_id = request.POST.get('user_id')
+            # 3) 目標使用者（可傳 user_id，否則用登入者）
+            user_id = request.POST.get("user_id")
             if user_id:
                 try:
-                    from mysite.models import User  # ⚠️ 根據你的 User 模型路徑
                     target_user = User.objects.get(UserID=int(user_id))
                 except (User.DoesNotExist, ValueError):
-                    return Response({'error': '查無此使用者'}, status=404)
+                    return Response({"error": "查無此使用者"}, status=404)
             else:
                 target_user = request.user
 
-            # 4️⃣ 存入資料庫（先準備要新增的清單）
+            # 4) 入庫
             prescription_id = uuid.uuid4()
-            count = 0
+            disease_names = parsed.get("diseaseNames") or []
+            disease = (disease_names[0] if disease_names else "未知")[:50]
 
-            disease = parsed.get("diseaseNames", ["未知"])[0]  # 避免空陣列錯誤
-            for med in parsed.get("medications", []):
+            meds = parsed.get("medications") or []
+            created = 0
+            for m in meds:
+                raw_freq = (m.get("dosageFrequency") or "").strip()
+                freq_std = normalize_freq(raw_freq)
+
+                med_name = (m.get("medicationName") or "未知")[:50]
+                admin = (m.get("administrationRoute") or "未知")[:10]
+                effect = (m.get("effect") or "未知")[:100]
+                side = (m.get("sideEffect") or "未知")[:100]
+
+                print(f"[WRITE] {med_name} | raw_freq='{raw_freq}' -> save='{freq_std}'")
+
                 Med.objects.create(
                     UserID=target_user,
-                    Disease=disease[:50],
-                    MedName=med.get("medicationName", "未知")[:50],
-                    AdministrationRoute=med.get("administrationRoute", "未知")[:10],
-                    DosageFrequency=med.get("dosageFrequency", "未知")[:50],
-                    Effect=med.get("effect", "未知")[:100],
-                    SideEffect=med.get("sideEffect", "未知")[:100],
-                    PrescriptionID=prescription_id
+                    Disease=disease or "未知",
+                    MedName=med_name,
+                    AdministrationRoute=admin,
+                    DosageFrequency=freq_std,
+                    Effect=effect,
+                    SideEffect=side,
+                    PrescriptionID=prescription_id,
                 )
-                count += 1
+                created += 1
 
-            # 回傳訊息
-            return Response({
-                'message': f'✅ 成功寫入 {count} 筆藥單資料',
-                'duplicate': False,
-                'created_count': count,
-                'prescription_id': str(prescription_id)
-            })
+            return Response(
+                {
+                    "message": f"✅ 成功寫入 {created} 筆藥單資料",
+                    "created_count": created,
+                    "prescription_id": str(prescription_id),
+                    "parsed": parsed,  # 方便前端比對
+                },
+                status=200,
+            )
 
         except Exception as e:
             print("❌ 例外錯誤：", e)
-            return Response({'error': str(e)}, status=500)
+            return Response({"error": str(e)}, status=500)
 
-    def analyze_with_gpt(self, ocr_text):
-        prompt = f"""
-        你是一個藥物資料結構化助理，請從以下 OCR 辨識出的藥袋文字中，萃取藥品資訊並輸出乾淨 JSON 格式資料。
-
-        ⬇️ OCR 內容如下：
-        {ocr_text}
-
-        📌 請輸出以下 JSON 格式（請根據上下文**合理推論**，只有在**完全無線索**的情況下才填寫 "未知"）  
-
-        ```json
-        {{
-        "diseaseNames": ["高血壓", "糖尿病"],
-        "medications": [
-            {{
-            "medicationName": "藥品A",
-            "administrationRoute": "內服",
-            "dosageFrequency": "一天三次",
-            "effect": "抗過敏",
-            "sideEffect": "可能頭暈"
-            }},
-            {{
-            "medicationName": "藥品B",
-            "administrationRoute": "外用",
-            "dosageFrequency": "一天兩次",
-            "effect": "消炎止癢",
-            "sideEffect": "無明顯副作用"
-            }}
-        ]
-        }}
-        ⚠️ 請注意以下規則：
-
-        1.只輸出純 JSON 區塊，不要加註解、說明或其他文字
-
-        2.medications 每一筆資料都要有以下五個欄位：
-
-            medicationName
-
-            administrationRoute
-
-            dosageFrequency
-
-            effect
-
-            sideEffect
-
-        3.dosageFrequency 欄位只能是以下四種之一（若不確定請填 "未知"）：
-
-            一天一次
-
-            一天兩次
-
-            一天三次
-
-            睡前
-
-        4.diseaseNames 必須為一個字串陣列
+    def analyze_with_gpt(self, ocr_text: str) -> str:
         """
+        使用 gpt-4o-mini 解析台灣常見藥單格式：
+        - 內服 1.00 x4x3 → 一天四次
+        - 睡前、必要時（PRN）要能辨識
+        - effect/sideEffect 盡量從同列中文說明抽出
+        """
+        prompt = f"""
+你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+
+### OCR 內容
+{ocr_text}
+
+### 輸出 JSON Schema
+{{
+  "diseaseNames": string[],   
+  "medications": [
+    {{
+      "medicationName": string,                         
+      "administrationRoute": "內服"|"外用"|"其他",       
+      "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
+      "effect": string,                                  
+      "sideEffect": string                                
+    }}
+  ]
+}}
+
+### 規則
+1) xNxD → 一天 N 次，D 為天數（D 不需輸出）。
+   - 內服 1.00 x4x3 → 一天四次
+   - 內服 1.00 xlx3 → 一天一次
+2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
+3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
+4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
+5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
+"""
 
         response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},  
             messages=[
-                {"role": "system", "content": "你是超級無敵專業藥劑師"},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "你是超級專業且嚴謹的藥劑師，會把藥單 OCR 結構化輸出。"},
+                {"role": "user", "content": prompt},
             ],
-            temperature=0.3
+            temperature=0.1,
         )
 
-        # 🔧 去除 markdown 格式的包裝
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]  # 移除 ```json\n
-        if content.endswith("```"):
-            content = content[:-3]  # 移除 \n```
-
-        return content.strip()
+        return (response.choices[0].message.content or "").strip()
 
 #藥單查詢
 from rest_framework.views import APIView
@@ -569,13 +677,10 @@ def get_med_reminders(request):
     }
     return Response(result)
 
-
-
 #----------------------------------------------------------------
 #健康
-#新增步數
-from django.utils.timezone import is_naive, make_aware
-from datetime import datetime, time
+# views.py
+from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -587,85 +692,97 @@ class FitDataAPI(APIView):
     def post(self, request):
         user = request.user
         steps = request.data.get('steps')
-        timestamp_str = request.data.get('timestamp')
+        date_str = request.data.get('date')  # ✅ 改收 date
 
-        if steps is None or not timestamp_str:
-            return Response({'error': '缺少步數或時間'}, status=400)
+        if steps is None or not date_str:
+            return Response({'error': '缺少步數或日期'}, status=400)
 
-        timestamp = datetime.fromisoformat(timestamp_str)
-        if is_naive(timestamp):
-            timestamp = make_aware(timestamp)
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        # ✅ 改成以當日範圍查詢（最穩定）
-        start_of_day = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = timestamp.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        existing = FitData.objects.filter(
+        # ✅ 檢查是否已有當日紀錄
+        fitdata, created = FitData.objects.get_or_create(
             UserID=user,
-            timestamp__range=(start_of_day, end_of_day)
-        ).first()
+            date=date_obj,
+            defaults={'steps': steps}
+        )
 
-        if existing:
-            if existing.steps != steps:
-                existing.steps = steps
-                existing.timestamp = timestamp
-                existing.save()
-                return Response({'message': '✅ 同日已有資料，步數已更新'})
+        if not created:
+            if fitdata.steps != steps:
+                fitdata.steps = steps
+                fitdata.save()
+                return Response({'message': '✅ 已更新當日步數'})
             else:
-                return Response({'message': '🟡 同日步數相同，未更新'})
+                return Response({'message': '🟡 當日步數相同，未更新'})
         else:
-            FitData.objects.create(UserID=user, steps=steps, timestamp=timestamp)
             return Response({'message': '✅ 新增成功'})
 
-#查詢步數
+
+# 查詢步數（用 date 欄位）
+from datetime import datetime
+from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.utils.timezone import make_aware
-from datetime import datetime, time
+
 from .models import FitData
-from mysite.models import User  # ⚠️ 修改為你實際的 User 模型位置
+
+User = get_user_model()
 
 class FitDataByDateAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        date_str = request.query_params.get('date')  # YYYY-MM-DD
-        user_id = request.query_params.get('user_id')  # 前端傳入的
+        # 1) 取得參數
+        date_str = request.query_params.get('date')      # 必填：YYYY-MM-DD
+        user_id = request.query_params.get('user_id')    # 選填：查指定使用者
 
         if not date_str:
-            return Response({'error': '缺少日期參數'}, status=400)
+            return Response({'error': '缺少日期參數 date（YYYY-MM-DD）'}, status=400)
 
+        # 2) 解析日期
         try:
             target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
 
-        start = make_aware(datetime.combine(target_date, time.min))
-        end = make_aware(datetime.combine(target_date, time.max))
-
-        # 🔍 若有 user_id 就查指定長者，否則查登入者
+        # 3) 決定目標使用者：有 user_id 就查該人，否則查登入者
         if user_id:
             try:
-                user_id = int(user_id)
-                target_user = User.objects.get(UserID=user_id)
-            except (ValueError, TypeError):
-                return Response({'error': 'user_id 需為整數'}, status=400)
+                uid = int(user_id)
+            except (TypeError, ValueError):
+                return Response({'error': 'user_id 必須為整數'}, status=400)
+
+            try:
+                # 用 get_user_model() 比較穩；一般用 pk/id 查就好
+                target_user = User.objects.get(pk=uid)
             except User.DoesNotExist:
                 return Response({'error': '查無此使用者'}, status=404)
         else:
             target_user = request.user
 
-        record = FitData.objects.filter(UserID=target_user, timestamp__range=(start, end)).order_by('-timestamp').first()
+        # 4) 以 date 精準查詢（模型已改為 date 欄位）
+        record = (
+            FitData.objects
+            .filter(UserID=target_user, date=target_date)
+            .order_by('-updated_at' if hasattr(FitData, 'updated_at') else 'pk')
+            .first()
+        )
 
-        if record:
-            return Response({
-                'steps': record.steps,
-                'timestamp': record.timestamp,
-            })
-        else:
+        if not record:
             return Response({'message': '當日無步數資料'}, status=404)
+
+        # 5) 回傳結果（保持簡潔）
+        return Response({
+            'user_id': getattr(target_user, 'pk', None),
+            'date': record.date.isoformat(),
+            'steps': record.steps,
+            'created_at': getattr(record, 'created_at', None),
+            'updated_at': getattr(record, 'updated_at', None),
+        })
+
 
 #----------------------------------------------------------------
 @api_view(['GET'])
@@ -749,6 +866,8 @@ def login(request):
             "RelatedID": user.RelatedID.UserID if user.RelatedID else None  # ✅ 新增這行
         }
     }, status=status.HTTP_200_OK)
+
+
 
 #------------------------------------------------------------------------
 #創建家庭
@@ -1058,6 +1177,7 @@ def hospital_delete(request, pk):
     return Response({"message": "已刪除"}, status=200)
 
 
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -1267,3 +1387,134 @@ def scam_add(request):
     }, status=status.HTTP_201_CREATED)
 
 
+#定位----------
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.throttling import UserRateThrottle
+from django.db.models import OuterRef, Subquery
+from django.contrib.auth import get_user_model
+
+from .models import LocaRecord
+from .permissions import IsElder
+from .serializers import LocationUploadSerializer, LocationLatestSerializer
+
+User = get_user_model()
+
+class UploadLocationThrottle(UserRateThrottle):
+    rate = '60/min'  #可調整
+
+def _same_family(u1, u2) -> bool:
+    return (
+        getattr(u1, 'FamilyID_id', None) is not None and
+        getattr(u2, 'FamilyID_id', None) is not None and
+        u1.FamilyID_id == u2.FamilyID_id
+    )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsElder])   # 僅長者可上傳
+@throttle_classes([UploadLocationThrottle])
+def upload_location(request):
+    ser = LocationUploadSerializer(data=request.data, context={'user': request.user})
+    if not ser.is_valid():
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    rec = ser.save()
+    out = LocationLatestSerializer(rec).data  # lat,lon,ts
+    return Response({'ok': True, 'user': request.user.pk, **out}, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_latest_location(request, user_id: int):
+    # 本人和同家庭才可查訊
+    if request.user.pk == user_id:
+        target = request.user
+    else:
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': '使用者不存在'}, status=status.HTTP_404_NOT_FOUND)
+        if not getattr(target, 'is_elder', False):
+            return Response({'error': '不是長者帳號'}, status=status.HTTP_400_BAD_REQUEST)
+        if not _same_family(request.user, target):
+            return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    rec = (LocaRecord.objects
+           .filter(UserID=target)
+           .order_by('-Timestamp')
+           .only('Latitude', 'Longitude', 'Timestamp')
+           .first())
+    if not rec:
+        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
+
+    out = LocationLatestSerializer(rec).data
+    return Response({'ok': True, 'user': target.pk, **out}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_family_locations(request, family_id: int):
+    # 僅可查詢自己的家庭
+    if request.user.FamilyID_id is None:
+        return Response({'error': '尚未加入任何家庭'}, status=status.HTTP_400_BAD_REQUEST)
+    if request.user.FamilyID_id != family_id:
+        return Response({'error': '無權存取'}, status=status.HTTP_403_FORBIDDEN)
+
+    latest_qs = (LocaRecord.objects
+                 .filter(UserID_id=OuterRef('pk'))
+                 .order_by('-Timestamp'))
+
+    elders = (User.objects
+              .filter(FamilyID_id=family_id, is_elder=True)
+              .annotate(
+                  last_time=Subquery(latest_qs.values('Timestamp')[:1]),
+                  last_lat =Subquery(latest_qs.values('Latitude')[:1]),
+                  last_lon =Subquery(latest_qs.values('Longitude')[:1]),
+              )
+              .filter(last_time__isnull=False)
+              .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lon', 'last_time'))
+
+    results = [{
+        'user': e['UserID'],
+        'name': e['Name'] or e['Phone'],
+        'lat': float(e['last_lat']),
+        'lon': float(e['last_lon']),
+        'ts': e['last_time'],
+    } for e in elders]
+
+    return Response({'ok': True, 'family_id': family_id, 'count': len(results), 'results': results},
+                    status=status.HTTP_200_OK)
+
+from django.conf import settings
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+import requests, functools
+from rest_framework.permissions import AllowAny
+
+
+@functools.lru_cache(maxsize=2048)
+def _google_reverse(lat, lng, lang):
+    r = requests.get(
+        "https://maps.googleapis.com/maps/api/geocode/json",
+        params={"latlng": f"{lat},{lng}", "language": lang, "key": settings.GOOGLE_MAPS_KEY},
+        timeout=8,
+    )
+    j = r.json()
+    print('Google Geocode API 回傳 status:', j.get("status"))  # 可看API錯誤訊息
+
+    if j.get("status") == "OK" and j.get("results"):
+        first = j["results"][0]
+        return first.get("formatted_address")
+
+    return None
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def reverse_geocode(request):
+    lat = request.GET.get("lat")
+    lng = request.GET.get("lng")
+    lang = request.GET.get("lang", "zh-TW")
+    if not (lat and lng):
+        return Response({"error": "lat/lng required"}, status=400)
+    addr = _google_reverse(str(lat), str(lng), lang)
+    return Response({"address": addr})

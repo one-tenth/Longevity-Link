@@ -3,6 +3,7 @@ import axios from 'axios';
 
 const API_BASE = 'http://172.20.10.4:8000/api/account';
 
+
 interface RegisterData { //註冊要傳給後端的資訊
   phone: string;
   name: string;

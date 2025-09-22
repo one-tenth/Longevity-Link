@@ -49,8 +49,7 @@ class ScamAdmin(admin.ModelAdmin):
 class FitDataAdmin(admin.ModelAdmin):
     list_display = [field.name for field in FitData._meta.fields]
     
-class FitDataAdmin(admin.ModelAdmin):
-    list_display = ['UserID', 'steps', 'timestamp']
+
 
 # 註冊
 admin.site.register(Family, FamilyAdmin)
