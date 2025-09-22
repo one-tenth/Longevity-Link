@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert, ActivityIndicator,
+  ScrollView, Pressable, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,7 +20,7 @@ interface Member {
   RelatedID?: number | null;
 }
 
-const API_BASE = 'http://140.131.115.97:8000';
+const API_BASE = 'http://172.20.10.4:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -177,6 +177,45 @@ export default function ChildHome() {
     } as never);
   };
 
+  /** ✅ 通話紀錄導頁：未選長者就先跳 FamilyScreen；iOS 顯示限制提示 */
+  const openCallLogs = async () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');
+      return;
+    }
+    // 若畫面狀態沒選，保險再從 AsyncStorage 檢查
+    if (!selectedMember || !selectedMember.RelatedID) {
+      const maybeElderId = await AsyncStorage.getItem('elder_id');
+      if (!maybeElderId) {
+        Alert.alert('提醒', '請先選擇要照護的長者');
+        navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+        return;
+      }
+    } else {
+      // 幫你把 elder_* 寫入，讓後續頁面可直接使用
+      await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
+      await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
+    }
+    navigation.navigate('CallLogScreen' as never);
+  };
+
+  // 定位按鈕
+  const goLocation = async () => {
+    if (!selectedMember) {
+      Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never); 
+      return;
+    }
+    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;      
+    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');   
+    await AsyncStorage.setItem('elder_id', String(elderId));                
+    navigation.navigate('Location' as never, { elderId, elderName: selectedMember.Name } as never); 
+  };
+
+  const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
+
+  
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -246,12 +285,21 @@ export default function ChildHome() {
             onPress={goHospital}
             darkLabel={false}
           />
+          {/* ✅ 通話紀錄按鈕：呼叫 openCallLogs */}
           <QuickIcon
             big
             bg={COLORS.green}
             icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
             label="通話紀錄"
-            onPress={() => navigation.navigate('CallRecord' as never)}
+            onPress={openCallLogs}
+            darkLabel={false}
+          />
+           <QuickIcon
+            big
+            bg={COLORS.green}
+            icon={<MaterialIcons name="location-on" size={32} color={COLORS.black} />}
+            label="家人定位"
+            onPress={goLocation}          
             darkLabel={false}
           />
         </View>

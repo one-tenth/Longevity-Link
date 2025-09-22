@@ -8,6 +8,7 @@ import { RootStackParamList } from '../App';
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
 type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
 
+
 interface Member {
   UserID: number;
   Name: string;
@@ -26,7 +27,7 @@ const FamilyScreen = () => {
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
-      await AsyncStorage.removeItem('selectedMember');
+      //await AsyncStorage.removeItem('selectedMember');
 
       const token = await AsyncStorage.getItem('access');
       if (!token) {
@@ -38,7 +39,7 @@ const FamilyScreen = () => {
       }
 
       try {
-        const resMe = await fetch('http://140.131.115.97:8000/account/me/', {
+        const resMe = await fetch('http://172.20.10.4:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMe.ok) throw new Error('取得使用者失敗');
@@ -48,7 +49,7 @@ const FamilyScreen = () => {
         setFamilyName(`${user.Name}的家庭`);
         setFamilyCode(user.Fcode); // ✅ 設定 Fcode
 
-        const resMembers = await fetch('http://140.131.115.97:8000/family/members/', {
+        const resMembers = await fetch('http://172.20.10.4:8000/family/members/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMembers.ok) throw new Error('取得成員失敗');
@@ -94,9 +95,12 @@ const FamilyScreen = () => {
             <TouchableOpacity
               key={index}
               onPress={async () => {
-                await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
+                await AsyncStorage.setItem('selectedMember', JSON.stringify(m)); // 可選取的成員
+                const elderId = m.RelatedID ?? m.UserID;                          // RelatedID 優先
+                await AsyncStorage.setItem('elder_id', String(elderId));
+                await AsyncStorage.setItem('elder_name', m.Name);
                 navigation.navigate('ChildHome');
-              }}
+              }}  
             >
               <View style={styles.card}>
                 <Image source={require('../img/childhome/image.png')} style={styles.avatar} />

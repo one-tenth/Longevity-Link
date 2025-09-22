@@ -35,7 +35,8 @@ const COLORS = {
   line: '#E6E6E6',
 };
 
-const BASE = 'http://140.131.115.97:8000';
+
+const BASE = 'http://172.20.10.4:8000';
 const R = 22;
 
 const outerShadow = {

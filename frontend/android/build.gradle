@@ -20,5 +20,17 @@ buildscript {
     }
 }
 
+// 強制所有子模組使用相同的 play-services-location 版本
+subprojects {
+    project.configurations.all {
+        resolutionStrategy {
+            force "com.google.android.gms:play-services-location:20.0.0"
+        }
+    }
+}
+
 apply plugin: "com.facebook.react.rootproject"
 apply plugin: 'com.google.gms.google-services'
+
+
+newArchEnabled=false

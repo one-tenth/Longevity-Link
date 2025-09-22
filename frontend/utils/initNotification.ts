@@ -15,7 +15,8 @@ import { navigationRef } from '../App';
 console.log('[initNotification] module loaded');
 
 // ✅ 集中管理 BASE
-const BASE = 'http://140.131.115.97:8000';
+const BASE = 'http://172.20.10.4:8000';
+
 
 /** 標準化 HH:mm（支援 08:00、8:0、08:00:00、08:00Z、全形冒號） */
 function extractHHMM(raw?: string): { h: number; m: number } | null {
@@ -45,6 +46,13 @@ function createTriggerTime(timeStr: string): Date | null {
   return triggerTime;
 }
 
+// ===== 小工具：可忽略錯誤判斷 =====
+function isUserNotFoundError(err: any): boolean {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.code || err?.response?.data?.detail?.code;
+  return status === 401 && code === 'user_not_found';
+}
+
 // ===== Android 通知頻道 =====
 export async function setupNotificationChannel() {
   await notifee.createChannel({
@@ -70,6 +78,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 }
 
 // ===== 初始化提醒（含友善提示）=====
+// 需求：401 + user_not_found 視為成功，不彈 Alert，不影響 UI
 export async function initMedicationNotifications(): Promise<
   'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
 > {
@@ -88,17 +97,22 @@ export async function initMedicationNotifications(): Promise<
 
   try {
     // 1) /me
-    const meRes = await axios.get(`${BASE}/api/account/me/`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      timeout: 10000,
-    });
-    console.log('[initNotification] /me status:', meRes.status);
-
-    const user = meRes.data;
-    console.log('✅ 使用者資訊:', user);
-
-    // 若 /me 明確帶 RelatedID 且為 null/undefined → 家人
-    const hasRelatedKey = Object.prototype.hasOwnProperty.call(user, 'RelatedID');
+    try {
+      const meRes = await axios.get(`${BASE}/api/account/me/`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        timeout: 10000,
+      });
+      console.log('[initNotification] /me status:', meRes.status);
+      console.log('✅ 使用者資訊:', meRes.data);
+    } catch (err: any) {
+      if (isUserNotFoundError(err)) {
+        // ✅ 你要的特例：當成功處理
+        console.log('[initNotification] /me 返回 user_not_found → 視為成功（不排程，不 Alert）');
+        await notifee.cancelTriggerNotifications(); // 清掉殘留排程
+        return 'success';
+      }
+      throw err; // 其他錯誤照舊往外丟
+    }
 
     // 2) 取得提醒排程
     let schedule: Record<string, { time?: string; meds?: string[] }>;
@@ -114,15 +128,19 @@ export async function initMedicationNotifications(): Promise<
       const status = err?.response?.status;
       const msg = err?.response?.data?.error || err?.message;
 
+      if (isUserNotFoundError(err)) {
+        // ✅ 特例：視為成功，不提醒
+        console.log('[initNotification] get-med-reminders user_not_found → 視為成功（不排程，不 Alert）');
+        await notifee.cancelTriggerNotifications();
+        return 'success';
+      }
+
       if (status === 403) {
-        Alert.alert('功能限制', msg || '家人帳號無法取得用藥提醒。');
         console.log('👨‍👩‍👧 家人帳號（由 403 fallback 判定），不排通知');
         return 'not-elder';
       }
       if (status === 404) {
-        // 後端明確告知是「時間未設」或「沒有藥物」
         Alert.alert('資料不足', msg || '尚未設定時間或藥物。');
-        // 讓呼叫端知道屬於「資料不足」類
         return 'no-time';
       }
 
@@ -133,7 +151,7 @@ export async function initMedicationNotifications(): Promise<
 
     await AsyncStorage.setItem('medReminderData', JSON.stringify(schedule));
 
-    // 3) 即便 200，也檢查內容是否完整，給更精準提示
+    // 3) 內容檢查
     const anyTimeSet = Object.values(schedule).some((d: any) => !!d?.time);
     const anyMedsSet = Object.values(schedule).some(
       (d: any) => Array.isArray(d?.meds) && d.meds.length > 0
@@ -206,13 +224,19 @@ export async function initMedicationNotifications(): Promise<
     });
 
     if (!medsExist) {
-      // 走到這裡代表有時間但每段都沒藥
       Alert.alert('尚無藥物設定', '請由家人新增藥物。');
       return 'no-meds';
     }
 
     return 'success';
   } catch (err: any) {
+    // ✅ 最外層也再保險攔一次
+    if (isUserNotFoundError(err)) {
+      console.log('[initNotification] 外層攔截 user_not_found → 視為成功（不排程，不 Alert）');
+      await notifee.cancelTriggerNotifications();
+      return 'success';
+    }
+
     console.error(
       '[initNotification] 排程失敗:',
       err?.response?.status,
@@ -221,22 +245,6 @@ export async function initMedicationNotifications(): Promise<
     Alert.alert('錯誤', '排程建立失敗，請稍後再試。');
     return 'error';
   }
-}
-
-/** 10 秒煙霧測試：立刻排一筆 10 秒後觸發的通知 */
-export async function smokeTestIn10s() {
-  await setupNotificationChannel();
-  const ts = Date.now() + 10_000;
-  await notifee.createTriggerNotification(
-    {
-      title: '⏱ 10s SMOKE TEST',
-      body: '如果這則會跳，代表 Notifee/權限/頻道 OK',
-      android: { channelId: 'medication', pressAction: { id: 'default' } },
-    },
-    { type: TriggerType.TIMESTAMP, timestamp: ts } as TimestampTrigger
-  );
-  const list = await notifee.getTriggerNotifications();
-  console.log('[initNotification] smoke triggers:', list.length, list.map((t) => (t.trigger as any)?.timestamp));
 }
 
 // ===== 通知點擊處理（App 前景）=====
