@@ -675,26 +675,29 @@ def hello_world(request):
 
 
 # Create your views here.
-from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserRegisterSerializer,UserPublicSerializer
+from .serializers import UserRegisterSerializer, UserPublicSerializer, UserMeSerializer
 from django.contrib.auth import authenticate
-from .models import User  # 你的自訂 User 模型
+from .models import User
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
-
+# --------------------
+# 註冊
+# --------------------
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    creator_id = request.data.get('creator_id')  # 可選參數：來自家人註冊 elder
+    creator_id = request.data.get('creator_id')  # 可選參數
 
     serializer = UserRegisterSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
 
-        # 若是「家人新增長者」，設定 RelatedID、FamilyID 並標記為 elder
+        # 若是「家人新增長者」
         if creator_id:
             try:
                 creator = User.objects.get(UserID=creator_id)
@@ -709,9 +712,20 @@ def register_user(request):
             except User.DoesNotExist:
                 return Response({'error': '創建者不存在'}, status=400)
 
-        return Response(UserRegisterSerializer(user).data, status=status.HTTP_201_CREATED)
+        # ⭐ 回傳時也帶上 avatar
+        return Response({
+            "UserID": user.UserID,
+            "Name": user.Name,
+            "Phone": user.Phone,
+            "Gender": user.Gender,
+            "Borndate": user.Borndate,
+            "FamilyID": user.FamilyID.FamilyID if user.FamilyID else None,
+            "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
+            "avatar": user.avatar,   # ⭐ 新增
+        }, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(['POST'])
@@ -720,7 +734,6 @@ def login(request):
     Phone = request.data.get('Phone')
     password = request.data.get('password')
 
-    # 檢查是否有輸入 Phone 與 password
     if not Phone or not password:
         return Response({"message": "請提供帳號與密碼"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -732,7 +745,6 @@ def login(request):
     if not user.check_password(password):
         return Response({"message": "密碼錯誤"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 產生 JWT token
     refresh = RefreshToken.for_user(user)
 
     return Response({
@@ -745,10 +757,12 @@ def login(request):
             "UserID": user.UserID,
             "Name": user.Name,
             "Phone": user.Phone,
-            "FamilyID": user.FamilyID.FamilyID if user.FamilyID else None,  # ✅ 新增這行
-            "RelatedID": user.RelatedID.UserID if user.RelatedID else None  # ✅ 新增這行
+            "FamilyID": user.FamilyID.FamilyID if user.FamilyID else None,
+            "RelatedID": user.RelatedID.UserID if user.RelatedID else None,
+            "avatar": user.avatar,   # ⭐ 新增
         }
     }, status=status.HTTP_200_OK)
+
 
 #------------------------------------------------------------------------
 #創建家庭

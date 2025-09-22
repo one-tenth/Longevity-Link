@@ -11,6 +11,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
+import { getAvatarSource } from '../utils/avatarMap';   // ⭐ 使用 avatarMap
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
@@ -18,6 +19,7 @@ interface Member {
   UserID: number;
   Name: string;
   RelatedID?: number | null;
+  avatar?: string;
 }
 
 const API_BASE = 'http://192.168.31.126:8000';
@@ -34,7 +36,6 @@ const COLORS = {
 
 const R = 22;
 
-/* 陰影 */
 const outerShadow = {
   elevation: 4,
   shadowColor: '#000',
@@ -51,7 +52,6 @@ const lightShadow = {
   shadowOffset: { width: 0, height: 2 },
 } as const;
 
-/* 取得本地(裝置)今天 YYYY-MM-DD */
 function getLocalToday(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -63,16 +63,11 @@ function getLocalToday(): string {
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-
-  // 今日日期字串
   const today = useMemo(getLocalToday, []);
-
-  // Loading / error
   const [loading, setLoading] = useState(false);
 
-  // 統計值
   const [steps, setSteps] = useState<string>('N/A');
-  const [heart, setHeart] = useState<string>('N/A'); // 來自 healthcare.pulse
+  const [heart, setHeart] = useState<string>('N/A');
   const [bp, setBp] = useState<string>('N/A');
 
   // 讀取已選成員
@@ -85,8 +80,11 @@ export default function ChildHome() {
       }
       try {
         const parsed: Member = JSON.parse(stored);
-        setSelectedMember(parsed ?? null);
-        // 若你其他頁面還在用 elder_*，這裡兼容寫入（有 RelatedID 才寫）
+        // ⭐ 沒有 avatar 時補上 woman.png
+        setSelectedMember({
+          ...parsed,
+          avatar: parsed.avatar || "woman.png",
+        });
         if (parsed?.RelatedID != null) {
           await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
           await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
@@ -99,13 +97,12 @@ export default function ChildHome() {
     return unsub;
   }, [navigation]);
 
-  // 查詢「當天」fitdata / healthcare（用 user_id）
+  // 查詢當天 fitdata / healthcare
   useEffect(() => {
     const fetchAll = async () => {
       if (!selectedMember?.UserID) return;
 
       setLoading(true);
-      // 預設顯示 N/A，避免舊值殘留
       setSteps('N/A');
       setHeart('N/A');
       setBp('N/A');
@@ -118,38 +115,30 @@ export default function ChildHome() {
           return;
         }
 
-        // -------- FITDATA: /api/fitdata/by-date/?user_id=&date= --------
+        // -------- FITDATA --------
         const fitUrl =
           `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
         const fitResp = await fetch(fitUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (fitResp.ok) {
           const fit = await fitResp.json();
           if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
-        } else if (fitResp.status !== 404) {
-          console.warn('fitdata 讀取失敗', await safeText(fitResp));
         }
-        // 404 當作無當日資料 → 保持 N/A
 
-        // -------- HEALTHCARE: /api/healthcare/by-date/?user_id=&date= --------
+        // -------- HEALTHCARE --------
         const hcUrl =
           `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
         const hcResp = await fetch(hcUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (hcResp.ok) {
           const hc = await hcResp.json();
           const sys = num(hc?.systolic);
           const dia = num(hc?.diastolic);
           const pulse = num(hc?.pulse);
-
           if (sys != null && dia != null) setBp(`${sys}/${dia}`);
           if (pulse != null) setHeart(`${pulse}`);
-        } else if (hcResp.status !== 404) {
-          console.warn('healthcare 讀取失敗', await safeText(hcResp));
         }
       } catch (err) {
         console.error('讀取資料錯誤:', err);
@@ -162,7 +151,6 @@ export default function ChildHome() {
     fetchAll();
   }, [selectedMember?.UserID, today, navigation]);
 
-  // 回診資料（仍沿用 RelatedID 給你的回診頁）
   const goHospital = async () => {
     if (!selectedMember || !selectedMember.RelatedID) {
       Alert.alert('提醒', '請先選擇要照護的長者');
@@ -181,11 +169,14 @@ export default function ChildHome() {
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ==== HERO（黑色大卡） ==== */}
+      {/* ==== HERO ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
           <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' } as never)}>
-            <Image source={require('../img/childhome/grandpa.png')} style={styles.avatar} />
+            <Image
+              source={getAvatarSource(selectedMember?.avatar)}
+              style={styles.avatar}
+            />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>
@@ -195,7 +186,6 @@ export default function ChildHome() {
               {`日期 ${today}`}
             </Text>
           </View>
-          {/* ✅ 設定鈕改為跳選擇家人頁面 */}
           <TouchableOpacity
             onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
@@ -205,7 +195,7 @@ export default function ChildHome() {
         </View>
       </View>
 
-      {/* 內容捲動區 */}
+      {/* Scroll 內容 */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {loading ? (
           <View style={{ paddingTop: 24, alignItems: 'center' }}>
@@ -214,14 +204,12 @@ export default function ChildHome() {
           </View>
         ) : null}
 
-        {/* 統計列 */}
         <View style={[styles.statsBar, outerShadow]}>
           <StatBox title="步數" value={steps} />
           <StatBox title="心率" value={heart} suffix={heart !== 'N/A' ? 'bpm' : undefined} />
           <StatBox title="血壓" value={bp} />
         </View>
 
-        {/* 功能列 */}
         <View style={styles.grid2x2}>
           <QuickIcon
             big
@@ -257,7 +245,6 @@ export default function ChildHome() {
         </View>
       </ScrollView>
 
-      {/* 底部功能列 */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
           <FontAwesome name="user" size={28} color="#fff" />

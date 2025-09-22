@@ -1,6 +1,4 @@
-# serializers.py
 from rest_framework import serializers
-
 from .models import User, Med, FitData, Family, MedTimeSetting, Hos
 
 
@@ -10,15 +8,16 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     Name = serializers.CharField(max_length=10)
     Gender = serializers.ChoiceField(choices=['M', 'F'])
     Borndate = serializers.DateField()
-    creator_id = serializers.IntegerField(required=False, write_only=True)  # 新增欄位，前端可傳入
+    avatar = serializers.CharField(required=False, allow_blank=True)  # ⭐ 新增頭貼欄位
+    creator_id = serializers.IntegerField(required=False, write_only=True)
 
     class Meta:
         model = User
-        fields = ['Phone', 'Name', 'Gender', 'Borndate', 'password', 'creator_id']
+        fields = ['Phone', 'Name', 'Gender', 'Borndate', 'password', 'avatar', 'creator_id']
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        creator_id = validated_data.pop('creator_id', None)  # 預設為 None
+        creator_id = validated_data.pop('creator_id', None)
         user = User(**validated_data)
         user.set_password(password)
 
@@ -37,7 +36,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID', 'RelatedID']
+        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID', 'RelatedID', 'avatar']  # ⭐ 加 avatar
 
 
 class MedNameSerializer(serializers.ModelSerializer):
@@ -52,7 +51,7 @@ class FitDataSerializer(serializers.ModelSerializer):
         fields = ['steps', 'timestamp']
 
 
-class MedSerializer(serializers.ModelSerializer):  # ✅ 保持不變
+class MedSerializer(serializers.ModelSerializer):
     class Meta:
         model = Med
         fields = '__all__'
@@ -64,11 +63,10 @@ class MedTimeSettingSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-# ✅ 只保留「單一版本」的 FamilySerializer，包含 FamilyName 與 Fcode
 class FamilySerializer(serializers.ModelSerializer):
     class Meta:
         model = Family
-        fields = ['id', 'FamilyName', 'Fcode']  # 或用 '__all__' 亦可，只要包含 FamilyName 與 Fcode 即可
+        fields = ['id', 'FamilyName', 'Fcode']
 
 
 class ReminderItemSerializer(serializers.Serializer):
@@ -80,14 +78,16 @@ class ReminderItemSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
 
 
-# ✅ /account/me/ 回傳中補上 FamilyName 與 Fcode（攤平成頂層）
 class UserMeSerializer(serializers.ModelSerializer):
     FamilyName = serializers.SerializerMethodField()
     Fcode = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['UserID', 'Name', 'Phone', 'Gender', 'Borndate', 'FamilyID', 'FamilyName', 'Fcode']
+        fields = [
+            'UserID', 'Name', 'Phone', 'Gender', 'Borndate',
+            'FamilyID', 'FamilyName', 'Fcode', 'avatar'  # ⭐ 加 avatar
+        ]
 
     def get_FamilyName(self, obj):
         fam = getattr(obj, 'FamilyID', None)
@@ -103,5 +103,5 @@ class HosSerializer(serializers.ModelSerializer):
         model = Hos
         fields = '__all__'
         extra_kwargs = {
-            'UserID': {'read_only': True}  # ✅ 保持不變
+            'UserID': {'read_only': True}
         }

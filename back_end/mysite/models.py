@@ -45,36 +45,54 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     UserID = models.AutoField(primary_key=True)
-    Name = models.CharField(max_length=10,null=True, blank=True)#靠 API 驗證資料完整性 這裡先允許空值
-    Gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female')],null=True, blank=True)
+    Name = models.CharField(max_length=10, null=True, blank=True)  # 靠 API 驗證資料完整性
+    Gender = models.CharField(
+        max_length=1,
+        choices=[('M', 'Male'), ('F', 'Female')],
+        null=True, blank=True
+    )
     Borndate = models.DateField(null=True, blank=True)
     Phone = models.CharField(
         max_length=10,
         unique=True,
         validators=[RegexValidator(regex=r'^09\d{8}$')]
     )
-    FamilyID = models.ForeignKey('Family',on_delete=models.CASCADE,db_column='FamilyID',null=True, blank=True)
-    RelatedID = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='related_family')
+    FamilyID = models.ForeignKey(
+        'Family',
+        on_delete=models.CASCADE,
+        db_column='FamilyID',
+        null=True, blank=True
+    )
+    RelatedID = models.ForeignKey(
+        'self',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='related_family'
+    )
+    avatar = models.CharField(   # ⭐ 新增頭貼欄位
+        max_length=50,
+        default="boy.png"        # 預設頭貼
+    )
     Created_time = models.DateTimeField(auto_now_add=True)
 
-    is_family = models.BooleanField(default=True)  # 預設是家人
-    is_elder = models.BooleanField(default=False)  # 如果是老人就會設為 True
+    is_family = models.BooleanField(default=True)   # 預設是家人
+    is_elder = models.BooleanField(default=False)   # 如果是老人就會設為 True
 
     is_active = models.BooleanField(default=True)   # 可登入
     is_staff = models.BooleanField(default=False)   # 可進後台（僅限 superuser）
 
     groups = models.ManyToManyField(
         'auth.Group',
-        related_name='mysite_user_set',  # 修改反向關聯名稱
+        related_name='mysite_user_set',
         blank=True
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        related_name='mysite_user_permissions_set',  # 修改反向關聯名稱
+        related_name='mysite_user_permissions_set',
         blank=True
     )
 
-    USERNAME_FIELD = 'Phone'    #用phone當作登入的名稱
+    USERNAME_FIELD = 'Phone'
     REQUIRED_FIELDS = ['Name']
 
     objects = CustomUserManager()
@@ -83,7 +101,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.Phone
 
     class Meta:
-        db_table = 'User'  
+        db_table = 'User'
 
 
 class Hos(models.Model):

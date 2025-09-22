@@ -1,12 +1,12 @@
-// FamilyScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, StatusBar, Alert,
+  View, Text, StyleSheet, ScrollView, Pressable, StatusBar, Alert, Image,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
+import { getAvatarSource } from '../utils/avatarMap';  // ⭐ 共用頭貼
 
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
 type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
@@ -15,6 +15,7 @@ interface Member {
   UserID: number;
   Name: string;
   RelatedID: number | null;
+  avatar?: string;   // ⭐ 新增
 }
 
 const COLORS = {
@@ -74,29 +75,12 @@ const FamilyScreen = () => {
 
         setUserId(user?.UserID ?? null);
 
-        // ① 家庭名稱：後端 → 本地 → 退回
-        let nameFromApi =
-          user?.FamilyName ||
-          user?.family_name ||
-          user?.Family?.FamilyName ||
-          user?.Family?.name ||
-          user?.family?.FamilyName ||
-          user?.family?.name ||
-          '';
-
-        if (!nameFromApi) {
-          const localName = await AsyncStorage.getItem('family_name');
-          if (localName && localName.trim()) nameFromApi = localName.trim();
-        }
+        // 家庭名稱
+        let nameFromApi = user?.FamilyName || '';
         setFamilyName(nameFromApi || `${user?.Name ?? ''}的家庭`);
 
-        // ② 家庭代碼：後端 → 本地
-        let fcode = user?.Fcode ?? null;
-        if (!fcode) {
-          const localF = await AsyncStorage.getItem('fcode');
-          if (localF && localF.trim()) fcode = localF.trim();
-        }
-        setFamilyCode(fcode);
+        // 家庭代碼
+        setFamilyCode(user?.Fcode ?? null);
 
         // 2) /family/members/
         const resMembers = await fetch('http://192.168.31.126:8000/family/members/', {
@@ -113,31 +97,9 @@ const FamilyScreen = () => {
         } else {
           setMembers([]);
         }
-
-        // ③ 若仍沒有名字，嘗試從 members 回傳猜測一次
-        if (!nameFromApi) {
-          let fromMembers: string | null = null;
-          if (Array.isArray(membersData)) {
-            for (const m of membersData as any[]) {
-              const n = m?.FamilyName || m?.family_name || m?.family?.name || m?.family?.FamilyName;
-              if (typeof n === 'string' && n.trim()) { fromMembers = n.trim(); break; }
-            }
-          } else if (membersData && typeof membersData === 'object') {
-            const n = (membersData as any).FamilyName || (membersData as any).family_name;
-            if (typeof n === 'string' && n.trim()) fromMembers = n.trim();
-          }
-          if (fromMembers) setFamilyName(fromMembers);
-        }
       } catch (error) {
         console.error('取得家庭資料失敗:', error);
         setMembers([]);
-
-        // 失敗亦用本地備援
-        const localName = await AsyncStorage.getItem('family_name');
-        if (localName && localName.trim()) setFamilyName(localName.trim());
-        const localF = await AsyncStorage.getItem('fcode');
-        if (localF && localF.trim()) setFamilyCode(localF.trim());
-
         Alert.alert('讀取失敗', '無法取得家庭資料，請稍後再試');
       }
     };
@@ -149,7 +111,7 @@ const FamilyScreen = () => {
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ===== HERO（頂部黑色卡，僅顯示家庭資訊） ===== */}
+      {/* ===== HERO ===== */}
       <View style={[styles.hero, outerShadow, { backgroundColor: COLORS.black }]}>
         <Text style={styles.familyTitle}>
           {familyName}（{members.length}）
@@ -180,6 +142,10 @@ const FamilyScreen = () => {
                   pressed && { transform: [{ scale: 0.97 }] },
                 ]}
               >
+                <Image
+                  source={getAvatarSource(m.avatar)}
+                  style={styles.avatar}
+                />
                 <Text style={styles.name} numberOfLines={1}>{m.Name}</Text>
                 <Text
                   style={[
@@ -199,7 +165,7 @@ const FamilyScreen = () => {
         </View>
       </ScrollView>
 
-      {/* ===== 底部兩顆主要動作 ===== */}
+      {/* ===== 底部按鈕 ===== */}
       <View style={styles.bottomBar}>
         <Pressable
           onPress={() => {
@@ -236,7 +202,7 @@ const FamilyScreen = () => {
   );
 };
 
-/* ===== Styles（原樣保留） ===== */
+/* ===== Styles ===== */
 const styles = StyleSheet.create({
   hero: {
     margin: 16,
@@ -275,10 +241,18 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 12,
   },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: COLORS.grayBox,
+    marginBottom: 8,
+  },
   name: { fontSize: 16, fontWeight: '900', color: COLORS.textDark },
 
   roleBadge: {
-    marginTop: 8,
+    marginTop: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
