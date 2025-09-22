@@ -105,6 +105,7 @@ class CallRecordSerializer(serializers.ModelSerializer):
             return scam.Category
         except Scam.DoesNotExist:
             return None
+        
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hos

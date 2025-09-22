@@ -1459,6 +1459,8 @@ def scam_check_bulk(request):
     matches = {phone: category for phone, category in rows}
     return Response({"matches": matches}, status=status.HTTP_200_OK)
 
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated
 def scam_add(request):
