@@ -12,6 +12,11 @@ import {
   TouchableWithoutFeedback,
   Dimensions,
   StatusBar,
+  // ✅ 新增
+  Alert,
+  PermissionsAndroid,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,10 +25,10 @@ import axios from 'axios';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
+import CallLogs from 'react-native-call-log'; // ✅ 新增
 import { RootStackParamList } from '../App';
 import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
 import ElderLocation from './ElderLocation';  //
-
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
@@ -67,7 +72,20 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://172.20.10.4:8000';
+const BASE = 'http://192.168.0.24:8000';
+
+// ✅ 通話同步常數 / 工具
+const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
+function mapType(t?: string) {
+  if (!t) return 'UNKNOWN';
+  const s = String(t).toUpperCase();
+  if (['INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'].includes(s)) return s;
+  if (s === '1') return 'INCOMING';
+  if (s === '2') return 'OUTGOING';
+  if (s === '3') return 'MISSED';
+  if (s === '4' || s === '5') return 'REJECTED';
+  return 'UNKNOWN';
+}
 
 // ---- Types ----
 type HospitalRecord = {
@@ -161,6 +179,9 @@ export default function ElderHome() {
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
 
+  // ✅ 同步通話 loading 狀態
+  const [syncing, setSyncing] = useState(false);
+
   // 每 60 秒刷新一次「下一筆吃藥」
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -181,10 +202,10 @@ export default function ElderHome() {
             const res = await axios.get(`${BASE}/api/account/me/`, {
               headers: { Authorization: `Bearer ${token}` },
             });
-            if (res.data?.Name) {
-              setUserName(res.data.Name);
-              await AsyncStorage.setItem('user_name', res.data.Name);
-            }
+              if (res.data?.Name) {
+                setUserName(res.data.Name);
+                await AsyncStorage.setItem('user_name', res.data.Name);
+              }
           }
         }
       } catch (err) {
@@ -325,6 +346,87 @@ export default function ElderHome() {
     return `${y}/${m}/${dd}`;
   };
 
+  // ✅ 通話紀錄權限
+  const askCallLogPermission = async () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('僅支援 Android', 'iOS 無法讀取通話紀錄');
+      return false;
+    }
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
+      {
+        title: '需要通話紀錄權限',
+        message: '用於將您的通話紀錄同步到後端，讓家人查看並協助辨識可疑來電。',
+        buttonPositive: '同意',
+        buttonNegative: '拒絕',
+      }
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  // ✅ 同步通話紀錄
+  const handleSyncCalls = async () => {
+    try {
+      const ok = await askCallLogPermission();
+      if (!ok) return;
+
+      setSyncing(true);
+
+      const access = await AsyncStorage.getItem('access');
+      if (!access) {
+        setSyncing(false);
+        Alert.alert('尚未登入', '請先登入後再試。');
+        return;
+      }
+
+      // 讀取本機通話紀錄
+      const raw = await CallLogs.loadAll();
+
+      // 只上傳上次同步後的新紀錄
+      const lastTs = Number(await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY) || 0);
+      const items = raw
+        .map((r: any) => {
+          const tsNum = Number(r.timestamp || 0); // 毫秒
+          return {
+            phone: r.phoneNumber ?? '',
+            name: r.name ?? '',
+            type: mapType(r.type),
+            timestamp: new Date(tsNum).toISOString(),
+            duration: Number(r.duration || 0),
+            _ts: tsNum,
+            extra: { rawType: r.type },
+          };
+        })
+        .filter((x) => !!x.phone && x._ts > lastTs)
+        .sort((a, b) => a._ts - b._ts)
+        .slice(-500); // 避免一次上傳過大
+
+      if (items.length === 0) {
+        setSyncing(false);
+        Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        return;
+      }
+
+      // 上傳到後端
+      await axios.post(
+        `${BASE}/api/call/upload/`,
+        { records: items.map(({ _ts, ...rest }) => rest) },
+        { headers: { Authorization: `Bearer ${access}` } }
+      );
+
+      // 記錄最新同步點
+      const maxTs = Math.max(...items.map((x) => x._ts));
+      await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
+
+      setSyncing(false);
+      Alert.alert('上傳完成', `成功上傳 ${items.length} 筆通話紀錄。`);
+    } catch (e: any) {
+      setSyncing(false);
+      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
+      Alert.alert('上傳失敗', msg);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -448,16 +550,34 @@ export default function ElderHome() {
           </View>
         </ScrollView>
 
-        {/* 底部置中拍照 FAB */}
+        {/* ✅ 底部兩顆 FAB：左「同步通話」、右「拍照」 */}
         <View pointerEvents="box-none" style={styles.fabWrap}>
-          <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('ElderlyUpload')}
-          >
-            <Feather name="camera" size={38} color={COLORS.white} />
-            <Text style={styles.fabText}>拍照</Text>
-          </TouchableOpacity>
+          <View style={styles.fabRow}>
+            {/* 同步通話 */}
+            <TouchableOpacity
+              style={styles.fabSmall}
+              activeOpacity={0.9}
+              onPress={handleSyncCalls}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <ActivityIndicator />
+              ) : (
+                <Feather name="phone" size={28} color={COLORS.white} />
+              )}
+              <Text style={styles.fabSmallText}>{syncing ? '同步中' : '同步通話'}</Text>
+            </TouchableOpacity>
+
+            {/* 拍照 */}
+            <TouchableOpacity
+              style={styles.fab}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('ElderlyUpload')}
+            >
+              <Feather name="camera" size={38} color={COLORS.white} />
+              <Text style={styles.fabText}>拍照</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -618,6 +738,15 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 24, fontWeight: '800', color: COLORS.textMid },
 
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
+
+  // ✅ 新增：兩顆 FAB 橫排
+  fabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+
+  // 右邊原拍照 FAB（保留）
   fab: {
     width: 115,
     height: 115,
@@ -632,6 +761,24 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: { color: COLORS.white, fontSize: 25, fontWeight: '900', marginTop: 6 },
+
+  // ✅ 新增：左邊同步通話的小顆 FAB
+  fabSmall: {
+    width: 115,
+    height: 115,
+    borderRadius: 65,
+    backgroundColor: COLORS.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  fabSmallText: {
+    color: COLORS.white, fontSize: 20, fontWeight: '900', marginTop: 6 
+  },
 
   // Modal
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
