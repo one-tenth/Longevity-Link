@@ -1,18 +1,26 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  RefreshControl, Image, Alert, ViewStyle, TextStyle, ImageStyle
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  ScrollView,
+  RefreshControl,
+  Alert,
 } from 'react-native';
-import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RootStackParamList } from '../App';
+
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 const BASE = 'http://192.168.31.126:8000';
 
 type HospitalRecord = {
-  HosId?: number;   // 兼容不同命名
+  HosId?: number;
   HosID?: number;
   id?: number;
   ClinicDate: string;
@@ -21,32 +29,39 @@ type HospitalRecord = {
   Num: number;
 };
 
-type RouteParams = { elderName?: string; elderId?: number };
+type RouteParams = { elderId?: number };
 type HospitalListNav = StackNavigationProp<RootStackParamList, 'FamilyHospitalList'>;
+type HospitalListRoute = RouteProp<RootStackParamList, 'FamilyHospitalList'>;
 
-export default function FamilyHospitalList() {
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  textDark: '#111',
+  textMid: '#333',
+  green: '#A6CFA1',
+  cream: '#FFFCEC', // ⭐ 你剛剛給的黃色
+};
+
+const R = 22;
+const outerShadow = {
+  elevation: 4,
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+};
+
+export default function FamilyHospitalList({ route }: { route: HospitalListRoute }) {
+  const navigation = useNavigation<HospitalListNav>();
   const [records, setRecords] = useState<HospitalRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [elderName, setElderName] = useState<string>('');
   const [elderId, setElderId] = useState<number | null>(null);
   const [hint, setHint] = useState<string>('');
 
-  const navigation = useNavigation<HospitalListNav>();
-  const route = useRoute();
-
   const loadElderInfo = useCallback(async () => {
-    const p = (route.params as RouteParams | undefined);
-    const nameFromParams = p?.elderName;
-    const nameFromStore  = await AsyncStorage.getItem('elder_name');
-    const name = (nameFromParams && nameFromParams.trim()) ? nameFromParams : (nameFromStore || '');
-    setElderName(name);
-    if ((nameFromParams && nameFromParams.trim())) {
-      await AsyncStorage.setItem('elder_name', nameFromParams);
-    }
-
-    if (typeof p?.elderId === 'number' && !Number.isNaN(p.elderId)) {
-      setElderId(p.elderId);
-      await AsyncStorage.setItem('elder_id', String(p.elderId));
+    if (typeof route.params?.elderId === 'number' && !Number.isNaN(route.params.elderId)) {
+      setElderId(route.params.elderId);
+      await AsyncStorage.setItem('elder_id', String(route.params.elderId));
     } else {
       const savedId = await AsyncStorage.getItem('elder_id');
       const n = savedId ? Number(savedId) : NaN;
@@ -59,7 +74,6 @@ export default function FamilyHospitalList() {
     setHint('');
     try {
       const token = await AsyncStorage.getItem('access');
-
       let id = elderId;
       if (id == null || Number.isNaN(id)) {
         const saved = await AsyncStorage.getItem('elder_id');
@@ -80,7 +94,7 @@ export default function FamilyHospitalList() {
       const url = `${BASE}/api/hospital/list/?user_id=${id}`;
       const res = await axios.get<HospitalRecord[]>(url, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000
+        timeout: 10000,
       });
 
       const data = res.data ?? [];
@@ -97,34 +111,14 @@ export default function FamilyHospitalList() {
 
   useFocusEffect(useCallback(() => { loadElderInfo(); fetchRecords(); }, [loadElderInfo, fetchRecords]));
 
-  const goToAdd = async () => {
-    let id = elderId;
-    if (id == null || Number.isNaN(id)) {
-      const saved = await AsyncStorage.getItem('elder_id');
-      id = saved ? Number(saved) : NaN;
-    }
-    const name = elderName || (await AsyncStorage.getItem('elder_name')) || '';
-
-    if (id == null || Number.isNaN(id)) {
-      Alert.alert('提醒', '請先選擇長者', [
-        { text: '去選擇', onPress: () => navigation.navigate('FamilyScreen', { mode: 'select' } as never) },
-        { text: '取消' }
-      ]);
-      return;
-    }
-
-    navigation.navigate('FamilyAddHospital', { elderId: id, elderName: name });
-  };
-
   const getPk = (r: HospitalRecord) => r.HosId ?? r.HosID ?? r.id;
   const getKey = (r: HospitalRecord) => String(getPk(r) ?? Math.random());
 
-  // ⛔️ 刪除（含確認框）
   const confirmDelete = (pk?: number) => {
-    if (pk == null) return; // 僅防呆
+    if (pk == null) return;
     Alert.alert('確認刪除', '確定要刪除這筆看診紀錄嗎？', [
       { text: '取消' },
-      { text: '刪除', style: 'destructive', onPress: () => handleDelete(pk) }
+      { text: '刪除', style: 'destructive', onPress: () => handleDelete(pk) },
     ]);
   };
 
@@ -133,7 +127,6 @@ export default function FamilyHospitalList() {
       const token = await AsyncStorage.getItem('access');
       if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
 
-      // 取得當前 elderId（後端需要 user_id 來識別目標老人）
       let id = elderId;
       if (id == null || Number.isNaN(id)) {
         const saved = await AsyncStorage.getItem('elder_id');
@@ -146,7 +139,7 @@ export default function FamilyHospitalList() {
 
       await axios.delete(`${BASE}/api/hospital/${pk}/?user_id=${id}`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000
+        timeout: 10000,
       });
 
       setRecords(prev => {
@@ -163,86 +156,130 @@ export default function FamilyHospitalList() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <View style={styles.badge}><Text style={styles.badgeText}>{elderName || '未指定'}</Text></View>
-          <Text style={styles.headerText}>看診紀錄</Text>
+    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <View style={styles.sideSlot}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <FontAwesome name="arrow-left" size={22} color={COLORS.black} />
+          </TouchableOpacity>
         </View>
+
+        <View style={styles.centerSlot}>
+          <View style={[styles.featureBanner, outerShadow]}>
+            <Text style={styles.bannerTitle}>回診功能</Text>
+          </View>
+        </View>
+
+        <View style={styles.sideSlot} />
       </View>
 
-      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-
+      {/* Content */}
       <ScrollView
         style={{ width: '100%' }}
         contentContainerStyle={{ alignItems: 'center' }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecords} />}
       >
-        {records.map((r) => {
-          const pk = getPk(r);
-          return (
-            <View key={getKey(r)} style={styles.card}>
-              <View style={styles.cardRow}>
-                <Text style={styles.time}>日期：{r.ClinicDate}</Text>
-                {pk != null && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
-                    <Text style={styles.deleteText}>刪除</Text>
-                  </TouchableOpacity>
-                )}
+        {records.length > 0 ? (
+          records.map((r) => {
+            const pk = getPk(r);
+            return (
+              <View key={getKey(r)} style={styles.card}>
+                <View style={styles.cardRow}>
+                  <Text style={styles.time}>日期：{r.ClinicDate}</Text>
+                  {pk != null && (
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
+                      <Text style={styles.deleteText}>刪除</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <Text style={styles.place}>地點：{r.ClinicPlace}</Text>
+                <Text style={styles.doctor}>醫師：{r.Doctor}</Text>
+                <Text style={styles.num}>號碼：{r.Num}</Text>
               </View>
-              <Text style={styles.place}>地點：{r.ClinicPlace}</Text>
-              <Text style={styles.doctor}>醫師：{r.Doctor}</Text>
-              <Text style={styles.num}>號碼：{r.Num}</Text>
-            </View>
-          );
-        })}
+            );
+          })
+        ) : (
+          <Text style={styles.hint}>{hint}</Text>
+        )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#4FC3F7' }]} onPress={goToAdd}>
-        <Text style={styles.btnText}>新增紀錄</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#FF9800' }]} onPress={() => navigation.goBack()}>
-        <Text style={styles.btnText}>回首頁</Text>
+      {/* 黑底圓弧長方形 FAB：新增紀錄 */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('FamilyAddHospital' as never)}
+      >
+        <FontAwesome name="plus" size={18} color={COLORS.cream} style={{ marginRight: 8 }} />
+        <Text style={styles.fabText}>新增紀錄</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create<{
-  container: ViewStyle;
-  header: ViewStyle;
-  avatar: ImageStyle;
-  badge: ViewStyle;
-  badgeText: TextStyle;
-  headerText: TextStyle;
-  hint: TextStyle;
-  card: ViewStyle;
-  cardRow: ViewStyle;
-  time: TextStyle;
-  place: TextStyle;
-  doctor: TextStyle;
-  num: TextStyle;
-  button: ViewStyle;
-  btnText: TextStyle;
-  deleteBtn: ViewStyle;
-  deleteText: TextStyle;
-}>({
-  container: { flex: 1, backgroundColor: '#fff', paddingTop: 20, alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 15, width: '100%' },
-  avatar: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#111' },
-  badge: { alignSelf: 'flex-start', backgroundColor: '#EEE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 2, borderColor: '#111', marginBottom: 2 },
-  badgeText: { fontSize: 12, fontWeight: 'bold', color: '#111' },
-  headerText: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-  hint: { width: '85%', color: '#666', marginBottom: 6 },
-  card: { backgroundColor: '#FFD54F', width: '85%', padding: 15, borderRadius: 12, marginBottom: 12, elevation: 3 },
+const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 8,
+    minHeight: 76,
+  },
+  sideSlot: { width: 48, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  centerSlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  featureBanner: {
+    width: '90%',
+    minHeight: 64,
+    backgroundColor: COLORS.green,
+    borderRadius: R,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerTitle: { fontSize: 24, fontWeight: '900', color: COLORS.black, letterSpacing: 0.3 },
+
+  card: {
+    backgroundColor: COLORS.cream,
+    width: '85%',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 3,
+  },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   time: { fontSize: 16, fontWeight: 'bold' },
   place: { fontSize: 14, marginTop: 4 },
   doctor: { fontSize: 14, marginTop: 4 },
   num: { fontSize: 14, marginTop: 4 },
-  button: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, marginTop: 10, width: '85%', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  deleteBtn: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#E53935', borderRadius: 6, borderWidth: 2, borderColor: '#111' },
-  deleteText: { color: '#fff', fontWeight: 'bold', fontSize: 12 }
+  hint: { textAlign: 'center', color: COLORS.textMid, marginTop: 24 },
+
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: COLORS.black,
+    ...outerShadow,
+  },
+  fabText: { fontSize: 16, fontWeight: '900', color: COLORS.cream },
+  deleteBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#E53935',
+    borderRadius: 6,
+  },
+  deleteText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
 });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, Image
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, Alert, ActivityIndicator, StatusBar
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
@@ -10,100 +10,49 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
 const BASE = 'http://192.168.31.126:8000';
 
-// 自動帶 token；401 refresh 後重試一次
 async function authPost<T>(url: string, data: any) {
   let access = await AsyncStorage.getItem('access');
-  try {
-    return await axios.post<T>(`${BASE}${url}`, data, {
-      headers: { Authorization: `Bearer ${access}` },
-      timeout: 10000,
-    });
-  } catch (err: any) {
-    if (err?.response?.status === 401) {
-      const refresh = await AsyncStorage.getItem('refresh');
-      if (!refresh) throw err;
-      const r = await axios.post(`${BASE}/api/account/token/refresh/`, { refresh });
-      access = r.data.access;
-      await AsyncStorage.setItem('access', access!);
-      return await axios.post<T>(`${BASE}${url}`, data, {
-        headers: { Authorization: `Bearer ${access}` },
-        timeout: 10000,
-      });
-    }
-    throw err;
-  }
+  return await axios.post<T>(`${BASE}${url}`, data, {
+    headers: { Authorization: `Bearer ${access}` },
+    timeout: 10000,
+  });
 }
 
 export default function FamilyAddHospital() {
   const route = useRoute<any>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
-  // 參數 + 狀態
   const elderIdParam: number | undefined = route?.params?.elderId;
-  const elderNameParam: string | undefined = route?.params?.elderName;
-
   const [elderId, setElderId] = useState<number | null>(
     typeof elderIdParam === 'number' ? elderIdParam : null
   );
-  const [displayName, setDisplayName] = useState<string>(elderNameParam ?? '');
 
   const [clinicDate, setClinicDate] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
   const [clinicPlace, setClinicPlace] = useState('');
   const [doctor, setDoctor] = useState('');
-  const [loading, setLoading] = useState(false);
   const [num, setNum] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Fallback：只跑一次 + log + NaN 檢查
   useEffect(() => {
     (async () => {
-      try {
-        console.log('[Add] route.params =', JSON.stringify(route?.params ?? {}));
-
-        if (!displayName) {
-          const savedName = await AsyncStorage.getItem('elder_name');
-          if (savedName) {
-            setDisplayName(savedName);
-            console.log('[Add] fallback elder_name =', savedName);
-          } else {
-            console.log('[Add] no elder_name in storage');
-          }
-        }
-
-        if (elderId === null) {
-          const savedIdStr = await AsyncStorage.getItem('elder_id');
-          console.log('[Add] elder_id in storage =', savedIdStr);
-          const savedId = savedIdStr ? Number(savedIdStr) : NaN;
-          if (!Number.isNaN(savedId)) {
-            setElderId(savedId);
-            console.log('[Add] fallback elder_id =', savedId);
-          } else {
-            console.log('[Add] elder_id is NaN or missing');
-          }
-        } else {
-          console.log('[Add] elderId from params =', elderId);
-        }
-      } catch (e) {
-        console.log('[Add] fallback error', e);
+      if (elderId === null) {
+        const savedIdStr = await AsyncStorage.getItem('elder_id');
+        const savedId = savedIdStr ? Number(savedIdStr) : NaN;
+        if (!Number.isNaN(savedId)) setElderId(savedId);
       }
     })();
-  }, []); // ⬅ 只跑一次
-
-  const openDate = () => setShowDate(true);
-  const openTime = () => setShowTime(true);
+  }, []);
 
   const handleAdd = async () => {
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('錯誤', '尚未登入');
-        return;
-      }
-
       let effElderId: number | null =
         typeof route?.params?.elderId === 'number' ? route.params.elderId :
         (elderId !== null ? elderId : null);
@@ -113,41 +62,26 @@ export default function FamilyAddHospital() {
         const savedId = savedIdStr ? Number(savedIdStr) : NaN;
         if (!Number.isNaN(savedId)) effElderId = savedId;
       }
-
-      console.log('[Add] effElderId=', effElderId, 'state elderId=', elderId, 'route=', route?.params);
-
       if (effElderId === null || Number.isNaN(effElderId)) {
-        Alert.alert('提醒', '尚未指定要寫入的長者，將帶您回去選擇', [
-          { text: '好', onPress: () => navigation.navigate('FamilyScreen', { mode: 'select' }) }
-        ]);
+        Alert.alert('提醒', '尚未指定長者');
         return;
       }
-
-      if (!clinicPlace.trim()) {
-        Alert.alert('提醒', '請填寫地點');
-        return;
-      }
-      if (!doctor.trim()) {
-        Alert.alert('提醒', '請填寫醫師');
-        return;
-      }
+      if (!clinicPlace.trim()) return Alert.alert('提醒', '請填寫地點');
+      if (!doctor.trim()) return Alert.alert('提醒', '請填寫醫師');
 
       const dateStr = clinicDate.toISOString().split('T')[0];
 
-      // ✅ 改成用 query 的 user_id，且不要在 body 放 elder_id
       await authPost(`/api/hospital/create/?user_id=${effElderId}`, {
-        ClinicDate: dateStr,                 // YYYY-MM-DD
+        ClinicDate: dateStr,
         ClinicPlace: clinicPlace.trim(),
         Doctor: doctor.trim(),
-        Num: Number(num) || 0
+        Num: Number(num) || 0,
       });
 
-      Alert.alert('成功', '新增成功');
+      Alert.alert('成功', '儲存成功');
       navigation.goBack();
     } catch (e: any) {
-      console.log('status=', e?.response?.status);
-      console.log('data=', e?.response?.data);
-      const msg = e?.response?.data?.error || e?.response?.data?.detail || '新增失敗，請稍後再試';
+      const msg = e?.response?.data?.error || '儲存失敗';
       Alert.alert('錯誤', msg);
     } finally {
       setLoading(false);
@@ -159,31 +93,32 @@ export default function FamilyAddHospital() {
   const minute = clinicDate.getMinutes().toString().padStart(2, '0');
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topbar}>
-        <Text style={styles.brand}>CareMate</Text>
+    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <FontAwesome5 name="arrow-left" size={22} color={COLORS.black} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>新增回診</Text>
+        <View style={{ width: 40 }} /> 
       </View>
 
-      <View style={styles.titleRow}>
-        <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
-        <View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{displayName || '未指定'}</Text>
-          </View>
-          <Text style={styles.title}>看診紀錄</Text>
-        </View>
-      </View>
-
+      {/* Cards */}
       <View style={styles.card}>
-        <View style={styles.cardHeader}><Text style={styles.cardTitle}>時間</Text></View>
+        <View style={styles.cardHeader}>
+          <FontAwesome5 name="calendar-alt" size={22} color={COLORS.black} />
+          <Text style={styles.cardTitle}>時間</Text>
+        </View>
         <View style={styles.timeRow}>
-          <TouchableOpacity style={[styles.timeBox, styles.timeBoxWide]} onPress={openDate}>
+          <TouchableOpacity style={[styles.timeBox, styles.timeBoxWide]} onPress={() => setShowDate(true)}>
             <Text style={styles.timeText}>{dateLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.timeBox} onPress={openTime}>
+          <TouchableOpacity style={styles.timeBox} onPress={() => setShowTime(true)}>
             <Text style={styles.timeText}>{hour}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.timeBox} onPress={openTime}>
+          <TouchableOpacity style={styles.timeBox} onPress={() => setShowTime(true)}>
             <Text style={styles.timeText}>{minute}</Text>
           </TouchableOpacity>
         </View>
@@ -191,7 +126,7 @@ export default function FamilyAddHospital() {
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Image source={require('../img/hospital/hospital.png')} style={styles.cardIcon} />
+          <FontAwesome5 name="map-marker-alt" size={22} color={COLORS.black} />
           <Text style={styles.cardTitle}>地點</Text>
         </View>
         <TextInput style={styles.input} placeholder="臺大醫院" value={clinicPlace} onChangeText={setClinicPlace} />
@@ -199,7 +134,7 @@ export default function FamilyAddHospital() {
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
+          <FontAwesome5 name="stethoscope" size={22} color={COLORS.black} />
           <Text style={styles.cardTitle}>醫師</Text>
         </View>
         <TextInput style={styles.input} placeholder="XXX" value={doctor} onChangeText={setDoctor} />
@@ -207,7 +142,7 @@ export default function FamilyAddHospital() {
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Image source={require('../img/hospital/doctor.png')} style={styles.cardIcon} />
+          <MaterialCommunityIcons name="format-list-numbered" size={22} color={COLORS.black} />
           <Text style={styles.cardTitle}>號碼</Text>
         </View>
         <TextInput
@@ -219,17 +154,14 @@ export default function FamilyAddHospital() {
         />
       </View>
 
+      {/* Button */}
       {loading ? (
         <ActivityIndicator size="large" style={{ marginTop: 20 }} />
       ) : (
-        <>
-          <TouchableOpacity style={[styles.btn, styles.btnBlue]} onPress={handleAdd}>
-            <Text style={styles.btnText}>新增</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnOrange]} onPress={() => navigation.goBack()}>
-            <Text style={styles.btnText}>回首頁</Text>
-          </TouchableOpacity>
-        </>
+        <TouchableOpacity style={styles.fab} onPress={handleAdd}>
+          <FontAwesome5 name="plus" size={20} color={COLORS.cream} style={{ marginRight: 8 }} />
+          <Text style={styles.fabText}>儲存</Text>
+        </TouchableOpacity>
       )}
 
       {showDate && (
@@ -264,53 +196,68 @@ export default function FamilyAddHospital() {
   );
 }
 
-const black = '#111';
-const yellow = '#FFC928';
-const blue = '#7EC8FF';
-const orange = '#FFA948';
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  cream: '#FFFCEC',
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 8 },
-  topbar: {
-    height: 40, backgroundColor: '#E7F7FF', borderRadius: 8,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, borderWidth: 2, borderColor: black, marginBottom: 8
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 8,
   },
-  brand: { fontSize: 18, fontWeight: 'bold', color: black },
-
-  titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  avatar: { width: 56, height: 56, borderRadius: 8, borderWidth: 2, borderColor: black, marginRight: 10 },
-  badge: { alignSelf: 'flex-start', backgroundColor: '#DDD', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 2, borderColor: black, marginBottom: 2 },
-  badgeText: { fontSize: 12, fontWeight: 'bold', color: black },
-  title: { fontSize: 20, fontWeight: 'bold', color: black },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 24, fontWeight: '900', color: COLORS.black },
 
   card: {
-    width: '100%', backgroundColor: yellow, borderRadius: 10,
-    borderWidth: 3, borderColor: black, padding: 10, marginTop: 10
+    width: '90%',
+    backgroundColor: COLORS.cream,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    alignSelf: 'center',
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  cardIcon: { width: 22, height: 22, marginRight: 6, resizeMode: 'contain' },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: black },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
+  cardTitle: { fontSize: 18, fontWeight: '900', color: COLORS.black },
 
   timeRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   timeBox: {
-    flex: 1, height: 36, backgroundColor: '#fff',
-    borderWidth: 2, borderColor: black, borderRadius: 6,
-    alignItems: 'center', justifyContent: 'center'
+    flex: 1,
+    height: 42,
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timeBoxWide: { flex: 2 },
-  timeText: { fontSize: 14, color: black },
+  timeText: { fontSize: 16, fontWeight: '900', color: COLORS.black },
 
   input: {
-    backgroundColor: '#fff', borderWidth: 2, borderColor: black,
-    borderRadius: 6, paddingHorizontal: 10, height: 36, marginTop: 6
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    height: 42,
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: '900',
+    color: COLORS.black,
   },
 
-  btn: {
-    width: '100%', height: 40, borderRadius: 10, borderWidth: 3, borderColor: black,
-    alignItems: 'center', justifyContent: 'center', marginTop: 12
+  fab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+    alignSelf: 'center',
+    paddingHorizontal: 28,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: COLORS.black,
   },
-  btnBlue: { backgroundColor: blue },
-  btnOrange: { backgroundColor: orange },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  fabText: { fontSize: 18, fontWeight: '900', color: COLORS.cream },
 });
