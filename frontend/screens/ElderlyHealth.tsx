@@ -24,7 +24,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHealth'>;
 
 // ===== 基本設定 =====
-const BASE_URL = 'http://192.168.0.91:8000'; // 模擬器請改成 http://10.0.2.2:8000
+const BASE_URL = 'http://172.20.10.4:8000'; // 模擬器請改成 http://10.0.2.2:8000
 
 const COLORS = {
   white: '#FFFFFF',

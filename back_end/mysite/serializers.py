@@ -1,7 +1,6 @@
 #定義前端與後端交換資料的格式
 from rest_framework import serializers
-
-from .models import User,Med,FitData,Family,MedTimeSetting,Hos,LocaRecord
+from .models import User,Med,FitData,Family,MedTimeSetting,Hos,CallRecord,Scam,LocaRecord
 
 from .models import User,Med,FitData,LocaRecord
 
@@ -91,6 +90,26 @@ class HosSerializer(serializers.ModelSerializer):
         }
 
 
+
+class CallRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CallRecord
+        fields = '__all__'
+
+class CallRecordSerializer(serializers.ModelSerializer):
+    ScamCategory = serializers.SerializerMethodField()  # 新增欄位
+
+    class Meta:
+        model = CallRecord
+        fields = ['CallId', 'UserId', 'PhoneName', 'Phone', 'PhoneTime', 'IsScam', 'ScamCategory']
+
+    def get_ScamCategory(self, obj):
+        # 根據電話號碼查 Scam 表
+        try:
+            scam = Scam.objects.get(Phone=obj.Phone)
+            return scam.Category
+        except Scam.DoesNotExist:
+            return None
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hos

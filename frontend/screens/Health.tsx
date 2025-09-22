@@ -40,8 +40,9 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
+
 // ✅ 改成你的後端位址（模擬器請用 http://10.0.2.2:8000）
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://172.20.10.4:8000';
 
 type Period = 'morning' | 'evening';
 
