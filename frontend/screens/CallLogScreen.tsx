@@ -9,7 +9,7 @@ import CallLogs from 'react-native-call-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.24:8000'; // ← 換成你的後端 IP
+const API_BASE = 'http://172.20.10.4:8000'; // ← 換成你的後端 IP
 
 // ===== 型別 =====
 type DeviceCall = {
@@ -60,7 +60,7 @@ const safeStr = (v: any) => (v == null ? '' : String(v));
 function toPayload(elderId: number, log: DeviceCall) {
   return {
     UserId: elderId,
-    PhoneName: safeStr(log.name || '未知'),
+    PhoneName: safeStr(log.name || '未知來電'),
     Phone: safeStr(log.phoneNumber || ''),
     PhoneTime: fmt(log.timestamp, log.dateTime),
     IsScam: false,
@@ -70,6 +70,17 @@ function toPayload(elderId: number, log: DeviceCall) {
 // 號碼正規化（去非數字，+886 → 0）
 const normalizePhone = (p: string) =>
   (p || '').replace(/\D/g, '').replace(/^886(?=\d{9,})/, '0');
+
+// 顯示用：姓名若無 → 顯示「未知來電」
+const displayName = (n?: string) =>
+  n && n.trim().length > 0 ? n.trim() : '未知來電';
+
+// 顯示用：標題列優先顯示號碼；若無號碼 → 顯示姓名或「未知來電」
+const displayPhoneOrUnknown = (p?: string, n?: string) => {
+  const phone = (p || '').trim();
+  if (phone) return phone;
+  return displayName(n);
+};
 
 // === JWT 自動刷新與帶 Token 的請求封裝 ===
 async function refreshAccessToken() {
@@ -166,7 +177,7 @@ export default function CallLogScreen() {
     if (phones.length === 0) { setScamMap({}); return; }
 
     try {
-      // 🚫 不帶 Authorization（請確保後端此路徑是 AllowAny）
+      // 不帶 Authorization（請確保後端此路徑是 AllowAny）
       const res = await axios.post(`${API_BASE}/api/scam/check_bulk/`, { phones });
       // 後端回：{ matches: { "0905...": "推銷", "0912...": "詐騙" } }
       setScamMap(res.data?.matches || {});
@@ -307,7 +318,7 @@ export default function CallLogScreen() {
     loadDeviceLogs();
   }, []);
 
-  // === Render（本機）— 命中 → 整列紅框＋淡紅底 ===
+  // === Render（本機）— 命中 → 整列紅框＋淡紅底；缺資料時顯示「未知來電」 ===
   const renderDeviceItem = ({ item }: { item: DeviceCall }) => {
     const dur = typeof item.duration === 'string' ? item.duration : String(item.duration ?? 0);
     const phoneRaw = item.phoneNumber || '';
@@ -315,33 +326,38 @@ export default function CallLogScreen() {
     const category = scamMap[phoneNorm];     // "推銷" / "詐騙" / undefined
     const hit = !!category;
 
+    const titleText = displayPhoneOrUnknown(phoneRaw, item.name);
+
     return (
       <View style={[styles.item, hit && styles.itemScam]}>
         <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
-          {phoneRaw || '未知號碼'}
+          {titleText}
           {hit && <Text style={styles.scamTag}>  {category}</Text>}
         </Text>
         <Text style={styles.detail}>
-          {(item.name ? `${item.name} · ` : '') + typeLabel(item.type)} · {dur}s
+          {`${displayName(item.name)} · ${typeLabel(item.type)} · ${dur}s`}
         </Text>
         <Text style={styles.time}>{fmt(item.timestamp, item.dateTime)}</Text>
       </View>
     );
   };
 
-  // === Render（後端）— 同樣整列紅框＋淡紅底 ===
+  // === Render（後端）— 同樣整列紅框＋淡紅底；缺資料時顯示「未知來電」 ===
   const renderServerItem = ({ item }: { item: ServerCall }) => {
     const phoneRaw = item.Phone || '';
     const category = scamMap[normalizePhone(phoneRaw)];
     const hit = !!category;
+
+    const titleText = displayPhoneOrUnknown(phoneRaw, item.PhoneName);
+
     return (
       <View style={[styles.item, hit && styles.itemScam]}>
         <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
-          {phoneRaw || '未知號碼'}
+          {titleText}
           {hit && <Text style={styles.scamTag}>  {category}</Text>}
         </Text>
         <Text style={styles.detail}>
-          {(item.PhoneName ? `${item.PhoneName} · ` : '') + (item.IsScam ? '（疑似詐騙）' : '正常')}
+          {`${displayName(item.PhoneName)} · ${item.IsScam ? '（疑似詐騙）' : '正常'}`}
         </Text>
         <Text style={styles.time}>{item.PhoneTime || ''}</Text>
       </View>
