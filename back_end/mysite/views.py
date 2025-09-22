@@ -1197,105 +1197,206 @@ def add_call_record(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 查詢某位使用者的通話紀錄
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_call_records(request, user_id):
-    records = CallRecord.objects.filter(UserId=user_id).order_by('-CallId')
-    serializer = CallRecordSerializer(records, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def bulk_add_call_records(request):
-    items = request.data.get('items', [])
-    if not items:
-        return Response({"error": "No data provided"}, status=status.HTTP_400_BAD_REQUEST)
+import re
+from datetime import datetime
 
-    try:
-        # 使用 request.data 中的 UserId 查找 User 實例
-        user_id = request.data.get('UserId')
-        user = User.objects.get(UserID=user_id)  # 根據 UserID 查找 User
+from django.db import transaction
+from django.db.models import Exists, OuterRef
+from django.utils.dateparse import parse_datetime
 
-        # 準備新增的通話紀錄
-        call_records = []
-        for item in items:
-            item['UserId'] = user  # 賦值給 User 欄位，這邊使用的是 User 實例
-            call_records.append(CallRecord(**item))
-
-        # 批量創建 CallRecord 實例
-        CallRecord.objects.bulk_create(call_records)
-
-        return Response({"message": "Records successfully added"}, status=status.HTTP_201_CREATED)
-    except User.DoesNotExist:
-        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from django.shortcuts import get_object_or_404
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import CallRecord, Scam
-
-@api_view(['GET'])
-def get_call_records(request, user_id):
-    # 查詢該長者的通話紀錄
-    records = CallRecord.objects.filter(UserId=user_id)
-    
-    # 查詢所有詐騙電話
-    scam_phones = Scam.objects.values_list('Phone', flat=True)
-    
-    # 標註詐騙電話
-    for record in records:
-        record.IsScam = record.Phone in scam_phones
-        record.save()
-    
-    # 將通話紀錄返回
-    data = [{"Phone": record.Phone, "PhoneTime": record.PhoneTime, "IsScam": record.IsScam} for record in records]
-    return Response(data)
-
-# mysite/views.py
-# mysite/views.py
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.models import Subquery, OuterRef
-from mysite.models import Scam, CallRecord
-import re
 
+from mysite.models import User, CallRecord, Scam
+# 若你用不到 Serializer，這行可刪：from mysite.serializers import CallRecordSerializer
+
+
+# --------- 共用工具 ---------
 def normalize_phone(p: str) -> str:
-    p = re.sub(r'\D', '', p or '')
-    if p.startswith('886') and len(p) >= 11:
-        p = '0' + p[3:]
-    return p
+    """去除非數字；+886 開頭轉成 0 開頭"""
+    s = re.sub(r'\D', '', p or '')
+    if s.startswith('886') and len(s) >= 11:
+        s = '0' + s[3:]
+    return s
 
+def to_dt_str(obj) -> str:
+    """把 datetime 或 ISO/一般字串，轉成 'YYYY-MM-DD HH:MM:SS'；失敗回空字串"""
+    if obj is None:
+        return ''
+    if isinstance(obj, datetime):
+        return obj.strftime('%Y-%m-%d %H:%M:%S')
+    s = str(obj).strip()
+    # 毫秒/秒 timestamp
+    if re.fullmatch(r'\d{10,13}', s):
+        n = int(s)
+        if n > 10_000_000_000:  # 毫秒
+            d = datetime.fromtimestamp(n / 1000)
+        else:                   # 秒
+            d = datetime.fromtimestamp(n)
+        return d.strftime('%Y-%m-%d %H:%M:%S')
+    # 其他可解析格式（含 ISO）
+    dt = parse_datetime(s.replace('Z', ''))
+    if dt:
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    # 最後嘗試簡單替換
+    s2 = s.replace('T', ' ').split('.')[0]
+    try:
+        d = datetime.fromisoformat(s2)
+        return d.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return ''
+
+def map_type(t: str) -> str:
+    if not t:
+        return 'UNKNOWN'
+    s = str(t).upper()
+    if s in ('INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'):
+        return s
+    if s == '1': return 'INCOMING'
+    if s == '2': return 'OUTGOING'
+    if s == '3': return 'MISSED'
+    if s in ('4', '5'): return 'REJECTED'
+    return 'UNKNOWN'
+
+
+# --------- 上傳通話（長者端或家人代上傳） ---------
 @api_view(['POST'])
-@permission_classes([AllowAny])   
-def scam_check_bulk(request):
-    raw_list = request.data.get('phones') or []
-    phones = [normalize_phone(x) for x in raw_list if x]
-    if not phones:
-        return Response({"matches": {}}, status=status.HTTP_200_OK)
+@permission_classes([IsAuthenticated])
+def upload_call_logs(request):
+    """
+    payload:
+    {
+      "elder_id": 123,   # 可省略，省略時寫入 request.user
+      "records": [
+        {"phone":"...", "name":"...", "type":"INCOMING|2|...", "timestamp":"ISO|ms|sec", "duration":30, "extra": {...}}
+      ]
+    }
+    """
+    # 目標使用者
+    elder_id = request.data.get('elder_id')
+    target_user = request.user
+    if elder_id:
+        try:
+            target_user = User.objects.get(pk=int(elder_id))
+            # TODO: 檢查 request.user 是否有權限代該使用者上傳（同家庭等）
+        except (User.DoesNotExist, ValueError):
+            return Response({"error": "elder not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # 取每支電話「最新一筆 Scam」的 Category
-    latest_category_subq = Subquery(
-        Scam.objects
-            .filter(Phone__Phone=OuterRef('Phone'))
-            .order_by('-ScamId')              # 以 ScamId 當最新依據；你也可改時間欄位
-            .values('Category')[:1]
-    )
+    records = request.data.get('records') or []
+    if not isinstance(records, list) or not records:
+        return Response({"error": "no records"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 以電話分組，套上最新分類
-    rows = (CallRecord.objects
-            .filter(Phone__in=phones)
-            .values('Phone')                       
-            .annotate(latest_category=latest_category_subq)
-            .filter(latest_category__isnull=False)
-            .values_list('Phone', 'latest_category'))
+    # 欄位對應（容錯：模型若叫別名也能撿到）
+    model_fields = {f.name for f in CallRecord._meta.get_fields() if hasattr(f, "attname")}
+    def pick(cands):  # 回傳第一個存在於 model 的欄位名
+        for c in cands:
+            if c in model_fields:
+                return c
+        return None
 
-    matches = {phone: category for phone, category in rows}
-    return Response({"matches": matches}, status=status.HTTP_200_OK)
+    PHONE_FIELD  = pick(["Phone", "phone"])
+    TIME_FIELD   = pick(["PhoneTime", "phone_time", "time"])
+    USER_FIELD   = pick(["UserId", "user", "user_id"])
+    DURATION_FIELD = pick(["Duration", "duration", "CallDuration", "DurationSec"])
+    TYPE_FIELD     = pick(["Type", "type", "CallType", "Direction"])
+    NAME_FIELD     = pick(["PhoneName", "phone_name", "Name", "ContactName"])
+    EXTRA_FIELD    = pick(["Extra", "extra", "Meta", "Payload"])
+
+    if not all([PHONE_FIELD, TIME_FIELD, USER_FIELD]):
+        return Response({"error": "model required fields not found"}, status=500)
+
+    # 清洗輸入
+    cleaned = []
+    for r in records:
+        phone = normalize_phone(r.get("phone") or '')
+        ts_str = to_dt_str(r.get("timestamp"))
+        if not phone or not ts_str:
+            continue
+        payload = {
+            USER_FIELD: target_user,
+            PHONE_FIELD: phone,
+            TIME_FIELD: ts_str,
+        }
+        if DURATION_FIELD is not None:
+            try:
+                payload[DURATION_FIELD] = int(r.get("duration") or 0)
+            except Exception:
+                payload[DURATION_FIELD] = 0
+        if TYPE_FIELD is not None:
+            payload[TYPE_FIELD] = map_type(r.get("type"))
+        if NAME_FIELD is not None:
+            name = (r.get("name") or '').strip() or '未知來電'
+            payload[NAME_FIELD] = name[:255]
+        if EXTRA_FIELD is not None and r.get("extra") is not None:
+            payload[EXTRA_FIELD] = r.get("extra")
+        cleaned.append(payload)
+
+    if not cleaned:
+        return Response({"saved": 0}, status=status.HTTP_200_OK)
+
+    # 批次限制：第一次最多 100，之後最多 500
+    first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
+    cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
+    cap = 100 if first_upload else 500
+    cleaned = cleaned[:cap]
+
+    # 去重：以 (User, Phone, PhoneTime) 判斷
+    phones = list({d[PHONE_FIELD] for d in cleaned})
+    times  = list({d[TIME_FIELD]  for d in cleaned})
+    time_min, time_max = min(times), max(times)
+
+    exist_keys = set()
+    for row in CallRecord.objects.filter(
+        **{USER_FIELD: target_user},
+        **{f"{PHONE_FIELD}__in": phones},
+        **{f"{TIME_FIELD}__range": (time_min, time_max)}
+    ).values(PHONE_FIELD, TIME_FIELD):
+        exist_keys.add((row[PHONE_FIELD], to_dt_str(row[TIME_FIELD])))
+
+    to_create = []
+    for d in cleaned:
+        key = (d[PHONE_FIELD], d[TIME_FIELD])
+        if key in exist_keys:
+            continue
+        to_create.append(CallRecord(**d))
+
+    if not to_create:
+        return Response({"inserted": 0, "skipped": len(cleaned)}, status=200)
+
+    try:
+        with transaction.atomic():
+            CallRecord.objects.bulk_create(to_create)
+        return Response({"inserted": len(to_create), "skipped": len(cleaned) - len(to_create)}, status=201)
+    except Exception as e:
+        return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_elder_calls(request, elder_id: int):
+    try:
+        elder = User.objects.get(pk=elder_id)  # elder_id 就是 UserId
+    except User.DoesNotExist:
+        return Response({"error": "elder not found"}, status=404)
+
+    calls = CallRecord.objects.filter(UserId=elder).order_by("-PhoneTime")[:50]
+
+    data = [
+        {
+            "CallId": c.CallId,
+            "Phone": c.Phone,
+            "PhoneName": getattr(c, "PhoneName", None),
+            "PhoneTime": str(c.PhoneTime),
+            "Duration": getattr(c, "Duration", 0),
+            "Type": getattr(c, "Type", "UNKNOWN"),
+            "IsScam": getattr(c, "IsScam", False),
+            "UserId": elder.UserID,  # 保留 UserId 方便前端 debug
+        }
+        for c in calls
+    ]
+    return Response(data)
 
 
 # 新增詐騙資料表
@@ -1331,6 +1432,32 @@ def add_scam_from_callrecord(request):
     )
     return JsonResponse({"message": f"電話號碼 {phone_number} 已成功新增到詐騙資料表"}, status=200)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])   
+def scam_check_bulk(request):
+    raw_list = request.data.get('phones') or []
+    phones = [normalize_phone(x) for x in raw_list if x]
+    if not phones:
+        return Response({"matches": {}}, status=status.HTTP_200_OK)
+
+    # 取每支電話「最新一筆 Scam」的 Category
+    latest_category_subq = Subquery(
+        Scam.objects
+            .filter(Phone__Phone=OuterRef('Phone'))
+            .order_by('-ScamId')              # 以 ScamId 當最新依據；你也可改時間欄位
+            .values('Category')[:1]
+    )
+
+    # 以電話分組，套上最新分類
+    rows = (CallRecord.objects
+            .filter(Phone__in=phones)
+            .values('Phone')                       
+            .annotate(latest_category=latest_category_subq)
+            .filter(latest_category__isnull=False)
+            .values_list('Phone', 'latest_category'))
+
+    matches = {phone: category for phone, category in rows}
+    return Response({"matches": matches}, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated

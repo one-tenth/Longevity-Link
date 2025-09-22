@@ -365,67 +365,83 @@ export default function ElderHome() {
   };
 
   // ✅ 同步通話紀錄
-  const handleSyncCalls = async () => {
-    try {
-      const ok = await askCallLogPermission();
-      if (!ok) return;
+  // ✅ 同步通話紀錄（替換整個 handleSyncCalls）
+const handleSyncCalls = async () => {
+  try {
+    const ok = await askCallLogPermission();
+    if (!ok) return;
 
-      setSyncing(true);
+    setSyncing(true);
 
-      const access = await AsyncStorage.getItem('access');
-      if (!access) {
-        setSyncing(false);
-        Alert.alert('尚未登入', '請先登入後再試。');
-        return;
-      }
-
-      // 讀取本機通話紀錄
-      const raw = await CallLogs.loadAll();
-
-      // 只上傳上次同步後的新紀錄
-      const lastTs = Number(await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY) || 0);
-      const items = raw
-        .map((r: any) => {
-          const tsNum = Number(r.timestamp || 0); // 毫秒
-          return {
-            phone: r.phoneNumber ?? '',
-            name: r.name ?? '',
-            type: mapType(r.type),
-            timestamp: new Date(tsNum).toISOString(),
-            duration: Number(r.duration || 0),
-            _ts: tsNum,
-            extra: { rawType: r.type },
-          };
-        })
-        .filter((x) => !!x.phone && x._ts > lastTs)
-        .sort((a, b) => a._ts - b._ts)
-        .slice(-500); // 避免一次上傳過大
-
-      if (items.length === 0) {
-        setSyncing(false);
-        Alert.alert('沒有新紀錄', '已經是最新狀態。');
-        return;
-      }
-
-      // 上傳到後端
-      await axios.post(
-        `${BASE}/api/call/upload/`,
-        { records: items.map(({ _ts, ...rest }) => rest) },
-        { headers: { Authorization: `Bearer ${access}` } }
-      );
-
-      // 記錄最新同步點
-      const maxTs = Math.max(...items.map((x) => x._ts));
-      await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
-
+    const access = await AsyncStorage.getItem('access');
+    if (!access) {
       setSyncing(false);
-      Alert.alert('上傳完成', `成功上傳 ${items.length} 筆通話紀錄。`);
-    } catch (e: any) {
-      setSyncing(false);
-      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
-      Alert.alert('上傳失敗', msg);
+      Alert.alert('尚未登入', '請先登入後再試。');
+      return;
     }
-  };
+
+    // 讀取本機通話紀錄
+    const raw = await CallLogs.loadAll();
+
+    // 取得上次同步點（毫秒）
+    const lastTsStr = await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY);
+    const lastTs = Number(lastTsStr || 0);
+    const isFirstSync = !lastTs || Number.isNaN(lastTs) || lastTs === 0;
+
+    // 轉換 → 過濾無號碼/無時間 → 依時間新→舊排序
+    const mapped = raw
+      .map((r: any) => {
+        const tsNum = Number(r.timestamp || 0); // 毫秒
+        return {
+          phone: r.phoneNumber ?? '',
+          name: r.name ?? '',
+          type: mapType(r.type),
+          timestamp: new Date(tsNum).toISOString(),
+          duration: Number(r.duration || 0),
+          _ts: tsNum,
+          extra: { rawType: r.type },
+        };
+      })
+      .filter(x => !!x.phone && x._ts > 0);
+
+    const sortedDesc = mapped.sort((a, b) => b._ts - a._ts);
+
+    // ✅ 第一次只上傳「最新 100 筆」；之後只上傳 lastTs 之後的新資料（再設上限）
+    const items = isFirstSync
+      ? sortedDesc.slice(0, 100)                    // ← 第一次 ≤100
+      : sortedDesc.filter(x => x._ts > lastTs).slice(0, 500); // ← 之後 ≤500（可調小）
+
+    if (items.length === 0) {
+      setSyncing(false);
+      Alert.alert('沒有新紀錄', '已經是最新狀態。');
+      return;
+    }
+
+    // 可選：若你想讓「家人端」查看某位長者，這裡也可以帶 elder_id
+    // const elderId = await resolveElderId();
+
+    await axios.post(
+      `${BASE}/api/call/upload/`,
+      {
+        records: items.map(({ _ts, ...rest }) => rest),
+        // elder_id: elderId, // ← 需要就解除註解
+      },
+      { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
+    );
+
+    // 更新同步點（用這批中最大的時間）
+    const maxTs = Math.max(...items.map(x => x._ts));
+    await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
+
+    setSyncing(false);
+    Alert.alert('上傳完成', `成功上傳 ${items.length} 筆通話紀錄。`);
+  } catch (e: any) {
+    setSyncing(false);
+    const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
+    Alert.alert('上傳失敗', msg);
+  }
+};
+
 
   return (
     <View style={styles.container}>
