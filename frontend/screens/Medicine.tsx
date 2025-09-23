@@ -32,6 +32,51 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 };
 
+// JWT 自動刷新與帶 Token 的請求封裝
+async function refreshAccessToken() {
+  try {
+    const refresh = await AsyncStorage.getItem('refresh');
+    if (!refresh) return false;
+    const r = await axios.post(`${BASE}/api/token/refresh/`, { refresh });
+    const newAccess = r.data?.access;
+    if (!newAccess) return false;
+    await AsyncStorage.setItem('access', newAccess);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// authGet 用於帶有自動刷新 Token 的 GET 請求
+async function authGet<T = any>(url: string) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
+
+// authPost 用於帶有自動刷新 Token 的 POST 請求
+async function authPost<T = any>(url: string, data: any) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.post<T>(url, data, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.post<T>(url, data, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
+
 export default function Medicine() {
   const navigation = useNavigation<MedicineNavProp>();
   const [activeTab, setActiveTab] = useState<'info' | 'time'>('info');
@@ -61,7 +106,6 @@ export default function Medicine() {
         </View>
 
         <View style={styles.sideSlot} />
-
       </View>
 
       {/* ── Tabs（保留你的圖片；選中黑、未選中灰） */}

@@ -1,8 +1,15 @@
-// MedInfo_1.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ActivityIndicator, TouchableOpacity,
-  ScrollView, Pressable, StatusBar, RefreshControl, Alert,
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  ScrollView,
+  Pressable,
+  StatusBar,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -35,8 +42,7 @@ const COLORS = {
   line: '#E6E6E6',
 };
 
-
-const BASE = 'http://172.20.10.4:8000';
+const BASE = 'http://192.168.0.91:8000';
 const R = 22;
 
 const outerShadow = {
@@ -46,6 +52,51 @@ const outerShadow = {
   shadowRadius: 6,
   shadowOffset: { width: 0, height: 3 },
 };
+
+// JWT 自動刷新與帶 Token 的請求封裝
+async function refreshAccessToken() {
+  try {
+    const refresh = await AsyncStorage.getItem('refresh');
+    if (!refresh) return false;
+    const r = await axios.post(`${BASE}/api/token/refresh/`, { refresh });
+    const newAccess = r.data?.access;
+    if (!newAccess) return false;
+    await AsyncStorage.setItem('access', newAccess);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// authGet 用於帶有自動刷新 Token 的 GET 請求
+async function authGet<T = any>(url: string) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
+
+// authPost 用於帶有自動刷新 Token 的 POST 請求
+async function authPost<T = any>(url: string, data: any) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.post<T>(url, data, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.post<T>(url, data, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
 
 export default function MedInfo_1() {
   const navigation = useNavigation<NavProp>();
@@ -77,10 +128,7 @@ export default function MedInfo_1() {
       }
 
       const url = `${BASE}/api/meds/${encodeURIComponent(prescriptionId)}/`;
-      const response = await axios.get<MedItem[]>(url, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
-      });
+      const response = await authGet<MedItem[]>(url);
 
       setMedList(Array.isArray(response.data) ? response.data : []);
     } catch (err: any) {

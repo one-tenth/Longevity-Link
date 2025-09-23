@@ -20,7 +20,7 @@ interface Member {
   RelatedID?: number | null;
 }
 
-const API_BASE = 'http://172.20.10.4:8000';
+const API_BASE = 'http://192.168.0.91:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -100,67 +100,77 @@ export default function ChildHome() {
   }, [navigation]);
 
   // 查詢「當天」fitdata / healthcare（用 user_id）
-  useEffect(() => {
-    const fetchAll = async () => {
-      if (!selectedMember?.UserID) return;
+    useEffect(() => {
+  const fetchAll = async () => {
+    if (!selectedMember?.UserID) return;
 
-      setLoading(true);
-      // 預設顯示 N/A，避免舊值殘留
-      setSteps('N/A');
-      setHeart('N/A');
-      setBp('N/A');
+    setLoading(true);
+    setSteps('N/A');
+    setHeart('N/A');
+    setBp('N/A');
 
-      try {
-        const token = await AsyncStorage.getItem('access');
-        if (!token) {
-          Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
-          navigation.navigate('LoginScreen' as never);
-          return;
-        }
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) {
+        Alert.alert('請先登入', '您尚未登入，請前往登入畫面');
+        navigation.navigate('LoginScreen' as never);
+        return;
+      }
 
-        // -------- FITDATA: /api/fitdata/by-date/?user_id=&date= --------
-        const fitUrl =
-          `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
-        const fitResp = await fetch(fitUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      // -------- FITDATA: /api/fitdata/by-date/?user_id=&date= --------
+      const fitUrl =
+        `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+      const fitResp = await fetch(fitUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (fitResp.ok) {
-          const fit = await fitResp.json();
-          if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
-        } else if (fitResp.status !== 404) {
-          console.warn('fitdata 讀取失敗', await safeText(fitResp));
-        }
-        // 404 當作無當日資料 → 保持 N/A
+      if (fitResp.ok) {
+        const fit = await fitResp.json();
+        if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
+      } else if (fitResp.status !== 404) {
+        console.warn('fitdata 讀取失敗', await safeText(fitResp));
+      }
 
-        // -------- HEALTHCARE: /api/healthcare/by-date/?user_id=&date= --------
-        const hcUrl =
-          `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
-        const hcResp = await fetch(hcUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      // -------- HEALTHCARE: /api/healthcare/by-date/?user_id=&date= --------
+      const hcUrl =
+        `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+      const hcResp = await fetch(hcUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (hcResp.ok) {
-          const hc = await hcResp.json();
-          const sys = num(hc?.systolic);
-          const dia = num(hc?.diastolic);
-          const pulse = num(hc?.pulse);
+      if (hcResp.ok) {
+        const hc = await hcResp.json();
+        console.log("Healthcare data:", hc); // 用來檢查返回的資料結構
+
+        // 取得早上和晚上的資料
+        const morning = hc?.morning || null;
+        const evening = hc?.evening || null;
+
+        // 优先使用晚上的资料，如果晚上没有数据，则使用早上的资料
+        const latestData = evening || morning;
+
+        // 設置心率和血壓資料
+        if (latestData) {
+          const sys = num(latestData.systolic);
+          const dia = num(latestData.diastolic);
+          const pulse = num(latestData.pulse);
 
           if (sys != null && dia != null) setBp(`${sys}/${dia}`);
           if (pulse != null) setHeart(`${pulse}`);
-        } else if (hcResp.status !== 404) {
-          console.warn('healthcare 讀取失敗', await safeText(hcResp));
         }
-      } catch (err) {
-        console.error('讀取資料錯誤:', err);
-        Alert.alert('讀取失敗', '無法取得當日健康資料，請稍後再試');
-      } finally {
-        setLoading(false);
+      } else if (hcResp.status !== 404) {
+        console.warn('healthcare 讀取失敗', await safeText(hcResp));
       }
-    };
+    } catch (err) {
+      console.error('讀取資料錯誤:', err);
+      Alert.alert('讀取失敗', '無法取得當日健康資料，請稍後再試');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchAll();
-  }, [selectedMember?.UserID, today, navigation]);
+  fetchAll();
+}, [selectedMember?.UserID, today, navigation]);
 
   // 回診資料（仍沿用 RelatedID 給你的回診頁）
   const goHospital = async () => {

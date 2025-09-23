@@ -15,8 +15,7 @@ import { navigationRef } from '../App';
 console.log('[initNotification] module loaded');
 
 // ✅ 集中管理 BASE
-const BASE = 'http://172.20.10.4:8000';
-
+const BASE = 'http://192.168.0.91:8000';
 
 /** 標準化 HH:mm（支援 08:00、8:0、08:00:00、08:00Z、全形冒號） */
 function extractHHMM(raw?: string): { h: number; m: number } | null {
@@ -53,6 +52,36 @@ function isUserNotFoundError(err: any): boolean {
   return status === 401 && code === 'user_not_found';
 }
 
+// ===== JWT 自動刷新與帶 Token 的請求封裝 ====
+async function refreshAccessToken() {
+  try {
+    const refresh = await AsyncStorage.getItem('refresh');
+    if (!refresh) return false;
+    const r = await axios.post(`${BASE}/api/token/refresh/`, { refresh });
+    const newAccess = r.data?.access;
+    if (!newAccess) return false;
+    await AsyncStorage.setItem('access', newAccess);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 這裡是修改過後的 authGet 函數
+async function authGet<T = any>(url: string) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
+
 // ===== Android 通知頻道 =====
 export async function setupNotificationChannel() {
   await notifee.createChannel({
@@ -79,9 +108,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 
 // ===== 初始化提醒（含友善提示）=====
 // 需求：401 + user_not_found 視為成功，不彈 Alert，不影響 UI
-export async function initMedicationNotifications(): Promise<
-  'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
-> {
+export async function initMedicationNotifications(): Promise< 'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error' > {
   console.log('[initNotification] initMedicationNotifications() called');
 
   const token = await AsyncStorage.getItem('access');
@@ -98,10 +125,7 @@ export async function initMedicationNotifications(): Promise<
   try {
     // 1) /me
     try {
-      const meRes = await axios.get(`${BASE}/api/account/me/`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-        timeout: 10000,
-      });
+      const meRes = await authGet(`${BASE}/api/account/me/`);
       console.log('[initNotification] /me status:', meRes.status);
       console.log('✅ 使用者資訊:', meRes.data);
     } catch (err: any) {
@@ -117,10 +141,7 @@ export async function initMedicationNotifications(): Promise<
     // 2) 取得提醒排程
     let schedule: Record<string, { time?: string; meds?: string[] }>;
     try {
-      const res = await axios.get(`${BASE}/api/get-med-reminders/`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-        timeout: 10000,
-      });
+      const res = await authGet(`${BASE}/api/get-med-reminders/`);
       console.log('[initNotification] reminders status:', res.status);
       schedule = res.data;
       console.log('✅ 提醒排程資料:', schedule);
@@ -170,7 +191,7 @@ export async function initMedicationNotifications(): Promise<
       return 'no-meds';
     }
 
-    // 4) 重新排程（清掉舊的）
+    // 4) 重新排程（清掉舊的） 
     await notifee.cancelTriggerNotifications();
 
     let medsExist = false;

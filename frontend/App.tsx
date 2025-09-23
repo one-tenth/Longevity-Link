@@ -19,7 +19,6 @@ import index from './screens/index';
 import Medicine from './screens/Medicine';
 import MedInfo from './screens/MedInfo';
 import MedInfo_1 from './screens/MedInfo_1';
-import MedRemind from './screens/MedRemind';
 import MedTimeSetting from './screens/MedTimeSetting';
 import Setting from './screens/Setting';
 import LoginScreen from './screens/login';
@@ -34,7 +33,6 @@ import EditHospitalRecord from './screens/EditHospitalRecord';
 import Profile from './screens/Profile';
 import FamilyHospitalList from './screens/FamilyHospitalList';
 import FamilyAddHospital from './screens/FamilyAddHospital';
-import ElderMedRemind from './screens/ElderMedRemind';
 import CallLogScreen from './screens/CallLogScreen';
 import ScamScreen from './screens/ScamScreen';
 import Location from './screens/Location';
@@ -154,7 +152,6 @@ const App: React.FC = () => {
         <Stack.Screen name="ElderHome" component={ElderHome} />
         <Stack.Screen name="ElderlyHealth" component={ElderlyHealth} />
         <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
-        <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
         <Stack.Screen name="ReminderScreen" component={ReminderScreen} />
 
         {/* 家人端 / 共用 */}
@@ -170,7 +167,6 @@ const App: React.FC = () => {
           component={MedInfo_1}
           initialParams={{ prescriptionId: '' }}
         />
-        <Stack.Screen name="MedRemind" component={MedRemind} />
         <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
         <Stack.Screen name="Setting" component={Setting} />
 

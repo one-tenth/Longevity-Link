@@ -24,10 +24,40 @@ const COLORS = {
   green: '#A6CFA1',
 };
 
-// ✅ 統一 API Base（自行修改成你的 IP / 網域）
-const API_BASE = 'http://172.20.10.4:8000';
+// API 基本設定
+const API_BASE = 'http://192.168.0.91:8000';
 const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
+
+// 自動刷新 Token 函式
+async function refreshAccessToken() {
+  try {
+    const refresh = await AsyncStorage.getItem('refresh');
+    if (!refresh) return false;
+    const r = await axios.post(`${API_BASE}/api/token/refresh/`, { refresh });
+    const newAccess = r.data?.access;
+    if (!newAccess) return false;
+    await AsyncStorage.setItem('access', newAccess);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 帶有自動刷新 Token 的請求函式
+async function authGet<T = any>(url: string) {
+  let access = await AsyncStorage.getItem('access');
+  try {
+    if (!access) throw { response: { status: 401 } };
+    return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+  } catch (e: any) {
+    if (e?.response?.status === 401 && (await refreshAccessToken())) {
+      access = await AsyncStorage.getItem('access');
+      return await axios.get<T>(url, { headers: { Authorization: `Bearer ${access}` } });
+    }
+    throw e;
+  }
+}
 
 export default function ElderlyUpload() {
   const navigation = useNavigation<ElderlyUploadNavProp>();
@@ -56,7 +86,6 @@ export default function ElderlyUpload() {
     return true;
   };
 
-  // ✅ 改用 react-native-localize 取得時區，避免 Intl 崩潰
   const buildFormData = (uri: string) => {
     const now = new Date();
     const timestampUtc = now.toISOString();           // UTC ISO
