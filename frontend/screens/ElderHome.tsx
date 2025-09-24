@@ -434,7 +434,7 @@ const handleSyncCalls = async () => {
     await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
 
     setSyncing(false);
-    Alert.alert('上傳完成', `成功上傳 ${items.length} 筆通話紀錄。`);
+    Alert.alert('上傳完成', `成功上傳 `);
   } catch (e: any) {
     setSyncing(false);
     const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
