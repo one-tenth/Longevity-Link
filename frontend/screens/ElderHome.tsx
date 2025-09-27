@@ -329,8 +329,7 @@ export default function ElderHome() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ★ 新增：無 UI 的定位上傳器（掛載即可定時上傳 GPS） */}
-      <ElderLocation />
+
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
@@ -446,6 +445,24 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* 定位狀況 */}
+          <View style={styles.topGrid}>
+            <TouchableOpacity
+              style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('ElderLocation')}  // 👈 跳去 ElderLocation
+            >
+              <Text style={[styles.squareTitle, { color: COLORS.white }]}>定位狀況</Text>
+              <View style={styles.squareBottomRow}>
+                <View style={[styles.iconCircle, { backgroundColor: COLORS.white }]}>
+                  <MaterialIcons name="location-on" size={25} color={COLORS.green} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+
         </ScrollView>
 
         {/* 底部置中拍照 FAB */}

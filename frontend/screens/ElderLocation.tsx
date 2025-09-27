@@ -1,4 +1,4 @@
-// screens/ElderLocation.tsx
+// ElderLocation.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -144,10 +144,10 @@ export default function ElderLocation() {
       </Text>
 
       
-      <Text style={styles.info}>最近上傳時間：{lastUploadedAt || '—'}</Text>
+      <Text style={styles.info}>最新上傳時間：{lastUploadedAt || '—'}</Text>
 
       <TouchableOpacity style={styles.btn} onPress={handleUploadOnce} disabled={uploading}>
-        <Text style={styles.btnText}>{uploading ? '上傳中…' : '定位目前位址並上傳'}</Text>
+        <Text style={styles.btnText}>{uploading ? '上傳中…' : '上傳目前位置'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.btn} onPress={startWatching}>
@@ -179,5 +179,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stop: { backgroundColor: '#444' },
-  btnText: { color: '#fff', fontWeight: '600' },
+  btnText: 
+  { fontSize: 25, color: '#fff', fontWeight: '600' },
 });
