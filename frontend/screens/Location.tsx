@@ -23,7 +23,7 @@ type LatestLocationResp = {
   ts: string;
 };
 
-const BASE_URL = 'http://192.168.1.106:8000'; 
+const BASE_URL = 'http://192.168.1.106:8000';
 
 export default function LocationScreen() {
   const route = useRoute<any>();
@@ -34,7 +34,10 @@ export default function LocationScreen() {
   const [latest, setLatest] = useState<LatestLocationResp | null>(null);
   const [address, setAddress] = useState<string>('尚未取得地址');
 
+  // **新增一個 state 用來動態控制地圖中心點**
+  const [region, setRegion] = useState<Region | null>(null);
 
+  // 預設初始區域 (用在 region 還沒設定時 fallback)
   const initialRegion: Region = {
     latitude: 35.681236,
     longitude: 139.767125,
@@ -57,28 +60,51 @@ export default function LocationScreen() {
         }
         const saved = await AsyncStorage.getItem('elder_id');
         const n = saved ? Number(saved) : NaN;
-        if (!Number.isNaN(n)) { setElderId(n); return; }
+        if (!Number.isNaN(n)) {
+          setElderId(n);
+          return;
+        }
         const fromRoute = route?.params?.elderId;
-        if (typeof fromRoute === 'number' && !Number.isNaN(fromRoute)) { setElderId(fromRoute); return; }
+        if (typeof fromRoute === 'number' && !Number.isNaN(fromRoute)) {
+          setElderId(fromRoute);
+          return;
+        }
         setElderId(null);
-      } catch { setElderId(null); }
+      } catch {
+        setElderId(null);
+      }
     })();
   }, [route?.params]);
 
-  // 進頁面後自動抓一次
+  // 進頁面後自動抓一次定位
   useEffect(() => {
     if (elderId != null && !Number.isNaN(elderId)) {
       fetchLatest();
     }
-    
   }, [elderId]);
+
+  // 當 latest 定位更新時，同步更新 region，使地圖中心移動
+  useEffect(() => {
+    if (latest) {
+      setRegion({
+        latitude: latest.lat,
+        longitude: latest.lon,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    }
+  }, [latest]);
 
   const fetchLatest = async () => {
     if (elderId == null || Number.isNaN(elderId)) {
-      Alert.alert('提示', '尚未選擇長者'); return;
+      Alert.alert('提示', '尚未選擇長者');
+      return;
     }
     const token = await AsyncStorage.getItem('access');
-    if (!token) { Alert.alert('提示', '尚未登入'); return; }
+    if (!token) {
+      Alert.alert('提示', '尚未登入');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -105,17 +131,15 @@ export default function LocationScreen() {
 
       setLatest({ ...data, lat, lon });
 
-      // 長者座標
-      mapRef.current?.animateToRegion({
-        latitude: lat, longitude: lon, latitudeDelta: 0.01, longitudeDelta: 0.01,
-      }, 500);
 
-      // 反向地理
+
+
+      // 反向地理編碼，取得地址
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
 
       console.log('反查地址結果:', addr);
-      console.log('fetchLatest 反查地址:', addr);
 
+      
       setAddress(addr || '無法取得地址');
     } catch (e: any) {
       Alert.alert('錯誤', String(e?.response?.data?.error || e?.message || e));
@@ -128,7 +152,11 @@ export default function LocationScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>家人端定位</Text>
 
-      <TouchableOpacity style={styles.btn} onPress={fetchLatest} disabled={loading || elderId == null}>
+      <TouchableOpacity
+        style={styles.btn}
+        onPress={fetchLatest}
+        disabled={loading || elderId == null}
+      >
         <Text style={styles.btnText}>{loading ? '更新中…' : '重新整理'}</Text>
       </TouchableOpacity>
 
@@ -139,7 +167,10 @@ export default function LocationScreen() {
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          initialRegion={initialRegion}
+          // 將 region 設為 state，動態控制地圖中心
+          region={region ?? initialRegion}
+          // 允許用戶手動移動地圖時更新 region，避免地圖被「綁死」
+          onRegionChangeComplete={setRegion}
         >
           {latest && (
             <Marker
@@ -156,16 +187,13 @@ export default function LocationScreen() {
         <View style={{ marginTop: 12 }}>
           <Text style={styles.infoText}>緯度：{latest.lat}</Text>
           <Text style={styles.infoText}>經度：{latest.lon}</Text>
-          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text> 
+          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text>
           <Text style={styles.infoText}>地址：{address}</Text>
         </View>
       )}
     </View>
   );
 }
-            
-
-
 
 const { width, height } = Dimensions.get('window');
 
@@ -173,8 +201,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F4F5F7' },
   title: { color: '#000', fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
   btn: {
-    padding: 14, backgroundColor: '#A6CFA1', borderRadius: 12,
-    alignItems: 'center', marginBottom: 12,
+    padding: 14,
+    backgroundColor: '#A6CFA1',
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   btnText: { color: '#fff', fontWeight: '600' },
   mapContainer: { flex: 1, marginTop: 10, borderRadius: 12, overflow: 'hidden' },
