@@ -67,7 +67,7 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://192.168.0.55:8000';
 
 // ---- Types ----
 type HospitalRecord = {

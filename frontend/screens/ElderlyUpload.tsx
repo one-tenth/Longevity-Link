@@ -25,7 +25,7 @@ const COLORS = {
 };
 
 // API 基本設定
-const API_BASE = 'http://192.168.0.91:8000';
+const API_BASE = 'http://192.168.0.55:8000';
 const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 

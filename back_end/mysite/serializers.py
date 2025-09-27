@@ -43,13 +43,17 @@ class MedNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Med
         fields = ['MedId', 'Disease']
+#------------------------------------------------------------------------------------------
+#步數
 
-class FitDataSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FitData
-        fields = ['steps', 'timestamp']
-        
-class MedSerializer(serializers.ModelSerializer):  # ✅ 正確
+class FitDataInSerializer(serializers.Serializer):
+    date = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
+    steps = serializers.IntegerField(min_value=0)
+
+
+#------------------------------------------------------------------------------------------
+
+class MedSerializer(serializers.ModelSerializer): 
     class Meta:
         model = Med
         fields = '__all__'

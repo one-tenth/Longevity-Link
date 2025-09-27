@@ -104,9 +104,6 @@ from django.conf import settings
 from datetime import timedelta
 import pytz
 
-# 假設你已有的工具/常數
-# from .yolo import _load_models, VALID_RANGES
-# from .utils import decode_image_from_request, call_gpt_fallback
 from .models import HealthCare
 
 TAIPEI = pytz.timezone("Asia/Taipei")
@@ -678,47 +675,33 @@ def get_med_reminders(request):
     return Response(result)
 
 #----------------------------------------------------------------
-#健康
-# views.py
-from datetime import datetime
+#步數新增
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import FitData
+
+from .serializers import FitDataInSerializer
+from .services.fitdata import upsert_steps
 
 class FitDataAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        user = request.user
-        steps = request.data.get('steps')
-        date_str = request.data.get('date')  # ✅ 改收 date
+        ser = FitDataInSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
 
-        if steps is None or not date_str:
-            return Response({'error': '缺少步數或日期'}, status=400)
-
-        try:
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            return Response({'error': '日期格式錯誤，應為 YYYY-MM-DD'}, status=400)
-
-        # ✅ 檢查是否已有當日紀錄
-        fitdata, created = FitData.objects.get_or_create(
-            UserID=user,
-            date=date_obj,
-            defaults={'steps': steps}
+        obj, created, updated = upsert_steps(
+            user=request.user,
+            date=ser.validated_data["date"],
+            steps=ser.validated_data["steps"],
         )
 
-        if not created:
-            if fitdata.steps != steps:
-                fitdata.steps = steps
-                fitdata.save()
-                return Response({'message': '✅ 已更新當日步數'})
-            else:
-                return Response({'message': '🟡 當日步數相同，未更新'})
+        if created:
+            return Response({'message': '✅ 新增成功'}, status=201)
+        elif updated:
+            return Response({'message': '✅ 已更新當日步數'}, status=200)
         else:
-            return Response({'message': '✅ 新增成功'})
-
+            return Response({'message': '🟡 當日步數相同，未更新'}, status=200)
 
 # 查詢步數（用 date 欄位）
 from datetime import datetime

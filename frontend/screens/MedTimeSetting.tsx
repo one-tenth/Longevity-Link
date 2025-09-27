@@ -35,7 +35,7 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 6 },
 } as const;
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://192.168.0.55:8000';
 
 // JWT 自動刷新與帶 Token 的請求封裝
 async function refreshAccessToken() {
