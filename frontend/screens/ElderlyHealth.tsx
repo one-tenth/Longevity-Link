@@ -53,6 +53,32 @@ export default function ElderlyHealth() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [bpData, setBpData] = useState<{ systolic: number; diastolic: number; pulse: number } | null>(null);
+  const [userName, setUserName] = useState<string>('使用者');
+
+    // ------- 抓使用者名稱 -------
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('user_name');
+        if (storedName) {
+          setUserName(storedName);
+        } else {
+          const token = await AsyncStorage.getItem('access');
+          if (token) {
+            const res = await axios.get(`${BASE_URL}/api/account/me/`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.data?.Name) {
+              setUserName(res.data.Name);
+              await AsyncStorage.setItem('user_name', res.data.Name);
+            }
+          }
+        }
+      } catch (err) {
+        console.log('❌ 抓使用者名稱失敗:', err);
+      }
+    })();
+  }, []);
 
   // ------- 權限（Android 10+ 要求活動辨識） -------
   const requestActivityPermission = async () => {
@@ -197,7 +223,7 @@ export default function ElderlyHealth() {
         <View style={styles.userCard}>
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>爺爺</Text>
+            <Text style={styles.userName}>{userName}</Text>
           </View>
         </View>
       </View>

@@ -453,7 +453,7 @@ export default function ElderHome() {
               activeOpacity={0.9}
               onPress={() => navigation.navigate('ElderLocation')}  // 👈 跳去 ElderLocation
             >
-              <Text style={[styles.squareTitle, { color: COLORS.white }]}>定位狀況</Text>
+              <Text style={[styles.squareTitle, { color: COLORS.white }]}>即時位置</Text>
               <View style={styles.squareBottomRow}>
                 <View style={[styles.iconCircle, { backgroundColor: COLORS.white }]}>
                   <MaterialIcons name="location-on" size={25} color={COLORS.green} />
