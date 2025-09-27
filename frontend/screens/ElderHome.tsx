@@ -24,7 +24,6 @@ import { RootStackParamList } from '../App';
 import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
 import ElderLocation from './ElderLocation';  //
 
-
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
 const COLORS = {
@@ -168,30 +167,59 @@ export default function ElderHome() {
     return () => clearInterval(t);
   }, []);
 
-  // 取使用者名稱
+  // ====== 使用者姓名：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
+  // 小工具：從後端抓取並更新快取（偵測 user_id 變更）
+  const fetchAndCacheName = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) return;
+
+      const res = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000,
+      });
+
+      const name = (res.data?.Name || '').toString().trim();
+      const uid = res.data?.UserID;
+
+      if (name) {
+        // 如果 user_id 與快取不同，覆蓋舊快取的名字
+        const cachedUid = await AsyncStorage.getItem('user_id');
+        if (!cachedUid || cachedUid !== String(uid ?? '')) {
+          await AsyncStorage.multiSet([
+            ['user_id', String(uid ?? '')],
+            ['user_name', name],
+          ]);
+        } else {
+          await AsyncStorage.setItem('user_name', name);
+        }
+        setUserName(name);
+      }
+    } catch (err) {
+      console.log('❌ 取得使用者名稱失敗:', err);
+    }
+  }, []);
+
+  // 掛載時：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
-        const storedName = await AsyncStorage.getItem('user_name');
-        if (storedName) {
-          setUserName(storedName);
-        } else {
-          const token = await AsyncStorage.getItem('access');
-          if (token) {
-            const res = await axios.get(`${BASE}/api/account/me/`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (res.data?.Name) {
-              setUserName(res.data.Name);
-              await AsyncStorage.setItem('user_name', res.data.Name);
-            }
-          }
-        }
-      } catch (err) {
-        console.log('❌ 抓使用者名稱失敗:', err);
+        const cached = await AsyncStorage.getItem('user_name');
+        if (mounted && cached) setUserName(cached);
+      } finally {
+        if (mounted) await fetchAndCacheName();
       }
     })();
-  }, []);
+    return () => { mounted = false; };
+  }, [fetchAndCacheName]);
+
+  // 聚焦時再校正（回到此頁就更新）
+  useFocusEffect(
+    useCallback(() => {
+      fetchAndCacheName();
+    }, [fetchAndCacheName])
+  );
 
   // Modal 控制
   const openMedModal = (startIndex = 0) => {
@@ -206,11 +234,6 @@ export default function ElderHome() {
   const closeMedModal = () => setShowMedModal(false);
   const goPrev = () => currentIndex > 0 && setCurrentIndex((i) => i - 1);
   const goNext = () => currentIndex < medCards.length - 1 && setCurrentIndex((i) => i + 1);
-
-  useEffect(() => {
-    if (!showMedModal) return;
-    flatRef.current?.scrollToIndex({ index: currentIndex, animated: true });
-  }, [currentIndex, showMedModal]);
 
   // 抓藥物提醒
   useEffect(() => {
@@ -328,7 +351,6 @@ export default function ElderHome() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
-
 
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
@@ -461,8 +483,6 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
-
-
         </ScrollView>
 
         {/* 底部置中拍照 FAB */}
