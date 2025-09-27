@@ -1,4 +1,4 @@
-// screens/Location.tsx
+//Location.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -11,7 +11,12 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  Region,
+  Circle,
+} from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import { reverseGeocode, formatTs } from '../utils/locationUtils';
 
@@ -23,7 +28,8 @@ type LatestLocationResp = {
   ts: string;
 };
 
-const BASE_URL = 'http://192.168.1.106:8000';
+const BASE_URL = 'http://192.168.1.106:8000'; // 後端 IP
+const CACHE_KEY = (id: number) => `last_location_${id}`;
 
 export default function LocationScreen() {
   const route = useRoute<any>();
@@ -34,65 +40,94 @@ export default function LocationScreen() {
   const [latest, setLatest] = useState<LatestLocationResp | null>(null);
   const [address, setAddress] = useState<string>('尚未取得地址');
 
-  // **新增一個 state 用來動態控制地圖中心點**
-  const [region, setRegion] = useState<Region | null>(null);
-
-  // 預設初始區域 (用在 region 還沒設定時 fallback)
   const initialRegion: Region = {
-    latitude: 35.681236,
-    longitude: 139.767125,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+    latitude: 25.033964,       //預設： 台北市政府
+    longitude: 121.564468,
+    latitudeDelta: 0.08,
+    longitudeDelta: 0.08,
   };
+  const [elderName, setElderName] = useState<string>('');
 
   // 取得 elderId
   useEffect(() => {
     (async () => {
       try {
+        // 1) 優先用 selectedMember（你家人端切換成員時常用的資料）
         const raw = await AsyncStorage.getItem('selectedMember');
         if (raw) {
           const obj = JSON.parse(raw);
           const isElder = obj?.is_elder === true || obj?.RelatedID != null;
           if (isElder && typeof obj?.UserID === 'number' && !Number.isNaN(obj.UserID)) {
             setElderId(obj.UserID);
+            if (typeof obj?.Name === 'string') setElderName(obj.Name);
             return;
           }
         }
-        const saved = await AsyncStorage.getItem('elder_id');
-        const n = saved ? Number(saved) : NaN;
+
+        // 2) 其次用你常存的 elder_id / elder_name
+        const savedId = await AsyncStorage.getItem('elder_id');
+        const savedName = await AsyncStorage.getItem('elder_name');
+        const n = savedId ? Number(savedId) : NaN;
         if (!Number.isNaN(n)) {
           setElderId(n);
+          if (savedName) setElderName(savedName);
           return;
         }
-        const fromRoute = route?.params?.elderId;
-        if (typeof fromRoute === 'number' && !Number.isNaN(fromRoute)) {
-          setElderId(fromRoute);
+
+        // 3) 路由帶進來（如果有）
+        const fromRouteId = route?.params?.elderId;
+        const fromRouteName = route?.params?.elderName;
+        if (typeof fromRouteId === 'number' && !Number.isNaN(fromRouteId)) {
+          setElderId(fromRouteId);
+          if (typeof fromRouteName === 'string') setElderName(fromRouteName);
           return;
         }
+
         setElderId(null);
+        setElderName('');
       } catch {
         setElderId(null);
+        setElderName('');
       }
     })();
   }, [route?.params]);
 
-  // 進頁面後自動抓一次定位
+
+
+  // 進頁面先快取（先有針再說）
   useEffect(() => {
-    if (elderId != null && !Number.isNaN(elderId)) {
-      fetchLatest();
-    }
+    (async () => {
+      if (elderId == null) return;
+      const cached = await AsyncStorage.getItem(CACHE_KEY(elderId));
+      if (!cached) return;
+      try {
+        const c = JSON.parse(cached);
+        if (Number.isFinite(c.lat) && Number.isFinite(c.lon)) {
+          setLatest({ ok: true, user: elderId, lat: c.lat, lon: c.lon, ts: c.ts || '' });
+          setAddress(c.address || '—');
+          setTimeout(() => {
+            mapRef.current?.animateCamera(
+              { center: { latitude: c.lat, longitude: c.lon }, zoom: 16 },
+              { duration: 600 }
+            );
+          }, 0);
+        }
+      } catch {}
+    })();
   }, [elderId]);
 
-  // 當 latest 定位更新時，同步更新 region，使地圖中心移動
+  // 進頁面抓一次最新定位
   useEffect(() => {
-    if (latest) {
-      setRegion({
-        latitude: latest.lat,
-        longitude: latest.lon,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
-    }
+    if (elderId != null && !Number.isNaN(elderId)) fetchLatest();
+  }, [elderId]);
+
+  // 最新座標
+  useEffect(() => {
+    if (!latest) return;
+    mapRef.current?.animateCamera(
+      { center: { latitude: latest.lat, longitude: latest.lon }, zoom: 16 },
+      { duration: 600 }
+    );
   }, [latest]);
 
   const fetchLatest = async () => {
@@ -114,48 +149,41 @@ export default function LocationScreen() {
         timeout: 10000,
       });
 
-      console.log('API 回傳:', data);
-
-      if (!data?.ok) {
-        throw new Error('後端回傳失敗');
-      }
+      if (!data?.ok) throw new Error('後端回傳失敗');
 
       const lat = Number(data.lat);
       const lon = Number(data.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('無定位資料');
 
-      console.log('解析後座標:', lat, lon);
+      const normalized: LatestLocationResp = { ...data, lat, lon };
+      setLatest(normalized);
 
-      if (Number.isNaN(lat) || Number.isNaN(lon)) {
-        throw new Error('無定位資料');
-      }
-
-      setLatest({ ...data, lat, lon });
-
-
-
-
-      // 反向地理編碼，取得地址
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
-
-      console.log('反查地址結果:', addr);
-
-      
       setAddress(addr || '無法取得地址');
+
+      await AsyncStorage.setItem(
+        CACHE_KEY(elderId),
+        JSON.stringify({ lat, lon, ts: data.ts, address: addr || '' })
+      );
     } catch (e: any) {
+      console.log('❌ 取定位失敗:', e?.message);
       Alert.alert('錯誤', String(e?.response?.data?.error || e?.message || e));
     } finally {
       setLoading(false);
     }
   };
 
+  const hasCoord = Number.isFinite(latest?.lat) && Number.isFinite(latest?.lon);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>家人端定位</Text>
+      <Text style={styles.title}>{elderName ? `${elderName}` : '   '}  目前位址</Text>
 
       <TouchableOpacity
         style={styles.btn}
         onPress={fetchLatest}
         disabled={loading || elderId == null}
+        activeOpacity={0.85}
       >
         <Text style={styles.btnText}>{loading ? '更新中…' : '重新整理'}</Text>
       </TouchableOpacity>
@@ -166,28 +194,52 @@ export default function LocationScreen() {
         <MapView
           ref={mapRef}
           style={styles.map}
+          key={hasCoord ? 'has-marker' : 'no-marker'}
           provider={PROVIDER_GOOGLE}
-          // 將 region 設為 state，動態控制地圖中心
-          region={region ?? initialRegion}
-          // 允許用戶手動移動地圖時更新 region，避免地圖被「綁死」
-          onRegionChangeComplete={setRegion}
+          liteMode={false}
+          cacheEnabled={false}
+          initialRegion={initialRegion}
         >
-          {latest && (
-            <Marker
-              key={`${latest.lat},${latest.lon}`} // 強制重繪
-              coordinate={{ latitude: latest.lat, longitude: latest.lon }}
-              title="長者位置"
-              description={address || `更新時間：${formatTs(latest.ts)}`}
-            />
+          {/* 永遠顯示的測試針：確認環境能畫 Marker */}
+          <Marker
+            identifier="test-pin"
+            coordinate={{ latitude: 25.033964, longitude: 121.564468 }}
+            title="測試針（台北市府）"
+          />
+
+          {hasCoord && (
+            <>
+              {/* 自訂 Marker（避免系統針在某些機型不顯示） */}
+              <Marker
+                identifier="elder-pin"
+                coordinate={{ latitude: latest!.lat, longitude: latest!.lon }}
+                zIndex={999}
+                tracksViewChanges={true}
+              >
+                <View style={styles.pinWrap} renderToHardwareTextureAndroid={true}>
+                  <View style={styles.pinDot} />
+                  <Text style={styles.pinLabel}>長者</Text>
+                </View>
+              </Marker>
+
+              {/* 疊一個小圓，雙保險看得到位置 */}
+              <Circle
+                center={{ latitude: latest!.lat, longitude: latest!.lon }}
+                radius={12}
+                strokeWidth={1}
+                strokeColor="rgba(0,0,0,0.6)"
+                fillColor="rgba(0,0,0,0.25)"
+              />
+            </>
           )}
         </MapView>
       </View>
 
-      {latest && (
-        <View style={{ marginTop: 12 }}>
-          <Text style={styles.infoText}>緯度：{latest.lat}</Text>
-          <Text style={styles.infoText}>經度：{latest.lon}</Text>
-          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text>
+      {hasCoord && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoText}>緯度：{latest!.lat}</Text>
+          <Text style={styles.infoText}>經度：{latest!.lon}</Text>
+          <Text style={styles.infoText}>時間：{formatTs(latest!.ts)}</Text>
           <Text style={styles.infoText}>地址：{address}</Text>
         </View>
       )}
@@ -199,7 +251,7 @@ const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F4F5F7' },
-  title: { color: '#000', fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+  title: { color: '#000', fontSize: 22, fontWeight: '900', marginBottom: 10 },
   btn: {
     padding: 14,
     backgroundColor: '#A6CFA1',
@@ -207,8 +259,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  btnText: { color: '#fff', fontWeight: '600' },
-  mapContainer: { flex: 1, marginTop: 10, borderRadius: 12, overflow: 'hidden' },
-  map: { width: width - 40, height: height * 0.7 },
-  infoText: { color: '#000', fontSize: 16, marginBottom: 4 },
+  btnText: { color: '#fff', fontWeight: '700' },
+  mapContainer: { flex: 1, marginTop: 10 },
+  map: { width: width - 40, height: height * 0.55 }, // 固定高度
+  infoCard: {
+    marginTop: 14,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  infoText: { color: '#000', fontSize: 16, marginBottom: 6 },
+  // 自訂 Marker 樣式
+  pinWrap: { alignItems: 'center' },
+  pinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#ff4d4f',
+    borderWidth: 2,
+    borderColor: '#fff',
+    elevation: 6, 
+  },
+  pinLabel: {
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    color: '#fff',
+    fontSize: 12,
+  },
 });
