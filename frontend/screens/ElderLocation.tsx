@@ -20,8 +20,7 @@ import {
   reverseGeocode,
 } from '../utils/locationUtils';
 
-const BASE_URL = 'http://172.20.10.4:8000';
-
+const BASE_URL = '72.20.10.2:8000';
 export default function ElderLocation() {
   const [uploading, setUploading] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);

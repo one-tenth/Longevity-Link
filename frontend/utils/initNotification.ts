@@ -15,7 +15,8 @@ import { navigationRef } from '../App';
 console.log('[initNotification] module loaded');
 
 // ✅ 集中管理 BASE
-const BASE = 'http://172.20.10.4:8000';
+
+const BASE = 'http://172.20.10.2:8000';
 
 
 /** 標準化 HH:mm（支援 08:00、8:0、08:00:00、08:00Z、全形冒號） */

@@ -1,8 +1,17 @@
 // ChildHome.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert, ActivityIndicator, Platform,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  StatusBar,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -11,6 +20,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
+import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap，有缺就走文字頭像
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
@@ -18,9 +28,11 @@ interface Member {
   UserID: number;
   Name: string;
   RelatedID?: number | null;
+  avatar?: string;
 }
 
-const API_BASE = 'http://172.20.10.4:8000';
+
+const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
 
 const COLORS = {
   white: '#FFFFFF',
@@ -34,7 +46,6 @@ const COLORS = {
 
 const R = 22;
 
-/* 陰影 */
 const outerShadow = {
   elevation: 4,
   shadowColor: '#000',
@@ -51,7 +62,7 @@ const lightShadow = {
   shadowOffset: { width: 0, height: 2 },
 } as const;
 
-/* 取得本地(裝置)今天 YYYY-MM-DD */
+/** 取得本地(裝置)今天 YYYY-MM-DD */
 function getLocalToday(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -63,11 +74,7 @@ function getLocalToday(): string {
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-
-  // 今日日期字串
   const today = useMemo(getLocalToday, []);
-
-  // Loading / error
   const [loading, setLoading] = useState(false);
 
   // 統計值
@@ -75,7 +82,7 @@ export default function ChildHome() {
   const [heart, setHeart] = useState<string>('N/A'); // 來自 healthcare.pulse
   const [bp, setBp] = useState<string>('N/A');
 
-  // 讀取已選成員
+  // 讀取已選成員（沒有 avatar 時補上預設檔名，並兼容寫入 elder_*）
   useEffect(() => {
     const loadSelectedMember = async () => {
       const stored = await AsyncStorage.getItem('selectedMember');
@@ -85,8 +92,9 @@ export default function ChildHome() {
       }
       try {
         const parsed: Member = JSON.parse(stored);
-        setSelectedMember(parsed ?? null);
-        // 若你其他頁面還在用 elder_*，這裡兼容寫入（有 RelatedID 才寫）
+        const merged: Member = { ...parsed, avatar: parsed.avatar || 'woman.png' };
+        setSelectedMember(merged);
+
         if (parsed?.RelatedID != null) {
           await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
           await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
@@ -105,7 +113,6 @@ export default function ChildHome() {
       if (!selectedMember?.UserID) return;
 
       setLoading(true);
-      // 預設顯示 N/A，避免舊值殘留
       setSteps('N/A');
       setHeart('N/A');
       setBp('N/A');
@@ -118,36 +125,41 @@ export default function ChildHome() {
           return;
         }
 
-        // -------- FITDATA: /api/fitdata/by-date/?user_id=&date= --------
-        const fitUrl =
-          `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        // FITDATA
+        const fitUrl = `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(
+          String(selectedMember.UserID)
+        )}&date=${today}`;
         const fitResp = await fetch(fitUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (fitResp.ok) {
           const fit = await fitResp.json();
           if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
         } else if (fitResp.status !== 404) {
           console.warn('fitdata 讀取失敗', await safeText(fitResp));
         }
-        // 404 當作無當日資料 → 保持 N/A
 
-        // -------- HEALTHCARE: /api/healthcare/by-date/?user_id=&date= --------
-        const hcUrl =
-          `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        // HEALTHCARE（晚 > 早）
+        const hcUrl = `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(
+          String(selectedMember.UserID)
+        )}&date=${today}`;
         const hcResp = await fetch(hcUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (hcResp.ok) {
           const hc = await hcResp.json();
-          const sys = num(hc?.systolic);
-          const dia = num(hc?.diastolic);
-          const pulse = num(hc?.pulse);
+          // 結構預期：{ morning: {...} | null, evening: {...} | null }
+          const morning = hc?.morning ?? null;
+          const evening = hc?.evening ?? null;
+          const latestData = evening || morning;
 
-          if (sys != null && dia != null) setBp(`${sys}/${dia}`);
-          if (pulse != null) setHeart(`${pulse}`);
+          if (latestData) {
+            const sys = num(latestData.systolic);
+            const dia = num(latestData.diastolic);
+            const pulse = num(latestData.pulse);
+            if (sys != null && dia != null) setBp(`${sys}/${dia}`);
+            if (pulse != null) setHeart(`${pulse}`);
+          }
         } else if (hcResp.status !== 404) {
           console.warn('healthcare 讀取失敗', await safeText(hcResp));
         }
@@ -177,13 +189,12 @@ export default function ChildHome() {
     } as never);
   };
 
-  /** ✅ 通話紀錄導頁：未選長者就先跳 FamilyScreen；iOS 顯示限制提示 */
+  /** 通話紀錄：未選長者就先跳 FamilyScreen；iOS 限制提示 */
   const openCallLogs = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');
       return;
     }
-    // 若畫面狀態沒選，保險再從 AsyncStorage 檢查
     if (!selectedMember || !selectedMember.RelatedID) {
       const maybeElderId = await AsyncStorage.getItem('elder_id');
       if (!maybeElderId) {
@@ -192,29 +203,31 @@ export default function ChildHome() {
         return;
       }
     } else {
-      // 幫你把 elder_* 寫入，讓後續頁面可直接使用
       await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
       await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
     }
     navigation.navigate('CallLogScreen' as never);
   };
 
-  // 定位按鈕
+  // 定位
   const goLocation = async () => {
     if (!selectedMember) {
       Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
-      navigation.navigate('FamilyScreen', { mode: 'select' } as never); 
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
       return;
     }
-    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;      
-    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');   
-    await AsyncStorage.setItem('elder_id', String(elderId));                
-    navigation.navigate('Location' as never, { elderId, elderName: selectedMember.Name } as never); 
+    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;
+    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
+    await AsyncStorage.setItem('elder_id', String(elderId));
+    navigation.navigate('Location' as never, {
+      elderId,
+      elderName: selectedMember.Name,
+    } as never);
   };
 
-  const elderId = 1; // 或是從 state/props 拿到實際的長者 ID
-
-  
+  // Avatar source / fallback
+  const avatarSrc = getAvatarSource(selectedMember?.avatar) as any | undefined;
+  const initial = selectedMember?.Name?.[0] ?? '人';
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -224,17 +237,23 @@ export default function ChildHome() {
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
           <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' } as never)}>
-            <Image source={require('../img/childhome/grandpa.png')} style={styles.avatar} />
+            {avatarSrc ? (
+              <Image source={avatarSrc} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+            )}
           </Pressable>
+
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>
               {selectedMember?.Name || '尚未選擇'}
             </Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
-              {`日期 ${today}`}
-            </Text>
+            <Text style={{ color: COLORS.green, opacity: 0.95 }}>{`日期 ${today}`}</Text>
           </View>
-          {/* ✅ 設定鈕改為跳選擇家人頁面 */}
+
+          {/* 設定鈕 → 選擇家人頁 */}
           <TouchableOpacity
             onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
@@ -285,7 +304,6 @@ export default function ChildHome() {
             onPress={goHospital}
             darkLabel={false}
           />
-          {/* ✅ 通話紀錄按鈕：呼叫 openCallLogs */}
           <QuickIcon
             big
             bg={COLORS.green}
@@ -294,12 +312,12 @@ export default function ChildHome() {
             onPress={openCallLogs}
             darkLabel={false}
           />
-           <QuickIcon
+          <QuickIcon
             big
             bg={COLORS.green}
             icon={<MaterialIcons name="location-on" size={32} color={COLORS.black} />}
             label="家人定位"
-            onPress={goLocation}          
+            onPress={goLocation}
             darkLabel={false}
           />
         </View>
@@ -341,9 +359,19 @@ async function safeText(r: Response) {
 
 /* ====== 子元件 ====== */
 function QuickIcon({
-  bg, icon, label, onPress, darkLabel = true, big = false,
+  bg,
+  icon,
+  label,
+  onPress,
+  darkLabel = true,
+  big = false,
 }: {
-  bg: string; icon: React.ReactNode; label: string; onPress: () => void; darkLabel?: boolean; big?: boolean;
+  bg: string;
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  darkLabel?: boolean;
+  big?: boolean;
 }) {
   return (
     <Pressable
@@ -356,16 +384,20 @@ function QuickIcon({
         pressed && { transform: [{ scale: 0.97 }] },
       ]}
     >
-      <View style={[
-        quick.iconCircle,
-        { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 },
-      ]}>
+      <View
+        style={[
+          quick.iconCircle,
+          { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 },
+        ]}
+      >
         {icon}
       </View>
-      <Text style={[
-        quick.label,
-        { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 },
-      ]}>
+      <Text
+        style={[
+          quick.label,
+          { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -377,7 +409,8 @@ function StatBox({ title, value, suffix }: { title: string; value: string; suffi
     <View style={stats.box}>
       <Text style={stats.title}>{title}</Text>
       <Text style={stats.value}>
-        {value}{suffix ? <Text style={stats.suffix}> {suffix}</Text> : null}
+        {value}
+        {suffix ? <Text style={stats.suffix}> {suffix}</Text> : null}
       </Text>
     </View>
   );
@@ -387,7 +420,18 @@ function StatBox({ title, value, suffix }: { title: string; value: string; suffi
 const styles = StyleSheet.create({
   hero: { margin: 16, marginBottom: 8, padding: 16, borderRadius: R },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.white },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallback: { backgroundColor: '#EAF6EA' },
+  avatarText: { fontSize: 18, fontWeight: '900', color: COLORS.textDark },
+
   hello: { fontSize: 22, fontWeight: '900' },
   iconBtn: { padding: 10, borderRadius: 12 },
 
@@ -409,10 +453,16 @@ const styles = StyleSheet.create({
   },
   bottomBox: {
     position: 'absolute',
-    left: 0, right: 0, bottom: 0,
-    height: 72, backgroundColor: COLORS.black,
-    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 8,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+    backgroundColor: COLORS.black,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
