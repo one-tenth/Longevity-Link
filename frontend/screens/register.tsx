@@ -13,6 +13,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+import { avatarMap, avatarKeys } from '../utils/avatarMap';  // ⭐ 共用頭貼
 
 /** 弧形標題 */
 function ArcText() {
@@ -36,13 +37,11 @@ const years = Array.from({ length: currentYear - 1930 + 1 }, (_, i) => String(19
 const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
 
-/** Navigation 型別 */
 type RootStackParamList = {
   RegisterScreen: { mode: 'register' | 'addElder'; creatorId?: number };
 };
 type RegisterRouteProp = RouteProp<RootStackParamList, 'RegisterScreen'>;
 
-/** 後端對應欄位 */
 interface RegisterData {
   Name: string;
   Gender: 'M' | 'F';
@@ -50,11 +49,10 @@ interface RegisterData {
   Phone: string;
   password: string;
   creator_id?: number;
+  avatar?: string;
 }
 
-
-const API_BASE = 'http://172.20.10.4:8000';
-
+const API_BASE = 'http://172.20.10.2:8000';
 
 export default function RegisterScreen() {
   const navigation = useNavigation();
@@ -70,11 +68,10 @@ export default function RegisterScreen() {
     Phone: '',
     Password: '',
     confirmPassword: '',
+    avatarKey: avatarKeys[0], // ⭐ 預設第一張
   });
 
-  /** 註冊 */
   const handleRegister = async () => {
-    // 前端驗證
     if (!form.Name.trim()) return Alert.alert('錯誤', '請輸入姓名');
     if (!/^09\d{8}$/.test(form.Phone)) return Alert.alert('錯誤', '請輸入正確的手機號碼格式 (09開頭，共10碼)');
     if (!form.Password || !form.confirmPassword) return Alert.alert('錯誤', '請輸入密碼與確認密碼');
@@ -88,6 +85,7 @@ export default function RegisterScreen() {
       Borndate,
       Phone: form.Phone,
       password: form.Password,
+      avatar: form.avatarKey,
       ...(mode === 'addElder' && creatorId ? { creator_id: creatorId } : {}),
     };
 
@@ -107,8 +105,8 @@ export default function RegisterScreen() {
           Alert.alert('註冊失敗', '請確認資訊是否填寫正確');
         }
         return;
-        }
-      // 成功
+      }
+
       if (mode === 'addElder') {
         Alert.alert('新增成功', '已成功將長者加入家庭');
         // @ts-ignore
@@ -136,7 +134,7 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.formWrapper}>
             {/* 姓名 */}
-            <View className="inputGroup" style={styles.inputGroup}>
+            <View style={styles.inputGroup}>
               <Text style={styles.label}>姓名</Text>
               <TextInput
                 placeholder="請輸入姓名"
@@ -200,6 +198,20 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {/* 頭貼選擇 */}
+            <Text style={styles.label}>選擇頭貼</Text>
+            <View style={styles.avatarRow}>
+              {avatarKeys.map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => setForm({ ...form, avatarKey: key })}
+                  style={[styles.avatarBox, form.avatarKey === key && styles.avatarSelected]}
+                >
+                  <Image source={avatarMap[key]} style={styles.avatar} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {/* 電話 */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>電話號碼</Text>
@@ -236,7 +248,6 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* 按鈕 */}
             <TouchableOpacity style={styles.btn} onPress={handleRegister}>
               <Text style={styles.btnText}>註冊</Text>
             </TouchableOpacity>
@@ -255,7 +266,7 @@ export default function RegisterScreen() {
   );
 }
 
-/** 樣式 */
+/** 樣式 (保持不變) */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: 20 },
   headerContainer: { alignItems: 'center' },
@@ -301,6 +312,16 @@ const styles = StyleSheet.create({
   pickerWrapperYear: { width: '36%', backgroundColor: '#B3CAD8', marginRight: 4 },
   pickerWrapper: { width: '30%', backgroundColor: '#B3CAD8', marginLeft: 4 },
   picker: { height: 50, color: '#2E2E2E', fontWeight: 'bold' },
+  avatarRow: { flexDirection: 'row', flexWrap: 'wrap', marginVertical: 10 },
+  avatarBox: {
+    margin: 5,
+    padding: 4,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  avatarSelected: { borderColor: '#4E6E62' },
+  avatar: { width: 60, height: 60, borderRadius: 30 },
   btn: { backgroundColor: '#4E6E62', borderRadius: 10, alignItems: 'center', padding: 14, marginTop: 20 },
   btnText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
 });
