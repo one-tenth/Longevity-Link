@@ -163,7 +163,7 @@ const FamilyScreen = () => {
                 return (
                   <Pressable
                     key={m.UserID}
-                    onPress={() => handleSelect(m)}
+                    onPress={() => handleSelect(m)}  // 只有長者可以選擇
                     android_ripple={{ color: '#00000010' }}
                     style={({ pressed }) => [
                       styles.card,
@@ -180,9 +180,7 @@ const FamilyScreen = () => {
                     )}
 
                     <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
-                    <Text
-                      style={[styles.roleBadge, styles.elderBadge]}
-                    >
+                    <Text style={[styles.roleBadge, styles.elderBadge]}>
                       長者
                     </Text>
                   </Pressable>
@@ -204,6 +202,7 @@ const FamilyScreen = () => {
                       lightShadow,
                       pressed && { transform: [{ scale: 0.98 }] },
                     ]}
+                    disabled={true}  // 禁用家人的選擇
                   >
                     {src ? (
                       <Image source={src} style={styles.avatar} />
@@ -214,9 +213,7 @@ const FamilyScreen = () => {
                     )}
 
                     <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
-                    <Text
-                      style={[styles.roleBadge, styles.familyBadge]}
-                    >
+                    <Text style={[styles.roleBadge, styles.familyBadge]}>
                       家人
                     </Text>
                   </Pressable>
@@ -270,9 +267,7 @@ const FamilyScreen = () => {
 };
 
 // Styles...
-
-
-/* ===== Styles ===== */
+/* ====== Styles ====== */
 const styles = StyleSheet.create({
   hero: {
     margin: 16,

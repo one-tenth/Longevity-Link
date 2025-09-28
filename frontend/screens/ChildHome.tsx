@@ -255,7 +255,7 @@ export default function ChildHome() {
 
           {/* 設定鈕 → 選擇家人頁 */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
           >
             <Feather name="settings" size={22} color={COLORS.black} />
