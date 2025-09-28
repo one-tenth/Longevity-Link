@@ -64,7 +64,7 @@ export function watchCoords(
   const id = Geolocation.watchPosition(
     p => onChange({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
     e => onError?.(e),
-    { enableHighAccuracy: true, distanceFilter: 0, interval },
+    { enableHighAccuracy: true, distanceFilter: 5, interval },
   );
   return () => Geolocation.clearWatch(id);
 }

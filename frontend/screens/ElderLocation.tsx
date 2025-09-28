@@ -149,13 +149,13 @@ export default function ElderLocation({ navigation }: any) {
     }
   };
 
-  // 持續定位，每 3 分鐘更新一次，並加入 distanceFilter
+  // 持續定位
   const startWatching = async () => {
     if (stopRef.current) {
       Alert.alert('提示', '已在持續上傳中');
       return;
     }
-    // 每 3 分鐘更新一次，並加入 distanceFilter 來設定觸發條件
+    // 每1分鐘更新一次
     stopRef.current = watchCoords(
       async (c) => {
         if (!mountedRef.current) return;
@@ -164,8 +164,8 @@ export default function ElderLocation({ navigation }: any) {
         await upload(c); // 更新時上傳位置
       },
       (e) => console.warn('watch error', e?.message ?? e),
-      3 * 60 * 1000, // 每 3 分鐘更新一次
-      // 設定移動距離為 5 米，只有當移動超過這個距離時才觸發
+      15 * 60 * 1000, // 每15分鐘更新一次
+      
     );
     setIsTracking(true); // 更新為定位中
     Alert.alert('已開始', '持續上傳定位中');
