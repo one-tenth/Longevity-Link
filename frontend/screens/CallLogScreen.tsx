@@ -251,10 +251,10 @@ export default function CallLogScreen() {
           <Text style={styles.backText}>返回</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>通話紀錄 {elderName && `(${elderName})`}</Text>
-        {/* <TouchableOpacity style={styles.scamAddBtn} onPress={goScamForm}>
+        { <TouchableOpacity style={styles.scamAddBtn} onPress={goScamForm}>
           <Feather name="shield" size={16} color="#fff" />
           <Text style={styles.scamAddText}>新增詐騙</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity> }
       </View>
       {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
       {autoSyncMsg ? <Text style={styles.info}>{autoSyncMsg}</Text> : null}

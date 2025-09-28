@@ -1278,18 +1278,9 @@ def map_type(t: str) -> str:
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_call_logs(request):
-    """
-    payload:
-    {
-      "elder_id": 123,   # 可省略，省略時寫入 request.user
-      "records": [
-        {"phone":"...", "name":"...", "type":"INCOMING|2|...", "timestamp":"ISO|ms|sec", "duration":30, "extra": {...}}
-      ]
-    }
-    """
-    # 目標使用者
     elder_id = request.data.get('elder_id')
     target_user = request.user
+
     if elder_id:
         try:
             target_user = User.objects.get(pk=int(elder_id))
@@ -1301,9 +1292,8 @@ def upload_call_logs(request):
     if not isinstance(records, list) or not records:
         return Response({"error": "no records"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 欄位對應（容錯：模型若叫別名也能撿到）
     model_fields = {f.name for f in CallRecord._meta.get_fields() if hasattr(f, "attname")}
-    def pick(cands):  # 回傳第一個存在於 model 的欄位名
+    def pick(cands):
         for c in cands:
             if c in model_fields:
                 return c
@@ -1320,7 +1310,6 @@ def upload_call_logs(request):
     if not all([PHONE_FIELD, TIME_FIELD, USER_FIELD]):
         return Response({"error": "model required fields not found"}, status=500)
 
-    # 清洗輸入
     cleaned = []
     for r in records:
         phone = normalize_phone(r.get("phone") or '')
@@ -1349,13 +1338,11 @@ def upload_call_logs(request):
     if not cleaned:
         return Response({"saved": 0}, status=status.HTTP_200_OK)
 
-    # 批次限制：第一次最多 100，之後最多 500
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
     cap = 100 if first_upload else 500
     cleaned = cleaned[:cap]
 
-    # 去重：以 (User, Phone, PhoneTime) 判斷
     phones = list({d[PHONE_FIELD] for d in cleaned})
     times  = list({d[TIME_FIELD]  for d in cleaned})
     time_min, time_max = min(times), max(times)
@@ -1384,6 +1371,7 @@ def upload_call_logs(request):
         return Response({"inserted": len(to_create), "skipped": len(cleaned) - len(to_create)}, status=201)
     except Exception as e:
         return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=500)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1470,7 +1458,6 @@ def scam_check_bulk(request):
 
     matches = {phone: category for phone, category in rows}
     return Response({"matches": matches}, status=status.HTTP_200_OK)
-
 
 
 @api_view(['POST'])
