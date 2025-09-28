@@ -80,6 +80,7 @@ const FamilyScreen = () => {
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
 
+
         setUserId(user?.id ?? user?.UserID ?? null);
         setFamilyName(
           user?.FamilyName ?? user?.Family?.Name ?? user?.family_name ?? '家庭'

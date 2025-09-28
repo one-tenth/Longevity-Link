@@ -111,11 +111,6 @@ class HosSerializer(serializers.ModelSerializer):
 
 
 class CallRecordSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CallRecord
-        fields = '__all__'
-
-class CallRecordSerializer(serializers.ModelSerializer):
     ScamCategory = serializers.SerializerMethodField()  # 新增欄位
 
     class Meta:
@@ -129,6 +124,7 @@ class CallRecordSerializer(serializers.ModelSerializer):
             return scam.Category
         except Scam.DoesNotExist:
             return None
+        
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hos

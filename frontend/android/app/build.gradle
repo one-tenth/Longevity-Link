@@ -83,7 +83,7 @@ dependencies {
         implementation jscFlavor
     }
 
-    implementation project(':react-native-maps')
+    // implementation project(':react-native-maps')
 
 }
 
