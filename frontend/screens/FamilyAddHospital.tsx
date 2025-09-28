@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 async function authPost<T>(url: string, data: any) {
   let access = await AsyncStorage.getItem('access');

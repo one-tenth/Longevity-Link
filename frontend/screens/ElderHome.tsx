@@ -72,7 +72,7 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
