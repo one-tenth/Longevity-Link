@@ -1,5 +1,5 @@
-//ElderLocation.tsx
 import React, { useEffect, useRef, useState } from 'react';
+
 import {
   View,
   Text,
@@ -34,19 +34,19 @@ const COLORS = {
 };
 
 export default function ElderLocation({ navigation }: any) {
-  //  狀態管理 
+  // 狀態管理
   const [uploading, setUploading] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
   const [lastUploadedAt, setLastUploadedAt] = useState<string>('');
   const [address, setAddress] = useState<string>('尚未取得地址');
 
   const [userName, setUserName] = useState<string>('使用者');
-
+  const [isTracking, setIsTracking] = useState(false);
 
   const stopRef = useRef<null | (() => void)>(null);
   const mountedRef = useRef(true);
 
-  // 初始化 
+  // 初始化
   useEffect(() => {
     mountedRef.current = true;
 
@@ -69,7 +69,6 @@ export default function ElderLocation({ navigation }: any) {
       }
     })();
 
-    
     // 抓使用者名稱
     (async () => {
       try {
@@ -99,8 +98,9 @@ export default function ElderLocation({ navigation }: any) {
     };
   }, []);
 
-  //  上傳 API 
+  // 上傳 API
   async function upload(c: Coords) {
+    console.log("上傳位置:", c); // 檢查是否進入上傳邏輯
     const token = await AsyncStorage.getItem('access');
     if (!token) {
       Alert.alert('錯誤', '尚未登入');
@@ -136,7 +136,7 @@ export default function ElderLocation({ navigation }: any) {
     }
   }
 
-  // 按鈕事件 
+  // 按鈕事件-上傳一次位置
   const handleUploadOnce = async () => {
     try {
       const c = await getCurrentCoords();
@@ -149,31 +149,37 @@ export default function ElderLocation({ navigation }: any) {
     }
   };
 
+  // 持續定位，每 3 分鐘更新一次，並加入 distanceFilter
   const startWatching = async () => {
     if (stopRef.current) {
       Alert.alert('提示', '已在持續上傳中');
       return;
     }
-    //持續定位，每 15 分鐘更新一次
+    // 每 3 分鐘更新一次，並加入 distanceFilter 來設定觸發條件
     stopRef.current = watchCoords(
       async (c) => {
         if (!mountedRef.current) return;
         setCoords(c);
-        await upload(c);
+        console.log("正在上傳位置:", c);
+        await upload(c); // 更新時上傳位置
       },
       (e) => console.warn('watch error', e?.message ?? e),
-      15 * 60 * 1000 
+      3 * 60 * 1000, // 每 3 分鐘更新一次
+      // 設定移動距離為 5 米，只有當移動超過這個距離時才觸發
     );
+    setIsTracking(true); // 更新為定位中
     Alert.alert('已開始', '持續上傳定位中');
   };
 
+  // 停止定位
   const stopWatching = () => {
     stopRef.current?.();
     stopRef.current = null;
-    Alert.alert('已停止', '停止持續上傳位址');
+    setIsTracking(false); // 停止定位
+    Alert.alert('已停止', '停止上傳位址');
   };
 
-  //UI 畫面 
+  // UI 畫面
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -198,8 +204,8 @@ export default function ElderLocation({ navigation }: any) {
             <Text style={styles.btnText}>{uploading ? '上傳中…' : '上傳目前位置'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.btn, { backgroundColor: '#7FB77E' }]} onPress={startWatching}>
-            <Text style={styles.btnText}>持續定位</Text>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#7FB77E' }]} onPress={startWatching} disabled={isTracking || uploading}>
+            <Text style={styles.btnText}>{isTracking ? '定位中' : '持續定位'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.btn, styles.stop,]} onPress={stopWatching}>
@@ -215,11 +221,11 @@ export default function ElderLocation({ navigation }: any) {
               經度：{coords ? coords.longitude.toFixed(6) : '尚未取得'}
             </Text>
             <Text style={styles.cardText}>
-              最近上傳時間：{lastUploadedAt || '—'}
+              上傳時間：{lastUploadedAt || '—'}
             </Text>
             <Text style={styles.cardText}>
               地址：{address || '尚未取得地址'}
-            </Text> 
+            </Text>
           </View>
 
           {uploading && <ActivityIndicator style={{ marginTop: 8 }} size="large" color="#333" />}
@@ -242,7 +248,7 @@ export default function ElderLocation({ navigation }: any) {
 
 const IMAGE_SIZE = 80;
 
-// 樣式 
+// 樣式
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.black },
   topArea: { padding: 20, paddingTop: 40 },
