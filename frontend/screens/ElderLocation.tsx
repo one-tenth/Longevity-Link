@@ -24,7 +24,7 @@ import {
   reverseGeocode,
 } from '../utils/locationUtils';
 
-const BASE_URL = 'http://192.168.0.91:8000';
+const BASE_URL = 'http://192.168.1.106:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -154,16 +154,17 @@ export default function ElderLocation({ navigation }: any) {
       Alert.alert('提示', '已在持續上傳中');
       return;
     }
-
+    //持續定位，每 15 分鐘更新一次
     stopRef.current = watchCoords(
       async (c) => {
         if (!mountedRef.current) return;
         setCoords(c);
         await upload(c);
       },
-      (e) => console.warn('watch error', e?.message ?? e)
+      (e) => console.warn('watch error', e?.message ?? e),
+      15 * 60 * 1000 
     );
-    Alert.alert('已開始', '持續上傳定位中（每 60 秒）');
+    Alert.alert('已開始', '持續上傳定位中');
   };
 
   const stopWatching = () => {
@@ -213,9 +214,12 @@ export default function ElderLocation({ navigation }: any) {
             <Text style={styles.cardText}>
               經度：{coords ? coords.longitude.toFixed(6) : '尚未取得'}
             </Text>
-
-            {/* <Text style={styles.cardText}>最近上傳時間：{lastUploadedAt || '—'}</Text> */}
-            {/* <Text style={styles.cardText}>地址：{address || '尚未取得地址'}</Text> */}
+            <Text style={styles.cardText}>
+              最近上傳時間：{lastUploadedAt || '—'}
+            </Text>
+            <Text style={styles.cardText}>
+              地址：{address || '尚未取得地址'}
+            </Text> 
           </View>
 
           {uploading && <ActivityIndicator style={{ marginTop: 8 }} size="large" color="#333" />}
