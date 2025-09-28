@@ -18,6 +18,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
+import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap
 
 type NavProp = StackNavigationProp<RootStackParamList, 'Profile'>;
 
@@ -29,6 +30,7 @@ interface UserProfile {
   Borndate: string; // YYYY-MM-DD
   FamilyID: string;
   Fcode: string;
+  avatar?: string;  // ⭐ 加入頭貼欄位
 }
 
 const COLORS = {
@@ -80,14 +82,19 @@ export default function ProfileScreen() {
       }
 
       try {
-
-        const res = await fetch('http://192.168.0.24:8000/account/me/', {
-
+        const res = await fetch('http://172.20.10.2:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');
         const data = await res.json();
-        setProfile(data);
+
+        // ⭐ 如果沒有 avatar，補上 woman.png 當預設
+        const withAvatar: UserProfile = {
+          ...data,
+          avatar: data?.avatar || 'woman.png',
+        };
+
+        setProfile(withAvatar);
         if (data?.Name) await AsyncStorage.setItem('user_name', data.Name);
       } catch (err) {
         console.error('載入個人資料失敗:', err);
@@ -107,12 +114,9 @@ export default function ProfileScreen() {
         'elder_id', 'elder_name', 'user_name'
       ]);
 
-      // 若有在其他地方快取使用者狀態，這裡也順手清掉
       setProfile(null);
-
       Alert.alert('已登出');
 
-      // 重置導航堆疊回登入畫面（返回鍵不會回到登出前頁）
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -157,7 +161,7 @@ export default function ProfileScreen() {
       {/* ==== HERO ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
-          <Image source={require('../img/childhome/image.png')} style={styles.avatar} />
+          <Image source={getAvatarSource(profile.avatar)} style={styles.avatar} /> 
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>{profile.Name || '使用者'}</Text>
             <Text style={{ color: COLORS.green, opacity: 0.95 }}>
@@ -176,7 +180,7 @@ export default function ProfileScreen() {
           <InfoRow label="用戶ID" value={String(profile.UserID || '—')} />
         </View>
 
-        {/* 快捷卡：只留「家庭成員 / 登出」 */}
+        {/* 快捷卡：家庭成員 / 登出 */}
         <View style={styles.grid2x2}>
           <QuickIcon
             big
@@ -197,7 +201,7 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* 底部功能列（不變） */}
+      {/* 底部功能列 */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
           <FontAwesome name="user" size={28} color="#fff" />
@@ -255,7 +259,6 @@ const styles = StyleSheet.create({
   avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.white },
   hello: { fontSize: 22, fontWeight: '900' },
 
-  // 橫列資訊卡容器
   infoBox: {
     marginHorizontal: 16,
     marginBottom: 16,

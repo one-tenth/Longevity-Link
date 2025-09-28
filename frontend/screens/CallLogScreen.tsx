@@ -10,7 +10,7 @@ import CallLogs from 'react-native-call-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.24:8000'; // ← 換成你的後端 IP
+const API_BASE = 'http://172.20.10.2:8000'; // ← 換成你的後端 IP
 
 // ===== 型別 =====
 type DeviceCall = {

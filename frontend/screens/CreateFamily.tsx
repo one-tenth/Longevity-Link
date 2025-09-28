@@ -1,28 +1,58 @@
+// CreateFamily.tsx
 import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Image,
-  TouchableOpacity,
   StatusBar,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../App';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
+import { RootStackParamList } from '../App';
 
-/** =========================
- *  弧形標題：CareMate（置中）
- *  ========================= */
+type CreateFamilyNavProp = StackNavigationProp<RootStackParamList, 'CreateFamily'>;
+
+/** ====== 配色、圓角、陰影（與 ChildHome 對齊） ====== */
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  cream: '#FFFCEC',
+  textDark: '#111',
+  textMid: '#333',
+  green: '#A6CFA1',
+  grayBox: '#F2F2F2',
+};
+
+const R = 22;
+
+const outerShadow = {
+  elevation: 4,
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+} as const;
+
+const lightShadow = {
+  elevation: 2,
+  shadowColor: '#000',
+  shadowOpacity: 0.05,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 2 },
+} as const;
+
+/** 弧形標題：置中 CareMate（與你原本一致） */
 function ArcText() {
   return (
     <Svg width={420} height={120} viewBox="0 0 360 90" style={{ alignSelf: 'center' }}>
       <Defs>
         <Path id="curve" d="M60,70 Q180,10 300,70" fill="none" />
       </Defs>
-      <SvgText fill="#000000" fontSize="42" fontWeight="bold" fontFamily="FascinateInline-Regular">
+      <SvgText fill={COLORS.textDark} fontSize="42" fontWeight="bold" fontFamily="FascinateInline-Regular">
         <TextPath href="#curve" startOffset="0%" textAnchor="start">
           .CareMate.
         </TextPath>
@@ -31,120 +61,119 @@ function ArcText() {
   );
 }
 
-type CreateFamilyNavProp = StackNavigationProp<RootStackParamList, 'CreateFamily'>;
-
 export default function CreateFamily() {
   const navigation = useNavigation<CreateFamilyNavProp>();
 
   return (
-    <>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
-      <View style={styles.container}>
-        {/* Header：置中顯示 CareMate */}
-        <View style={styles.headerContainer}>
-          <ArcText />
-        </View>
+    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.formWrapper}>
-            {/* 中間圖示（加陰影） */}
-            <Image
-              source={require('../img/family/basic-needs.png')}
-              style={styles.house}
-            />
-
-            {/* 按鈕區塊 */}
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => navigation.navigate('FamilySetting')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.buttonInner}>
-                <Text style={styles.buttonText}>創建家庭</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* <TouchableOpacity
-              style={styles.button}
-              onPress={() => navigation.navigate('JoinFamily')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.buttonInner}>
-                <Text style={styles.buttonText}>加入家庭</Text>
-              </View>
-            </TouchableOpacity> */}
-          </View>
-        </ScrollView>
+      {/* Header：置中 CareMate */}
+      <View style={ui.header}>
+        <ArcText />
       </View>
-    </>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+        {/* 白色主卡片（與 ChildHome 的卡片圓角/陰影一致） */}
+        <View style={[ui.card, outerShadow]}>
+          {/* 中央圖示：加柔和陰影 */}
+          <Image
+            source={require('../img/family/basic-needs.png')}
+            style={[ui.heroImg, lightShadow]}
+          />
+
+          {/* 主要動作按鈕：Pressable + ripple + 按下縮放（與 ChildHome 快捷卡互動一致） */}
+          <Pressable
+            onPress={() => navigation.navigate('FamilySetting')}
+            android_ripple={{ color: '#00000010' }}
+            style={({ pressed }) => [
+              ui.primaryBtn,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            <View style={ui.primaryInner}>
+              <Text style={ui.primaryText}>創建家庭</Text>
+            </View>
+          </Pressable>
+
+          {/* 若未來要恢復加入家庭，可複製上方 Pressable 並改導頁即可 */}
+          {/*
+          <Pressable
+            onPress={() => navigation.navigate('JoinFamily')}
+            android_ripple={{ color: '#00000010' }}
+            style={({ pressed }) => [
+              ui.secondaryBtn,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            <Text style={ui.secondaryText}>加入家庭</Text>
+          </Pressable>
+          */}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFCEC', paddingTop: 12 },
-
-  // 標題置中
-  headerContainer: {
+/** ====== Styles（風格與 ChildHome 對齊） ====== */
+const ui = StyleSheet.create({
+  header: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 19,
-    transform: [{ scale: 0.90 }],
+    paddingTop: 16,
+    transform: [{ scale: 0.9 }],
+    backgroundColor: COLORS.white,
   },
 
-  scrollContainer: { paddingBottom: 40 },
-
-  // 白色面板
-  formWrapper: {
-    backgroundColor: '#FCFCFC',
-    borderRadius: 30,
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: R,
     padding: 20,
-    marginHorizontal: 20,
-    marginTop: 38,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4,
+    marginHorizontal: 16,
+    marginTop: 28,
   },
 
-  // 中間圖示：加明顯陰影
-  house: {
+  heroImg: {
     width: 240,
     height: 240,
-    marginVertical: 40,
     resizeMode: 'contain',
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
-    elevation: 8,
+    marginVertical: 28,
   },
 
-  // 按鈕
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+  primaryBtn: {
+    backgroundColor: COLORS.black,
+    borderRadius: R,
+    paddingVertical: 18,
     alignItems: 'center',
-    paddingVertical: 18, // 高度加大
-    width: '85%', // ✅ 按鈕變寬
-    alignSelf: 'center', // 水平置中
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 5,
-    elevation: 5,
+    justifyContent: 'center',
+    marginHorizontal: 8,
+    ...outerShadow,
   },
-  buttonInner: {
+  primaryInner: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: {
-    fontSize: 26, // 文字變大
-    color: '#000',
+  primaryText: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  //（備用）淺色次要按鈕
+  secondaryBtn: {
+    backgroundColor: COLORS.cream,
+    borderRadius: R,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    marginHorizontal: 8,
+  },
+  secondaryText: {
+    color: COLORS.textDark,
+    fontSize: 18,
     fontWeight: '900',
   },
 });
