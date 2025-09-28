@@ -1,8 +1,17 @@
 // ChildHome.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Image, TouchableOpacity, StatusBar,
-  ScrollView, Pressable, Alert, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  StatusBar,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -11,7 +20,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
-import { getAvatarSource } from '../utils/avatarMap';   // ⭐ 使用 avatarMap
+import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap，有缺就走文字頭像
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
@@ -22,7 +31,7 @@ interface Member {
   avatar?: string;
 }
 
-const API_BASE = 'http://192.168.31.126:8000';
+const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
 
 const COLORS = {
   white: '#FFFFFF',
@@ -52,6 +61,7 @@ const lightShadow = {
   shadowOffset: { width: 0, height: 2 },
 } as const;
 
+/** 取得本地(裝置)今天 YYYY-MM-DD */
 function getLocalToday(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -66,11 +76,12 @@ export default function ChildHome() {
   const today = useMemo(getLocalToday, []);
   const [loading, setLoading] = useState(false);
 
+  // 統計值
   const [steps, setSteps] = useState<string>('N/A');
-  const [heart, setHeart] = useState<string>('N/A');
+  const [heart, setHeart] = useState<string>('N/A'); // 來自 healthcare.pulse
   const [bp, setBp] = useState<string>('N/A');
 
-  // 讀取已選成員
+  // 讀取已選成員（沒有 avatar 時補上預設檔名，並兼容寫入 elder_*）
   useEffect(() => {
     const loadSelectedMember = async () => {
       const stored = await AsyncStorage.getItem('selectedMember');
@@ -80,11 +91,9 @@ export default function ChildHome() {
       }
       try {
         const parsed: Member = JSON.parse(stored);
-        // ⭐ 沒有 avatar 時補上 woman.png
-        setSelectedMember({
-          ...parsed,
-          avatar: parsed.avatar || "woman.png",
-        });
+        const merged: Member = { ...parsed, avatar: parsed.avatar || 'woman.png' };
+        setSelectedMember(merged);
+
         if (parsed?.RelatedID != null) {
           await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
           await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
@@ -97,7 +106,7 @@ export default function ChildHome() {
     return unsub;
   }, [navigation]);
 
-  // 查詢當天 fitdata / healthcare
+  // 查詢「當天」fitdata / healthcare（用 user_id）
   useEffect(() => {
     const fetchAll = async () => {
       if (!selectedMember?.UserID) return;
@@ -115,30 +124,43 @@ export default function ChildHome() {
           return;
         }
 
-        // -------- FITDATA --------
-        const fitUrl =
-          `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        // FITDATA
+        const fitUrl = `${API_BASE}/api/fitdata/by-date/?user_id=${encodeURIComponent(
+          String(selectedMember.UserID)
+        )}&date=${today}`;
         const fitResp = await fetch(fitUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (fitResp.ok) {
           const fit = await fitResp.json();
           if (isFiniteNum(fit?.steps)) setSteps(`${Number(fit.steps)}`);
+        } else if (fitResp.status !== 404) {
+          console.warn('fitdata 讀取失敗', await safeText(fitResp));
         }
 
-        // -------- HEALTHCARE --------
-        const hcUrl =
-          `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(String(selectedMember.UserID))}&date=${today}`;
+        // HEALTHCARE（晚 > 早）
+        const hcUrl = `${API_BASE}/api/healthcare/by-date/?user_id=${encodeURIComponent(
+          String(selectedMember.UserID)
+        )}&date=${today}`;
         const hcResp = await fetch(hcUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (hcResp.ok) {
           const hc = await hcResp.json();
-          const sys = num(hc?.systolic);
-          const dia = num(hc?.diastolic);
-          const pulse = num(hc?.pulse);
-          if (sys != null && dia != null) setBp(`${sys}/${dia}`);
-          if (pulse != null) setHeart(`${pulse}`);
+          // 結構預期：{ morning: {...} | null, evening: {...} | null }
+          const morning = hc?.morning ?? null;
+          const evening = hc?.evening ?? null;
+          const latestData = evening || morning;
+
+          if (latestData) {
+            const sys = num(latestData.systolic);
+            const dia = num(latestData.diastolic);
+            const pulse = num(latestData.pulse);
+            if (sys != null && dia != null) setBp(`${sys}/${dia}`);
+            if (pulse != null) setHeart(`${pulse}`);
+          }
+        } else if (hcResp.status !== 404) {
+          console.warn('healthcare 讀取失敗', await safeText(hcResp));
         }
       } catch (err) {
         console.error('讀取資料錯誤:', err);
@@ -151,6 +173,7 @@ export default function ChildHome() {
     fetchAll();
   }, [selectedMember?.UserID, today, navigation]);
 
+  // 回診資料（仍沿用 RelatedID 給你的回診頁）
   const goHospital = async () => {
     if (!selectedMember || !selectedMember.RelatedID) {
       Alert.alert('提醒', '請先選擇要照護的長者');
@@ -165,27 +188,71 @@ export default function ChildHome() {
     } as never);
   };
 
+  /** 通話紀錄：未選長者就先跳 FamilyScreen；iOS 限制提示 */
+  const openCallLogs = async () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');
+      return;
+    }
+    if (!selectedMember || !selectedMember.RelatedID) {
+      const maybeElderId = await AsyncStorage.getItem('elder_id');
+      if (!maybeElderId) {
+        Alert.alert('提醒', '請先選擇要照護的長者');
+        navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+        return;
+      }
+    } else {
+      await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
+      await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
+    }
+    navigation.navigate('CallLogScreen' as never);
+  };
+
+  // 定位
+  const goLocation = async () => {
+    if (!selectedMember) {
+      Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
+      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      return;
+    }
+    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;
+    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
+    await AsyncStorage.setItem('elder_id', String(elderId));
+    navigation.navigate('Location' as never, {
+      elderId,
+      elderName: selectedMember.Name,
+    } as never);
+  };
+
+  // Avatar source / fallback
+  const avatarSrc = getAvatarSource(selectedMember?.avatar) as any | undefined;
+  const initial = selectedMember?.Name?.[0] ?? '人';
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ==== HERO ==== */}
+      {/* ==== HERO（黑色大卡） ==== */}
       <View style={[styles.hero, { backgroundColor: COLORS.black }, outerShadow]}>
         <View style={styles.heroRow}>
           <Pressable onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' } as never)}>
-            <Image
-              source={getAvatarSource(selectedMember?.avatar)}
-              style={styles.avatar}
-            />
+            {avatarSrc ? (
+              <Image source={avatarSrc} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+            )}
           </Pressable>
+
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>
               {selectedMember?.Name || '尚未選擇'}
             </Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
-              {`日期 ${today}`}
-            </Text>
+            <Text style={{ color: COLORS.green, opacity: 0.95 }}>{`日期 ${today}`}</Text>
           </View>
+
+          {/* 設定鈕 → 選擇家人頁 */}
           <TouchableOpacity
             onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
@@ -195,7 +262,7 @@ export default function ChildHome() {
         </View>
       </View>
 
-      {/* Scroll 內容 */}
+      {/* 內容捲動區 */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {loading ? (
           <View style={{ paddingTop: 24, alignItems: 'center' }}>
@@ -204,12 +271,14 @@ export default function ChildHome() {
           </View>
         ) : null}
 
+        {/* 統計列 */}
         <View style={[styles.statsBar, outerShadow]}>
           <StatBox title="步數" value={steps} />
           <StatBox title="心率" value={heart} suffix={heart !== 'N/A' ? 'bpm' : undefined} />
           <StatBox title="血壓" value={bp} />
         </View>
 
+        {/* 功能列 */}
         <View style={styles.grid2x2}>
           <QuickIcon
             big
@@ -239,12 +308,21 @@ export default function ChildHome() {
             bg={COLORS.green}
             icon={<Feather name="phone-call" size={32} color={COLORS.black} />}
             label="通話紀錄"
-            onPress={() => navigation.navigate('CallRecord' as never)}
+            onPress={openCallLogs}
+            darkLabel={false}
+          />
+          <QuickIcon
+            big
+            bg={COLORS.green}
+            icon={<MaterialIcons name="location-on" size={32} color={COLORS.black} />}
+            label="家人定位"
+            onPress={goLocation}
             darkLabel={false}
           />
         </View>
       </ScrollView>
 
+      {/* 底部功能列 */}
       <View style={styles.bottomBox}>
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('Profile' as never)}>
           <FontAwesome name="user" size={28} color="#fff" />
@@ -280,9 +358,19 @@ async function safeText(r: Response) {
 
 /* ====== 子元件 ====== */
 function QuickIcon({
-  bg, icon, label, onPress, darkLabel = true, big = false,
+  bg,
+  icon,
+  label,
+  onPress,
+  darkLabel = true,
+  big = false,
 }: {
-  bg: string; icon: React.ReactNode; label: string; onPress: () => void; darkLabel?: boolean; big?: boolean;
+  bg: string;
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  darkLabel?: boolean;
+  big?: boolean;
 }) {
   return (
     <Pressable
@@ -295,16 +383,20 @@ function QuickIcon({
         pressed && { transform: [{ scale: 0.97 }] },
       ]}
     >
-      <View style={[
-        quick.iconCircle,
-        { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 },
-      ]}>
+      <View
+        style={[
+          quick.iconCircle,
+          { width: big ? 60 : 52, height: big ? 60 : 52, borderRadius: big ? 30 : 26 },
+        ]}
+      >
         {icon}
       </View>
-      <Text style={[
-        quick.label,
-        { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 },
-      ]}>
+      <Text
+        style={[
+          quick.label,
+          { color: darkLabel ? COLORS.black : COLORS.white, fontSize: big ? 18 : 16 },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -316,7 +408,8 @@ function StatBox({ title, value, suffix }: { title: string; value: string; suffi
     <View style={stats.box}>
       <Text style={stats.title}>{title}</Text>
       <Text style={stats.value}>
-        {value}{suffix ? <Text style={stats.suffix}> {suffix}</Text> : null}
+        {value}
+        {suffix ? <Text style={stats.suffix}> {suffix}</Text> : null}
       </Text>
     </View>
   );
@@ -326,7 +419,18 @@ function StatBox({ title, value, suffix }: { title: string; value: string; suffi
 const styles = StyleSheet.create({
   hero: { margin: 16, marginBottom: 8, padding: 16, borderRadius: R },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.white },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallback: { backgroundColor: '#EAF6EA' },
+  avatarText: { fontSize: 18, fontWeight: '900', color: COLORS.textDark },
+
   hello: { fontSize: 22, fontWeight: '900' },
   iconBtn: { padding: 10, borderRadius: 12 },
 
@@ -348,10 +452,16 @@ const styles = StyleSheet.create({
   },
   bottomBox: {
     position: 'absolute',
-    left: 0, right: 0, bottom: 0,
-    height: 72, backgroundColor: COLORS.black,
-    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 8,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+    backgroundColor: COLORS.black,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },

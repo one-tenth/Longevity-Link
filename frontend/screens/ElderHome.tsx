@@ -22,6 +22,8 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
 import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
+import ElderLocation from './ElderLocation';  //
+
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
@@ -65,7 +67,7 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://192.168.31.126:8000';
+const BASE = 'http://172.20.10.2:8000';
 
 // ---- Types ----
 type HospitalRecord = {
@@ -327,6 +329,8 @@ export default function ElderHome() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
+      {/* ★ 新增：無 UI 的定位上傳器（掛載即可定時上傳 GPS） */}
+      <ElderLocation />
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>

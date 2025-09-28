@@ -1,12 +1,20 @@
+// screens/FamilyScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, StatusBar, Alert, Image,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  StatusBar,
+  Alert,
+  Image,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
-import { getAvatarSource } from '../utils/avatarMap';  // ⭐ 共用頭貼
+import { getAvatarSource } from '../utils/avatarMap';
 
 type FamilyNavProp = StackNavigationProp<RootStackParamList, 'FamilyScreen'>;
 type FamilyRouteProp = RouteProp<RootStackParamList, 'FamilyScreen'>;
@@ -15,7 +23,7 @@ interface Member {
   UserID: number;
   Name: string;
   RelatedID: number | null;
-  avatar?: string;   // ⭐ 新增
+  avatar?: string;
 }
 
 const COLORS = {
@@ -27,7 +35,9 @@ const COLORS = {
   green: '#A6CFA1',
   grayBox: '#F2F2F2',
 };
+
 const R = 22;
+const API_BASE = 'http://172.20.10.2:8000';
 
 const outerShadow = {
   elevation: 4,
@@ -57,8 +67,6 @@ const FamilyScreen = () => {
 
   useEffect(() => {
     const fetchUserAndMembers = async () => {
-      await AsyncStorage.removeItem('selectedMember');
-
       const token = await AsyncStorage.getItem('access');
       if (!token) {
         navigation.reset({ index: 0, routes: [{ name: 'LoginScreen' }] });
@@ -66,33 +74,36 @@ const FamilyScreen = () => {
       }
 
       try {
-        // 1) /account/me
-        const resMe = await fetch('http://192.168.31.126:8000/account/me/', {
+        const resMe = await fetch(`${API_BASE}/account/me/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
 
-        setUserId(user?.UserID ?? null);
+        setUserId(user?.id ?? user?.UserID ?? null);
+        setFamilyName(
+          user?.FamilyName ?? user?.Family?.Name ?? user?.family_name ?? '家庭'
+        );
+        const codeGuess =
+          user?.FamilyCode ??
+          user?.family_code ??
+          user?.FamilyID?.Code ??
+          user?.FamilyID?.code ??
+          (typeof user?.FamilyID === 'string' ? user.FamilyID : null) ??
+          null;
+        setFamilyCode(codeGuess);
 
-        // 家庭名稱
-        let nameFromApi = user?.FamilyName || '';
-        setFamilyName(nameFromApi || `${user?.Name ?? ''}的家庭`);
-
-        // 家庭代碼
-        setFamilyCode(user?.Fcode ?? null);
-
-        // 2) /family/members/
-        const resMembers = await fetch('http://192.168.31.126:8000/family/members/', {
+        const resMembers = await fetch(`${API_BASE}/family/members/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMembers.ok) throw new Error('取得成員失敗');
 
         const membersData = await resMembers.json();
         if (Array.isArray(membersData)) {
-          const filtered = mode === 'select'
-            ? membersData.filter((m: Member) => m.RelatedID !== null)
-            : membersData;
+          const filtered =
+            mode === 'select'
+              ? membersData.filter((m: Member) => m.RelatedID !== null)
+              : membersData;
           setMembers(filtered);
         } else {
           setMembers([]);
@@ -107,6 +118,14 @@ const FamilyScreen = () => {
     fetchUserAndMembers();
   }, [mode, navigation]);
 
+  const handleSelect = async (m: Member) => {
+    const elderId = m.RelatedID ?? m.UserID;
+    await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
+    await AsyncStorage.setItem('elder_id', String(elderId));
+    await AsyncStorage.setItem('elder_name', m.Name);
+    navigation.navigate('ChildHome');
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -116,6 +135,7 @@ const FamilyScreen = () => {
         <Text style={styles.familyTitle}>
           {familyName}（{members.length}）
         </Text>
+
         {familyCode ? (
           <View style={styles.codeBox}>
             <Text style={styles.codeLabel}>家庭代碼</Text>
@@ -124,29 +144,33 @@ const FamilyScreen = () => {
         ) : null}
       </View>
 
-      {/* ===== 成員網格 ===== */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={styles.grid}>
-          {members.length > 0 ? (
-            members.map((m, idx) => (
+      {/* ===== 成員清單 ===== */}
+      <ScrollView contentContainerStyle={styles.grid}>
+        {members.length > 0 ? (
+          members.map((m) => {
+            const src = getAvatarSource(m.avatar) as any | undefined;
+            const initial = m?.Name?.[0] ?? '人';
+
+            return (
               <Pressable
-                key={`${m.UserID}-${idx}`}
-                onPress={async () => {
-                  await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
-                  navigation.navigate('ChildHome');
-                }}
+                key={m.UserID}
+                onPress={() => handleSelect(m)}
                 android_ripple={{ color: '#00000010' }}
                 style={({ pressed }) => [
                   styles.card,
                   lightShadow,
-                  pressed && { transform: [{ scale: 0.97 }] },
+                  pressed && { transform: [{ scale: 0.98 }] },
                 ]}
               >
-                <Image
-                  source={getAvatarSource(m.avatar)}
-                  style={styles.avatar}
-                />
-                <Text style={styles.name} numberOfLines={1}>{m.Name}</Text>
+                {src ? (
+                  <Image source={src} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarFallback]}>
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  </View>
+                )}
+
+                <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
                 <Text
                   style={[
                     styles.roleBadge,
@@ -156,13 +180,13 @@ const FamilyScreen = () => {
                   {m.RelatedID ? '長者' : '家人'}
                 </Text>
               </Pressable>
-            ))
-          ) : (
-            <Text style={{ textAlign: 'center', color: COLORS.textMid, marginTop: 24 }}>
-              尚未取得成員資料
-            </Text>
-          )}
-        </View>
+            );
+          })
+        ) : (
+          <Text style={{ textAlign: 'center', color: COLORS.textMid, marginTop: 24 }}>
+            尚未取得成員資料
+          </Text>
+        )}
       </ScrollView>
 
       {/* ===== 底部按鈕 ===== */}
@@ -174,6 +198,8 @@ const FamilyScreen = () => {
                 mode: 'addElder',
                 creatorId: userId,
               });
+            } else {
+              Alert.alert('無法新增', '尚未取得使用者資訊');
             }
           }}
           android_ripple={{ color: '#FFFFFF20' }}
@@ -227,6 +253,7 @@ const styles = StyleSheet.create({
   grid: {
     marginHorizontal: 16,
     marginTop: 8,
+    paddingBottom: 100,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
@@ -240,6 +267,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
   },
   avatar: {
     width: 64,
@@ -248,11 +277,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.grayBox,
     marginBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  avatarFallback: {
+    backgroundColor: '#EAF6EA',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.textDark,
+  },
+
   name: { fontSize: 16, fontWeight: '900', color: COLORS.textDark },
 
   roleBadge: {
-    marginTop: 4,
+    marginTop: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -264,7 +304,9 @@ const styles = StyleSheet.create({
 
   bottomBar: {
     position: 'absolute',
-    left: 0, right: 0, bottom: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     height: 84,
     backgroundColor: COLORS.white,
     flexDirection: 'row',

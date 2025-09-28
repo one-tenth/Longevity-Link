@@ -47,7 +47,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch('http://192.168.31.126:8000/api/account/login/', {
+      const response = await fetch('http://172.20.10.2:8000/api/account/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ Phone, password }),
@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  
   button: {
     backgroundColor: '#37613C',
     paddingVertical: 12,

@@ -7,7 +7,6 @@ load_dotenv()
 import os
 
 
-
 """
 Django settings for back_end project.
 
@@ -109,22 +108,13 @@ SIMPLE_JWT = {
 }
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'mysql.connector.django',
-#         'NAME': 'railway',
-#         'USER': 'root',
-#         'PASSWORD': 'GIiERsjNCgywBKBaSSfCBTWkwUPkIDoW',
-#         'HOST': 'mysql.railway.internal',
-#         'PORT': '3306',
-#     }
-# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'chei0515',   # ← 登入用的密碼
+        'PASSWORD': 'eric264859',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }
@@ -176,3 +166,8 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+import os
+GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_API_KEY")  #金鑰在專案的 .env
+GOOGLE_GEOCODING_KEY = os.getenv("GEOCODING_KEY")
+

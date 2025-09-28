@@ -31,7 +31,7 @@ const COLORS = {
   gray: '#9AA0A6',
 };
 
-const API_BASE = 'http://192.168.31.126:8000';
+const API_BASE = 'http://172.20.10.2:8000';
 
 // ---- 型別：後端目前只回 MedId 與 Disease，足夠用來統計數量與顯示診斷 ----
 type MedItem = {

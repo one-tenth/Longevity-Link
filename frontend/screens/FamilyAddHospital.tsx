@@ -10,10 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-
-const BASE = 'http://192.168.31.126:8000';
+const BASE = 'http://172.20.10.2:8000';
 
 async function authPost<T>(url: string, data: any) {
   let access = await AsyncStorage.getItem('access');

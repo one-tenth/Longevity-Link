@@ -52,7 +52,7 @@ interface RegisterData {
   avatar?: string;
 }
 
-const API_BASE = 'http://192.168.31.126:8000';
+const API_BASE = 'http://172.20.10.2:8000';
 
 export default function RegisterScreen() {
   const navigation = useNavigation();
