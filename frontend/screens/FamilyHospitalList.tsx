@@ -1,3 +1,4 @@
+// FamilyHospitalList.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -13,9 +14,10 @@ import { useNavigation, useFocusEffect, RouteProp } from '@react-navigation/nati
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import FontAwesome from 'react-native-vector-icons/FontAwesome'; // ★ 修正：補上 import
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://172.20.10.2:8000';
 
 type HospitalRecord = {
   HosId?: number;
@@ -27,7 +29,6 @@ type HospitalRecord = {
   Num: number;
 };
 
-type RouteParams = { elderId?: number };
 type HospitalListNav = StackNavigationProp<RootStackParamList, 'FamilyHospitalList'>;
 type HospitalListRoute = RouteProp<RootStackParamList, 'FamilyHospitalList'>;
 
@@ -37,7 +38,7 @@ const COLORS = {
   textDark: '#111',
   textMid: '#333',
   green: '#A6CFA1',
-  cream: '#FFFCEC', // ⭐ 你剛剛給的黃色
+  cream: '#FFFCEC',
 };
 
 const R = 22;
@@ -51,11 +52,13 @@ const outerShadow = {
 
 export default function FamilyHospitalList({ route }: { route: HospitalListRoute }) {
   const navigation = useNavigation<HospitalListNav>();
+
   const [records, setRecords] = useState<HospitalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [elderId, setElderId] = useState<number | null>(null);
   const [hint, setHint] = useState<string>('');
 
+  // 讀 elderId（優先 route → 再 AsyncStorage）
   const loadElderInfo = useCallback(async () => {
     if (typeof route.params?.elderId === 'number' && !Number.isNaN(route.params.elderId)) {
       setElderId(route.params.elderId);
@@ -67,6 +70,7 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
     }
   }, [route.params]);
 
+  // 取清單
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     setHint('');
@@ -107,7 +111,15 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
     }
   }, [elderId]);
 
-  useFocusEffect(useCallback(() => { loadElderInfo(); fetchRecords(); }, [loadElderInfo, fetchRecords]));
+  // 畫面聚焦→同步 elderId 並拉資料
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        await loadElderInfo();
+        await fetchRecords();
+      })();
+    }, [loadElderInfo, fetchRecords])
+  );
 
   const getPk = (r: HospitalRecord) => r.HosId ?? r.HosID ?? r.id;
   const getKey = (r: HospitalRecord) => String(getPk(r) ?? Math.random());
@@ -123,7 +135,10 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
   const handleDelete = async (pk: number) => {
     try {
       const token = await AsyncStorage.getItem('access');
-      if (!token) { Alert.alert('錯誤', '尚未登入'); return; }
+      if (!token) {
+        Alert.alert('錯誤', '尚未登入');
+        return;
+      }
 
       let id = elderId;
       if (id == null || Number.isNaN(id)) {
@@ -147,7 +162,9 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
       });
     } catch (e: any) {
       const status = e?.response?.status;
-      const msg = e?.response?.data?.error || (status >= 500 ? '伺服器錯誤，請稍後再試' : '刪除失敗');
+      const msg =
+        e?.response?.data?.error ||
+        (status >= 500 ? '伺服器錯誤，請稍後再試' : '刪除失敗');
       console.log('刪除失敗:', status, e?.response?.data);
       Alert.alert('刪除失敗', msg);
     }
@@ -182,7 +199,9 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
       <ScrollView
         style={{ width: '100%' }}
         contentContainerStyle={{ alignItems: 'center' }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecords} />}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={fetchRecords} />
+        }
       >
         {records.length > 0 ? (
           records.map((r) => {
@@ -192,7 +211,10 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
                 <View style={styles.cardRow}>
                   <Text style={styles.time}>日期：{r.ClinicDate}</Text>
                   {pk != null && (
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => confirmDelete(pk)}
+                    >
                       <Text style={styles.deleteText}>刪除</Text>
                     </TouchableOpacity>
                   )}
@@ -208,7 +230,7 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
         )}
       </ScrollView>
 
-      {/* 黑底圓弧長方形 FAB：新增紀錄 */}
+      {/* 新增紀錄 FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('FamilyAddHospital' as never)}

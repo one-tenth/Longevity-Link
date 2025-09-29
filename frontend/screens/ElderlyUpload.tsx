@@ -1,5 +1,5 @@
 // screens/ElderlyUpload.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, Alert,
   PermissionsAndroid, Platform, ScrollView, StatusBar, ActivityIndicator,
@@ -11,7 +11,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import * as RNLocalize from 'react-native-localize';   // ✅ 新增
+import * as RNLocalize from 'react-native-localize';   // ✅ 取得時區
 
 type ElderlyUploadNavProp = StackNavigationProp<RootStackParamList, 'ElderlyUpload'>;
 
@@ -25,7 +25,7 @@ const COLORS = {
 };
 
 // ✅ 統一 API Base（自行修改成你的 IP / 網域）
-const API_BASE = 'http://192.168.0.91:8000';
+const API_BASE = 'http://172.20.10.2:8000';
 const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 
@@ -33,6 +33,35 @@ export default function ElderlyUpload() {
   const navigation = useNavigation<ElderlyUploadNavProp>();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // ✅ 新增：使用者姓名（預設顯示「使用者」）
+  const [userName, setUserName] = useState<string>('使用者');
+
+  // ✅ 掛載時：先讀快取，再以 /api/account/me/ 覆蓋
+  useEffect(() => {
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem('user_name');
+        if (cached) setUserName(cached);
+
+        const token = await AsyncStorage.getItem('access');
+        if (!token) return;
+
+        const res = await axios.get(`${API_BASE}/api/account/me/`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
+        });
+        const name = res.data?.Name ?? res.data?.name;
+        if (name) {
+          const s = String(name);
+          setUserName(s);
+          await AsyncStorage.setItem('user_name', s);
+        }
+      } catch (e) {
+        console.log('❌ 取得使用者姓名失敗:', e);
+      }
+    })();
+  }, []);
 
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
@@ -56,10 +85,10 @@ export default function ElderlyUpload() {
     return true;
   };
 
-  // ✅ 改用 react-native-localize 取得時區，避免 Intl 崩潰
+  // ✅ 用 react-native-localize 取時區
   const buildFormData = (uri: string) => {
     const now = new Date();
-    const timestampUtc = now.toISOString();           // UTC ISO
+    const timestampUtc = now.toISOString();             // UTC ISO
     const epochMs = String(now.getTime());
     const deviceTz = RNLocalize.getTimeZone() || 'UTC'; // e.g. "Asia/Taipei"
 
@@ -126,9 +155,11 @@ export default function ElderlyUpload() {
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
+          {/* 頭像維持原本預設圖，不改 */}
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>爺爺</Text>
+            {/* ✅ 顯示目前使用者姓名 */}
+            <Text style={styles.userName}>{userName}</Text>
           </View>
         </View>
       </View>

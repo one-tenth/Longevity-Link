@@ -1105,7 +1105,6 @@ def _resolve_target_user_id(request):
     return None
 
 
-# views.py
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response

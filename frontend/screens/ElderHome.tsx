@@ -12,7 +12,6 @@ import {
   TouchableWithoutFeedback,
   Dimensions,
   StatusBar,
-  // ✅ 新增
   Alert,
   PermissionsAndroid,
   Platform,
@@ -25,10 +24,11 @@ import axios from 'axios';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
-import CallLogs from 'react-native-call-log'; // ✅ 新增
+import CallLogs from 'react-native-call-log';
 import { RootStackParamList } from '../App';
 import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
-import ElderLocation from './ElderLocation';  //
+import ElderLocation from './ElderLocation';
+import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 加入頭像來源工具
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
@@ -71,8 +71,41 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
   return cards.findIndex((c) => c.id === targetId);
 }
 
+// ---- Period label mapping (EN -> ZH) ----
+const PERIOD_LABELS: Record<string, string> = {
+  morning: '早上',
+  noon: '中午',
+  evening: '晚上',
+  bedtime: '睡前',
+};
+
+function toZhPeriod(key?: string): string {
+  if (!key) return '';
+  const k = key.trim().toLowerCase();
+
+  if (PERIOD_LABELS[k]) return PERIOD_LABELS[k];
+
+  const tokens = k.split(/[^a-z]+/).filter(Boolean);
+
+  const hasBefore = tokens.includes('before') || tokens.includes('pre') || tokens.includes('premeal') || tokens.includes('pre') || tokens.includes('pre_meal');
+  const hasAfter  = tokens.includes('after')  || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post') || tokens.includes('post_meal');
+  const mealMap: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', meal: '飯' };
+  const mealToken = tokens.find(t => mealMap[t]);
+  if (mealToken) {
+    const mealZh = mealMap[mealToken];
+    if (hasBefore) return `${mealZh}前`;
+    if (hasAfter)  return `${mealZh}後`;
+  }
+
+  for (const t of tokens) {
+    if (PERIOD_LABELS[t]) return PERIOD_LABELS[t];
+  }
+
+  return key;
+}
+
 // ---- API base ----
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://172.20.10.2:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
@@ -103,6 +136,8 @@ type MeInfo = {
   RelatedID?: number | null;
   isElder?: boolean;
   Name?: string;
+  avatar_url?: string | null;
+  avatar?: string | null;
 };
 
 // 解析 elderId：優先 localStorage('elder_id') → /api/account/me/ 的 RelatedID
@@ -135,7 +170,7 @@ async function resolveElderId(): Promise<number | null> {
 const normalizeDateStr = (s?: string) => {
   if (!s) return '';
   const core = s.includes('T') ? s.split('T')[0] : s;
-  return core.replace(/[./]/g, '-'); // 支援 YYYY/MM/DD, YYYY.MM.DD
+  return core.replace(/[./]/g, '-');
 };
 
 const parseDate = (s?: string) => {
@@ -166,7 +201,7 @@ const pickUpcomingNearest = (list: HospitalRecord[]) => {
     if (upcoming) return upcoming.r;
     return parsed[parsed.length - 1].r;
   }
-  return list.length ? list[0] : null; // 保底：解析不到也回傳第一筆
+  return list.length ? list[0] : null;
 };
 
 export default function ElderHome() {
@@ -179,18 +214,20 @@ export default function ElderHome() {
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
 
+  // ⭐ 新增：使用者頭像字串（URL 或 檔名）
+  const [avatar, setAvatar] = useState<string | null>(null);
+
   // ✅ 同步通話 loading 狀態
   const [syncing, setSyncing] = useState(false);
 
   // 每 60 秒刷新一次「下一筆吃藥」
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  // ====== 使用者姓名：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
-  // 小工具：從後端抓取並更新快取（偵測 user_id 變更）
+  // ====== 使用者姓名/頭像：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
   const fetchAndCacheName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('access');
@@ -203,9 +240,9 @@ export default function ElderHome() {
 
       const name = (res.data?.Name || '').toString().trim();
       const uid = res.data?.UserID;
+      const avatarUrl = (res.data?.avatar_url ?? res.data?.avatar) || null;
 
       if (name) {
-        // 如果 user_id 與快取不同，覆蓋舊快取的名字
         const cachedUid = await AsyncStorage.getItem('user_id');
         if (!cachedUid || cachedUid !== String(uid ?? '')) {
           await AsyncStorage.multiSet([
@@ -217,36 +254,47 @@ export default function ElderHome() {
         }
         setUserName(name);
       }
+
+      if (avatarUrl) {
+        setAvatar(avatarUrl);
+        await AsyncStorage.setItem('user_avatar', String(avatarUrl));
+      }
     } catch (err) {
-      console.log('❌ 取得使用者名稱失敗:', err);
+      console.log('❌ 取得使用者資訊失敗:', err);
     }
   }, []);
 
   // 掛載時：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
-    let mounted = true;
     (async () => {
       try {
         const storedName = await AsyncStorage.getItem('user_name');
-        if (storedName) {
-          setUserName(storedName);
-        } else {
-          const token = await AsyncStorage.getItem('access');
-          if (token) {
-            const res = await axios.get(`${BASE}/api/account/me/`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-              if (res.data?.Name) {
-                setUserName(res.data.Name);
-                await AsyncStorage.setItem('user_name', res.data.Name);
-              }
+        if (storedName) setUserName(storedName);
+
+        const storedAvatar = await AsyncStorage.getItem('user_avatar');
+        if (storedAvatar) setAvatar(storedAvatar);
+
+        const token = await AsyncStorage.getItem('access');
+        if (token) {
+          const res = await axios.get(`${BASE}/api/account/me/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (res.data?.Name) {
+            setUserName(res.data.Name);
+            await AsyncStorage.setItem('user_name', res.data.Name);
+          }
+
+          const avatarUrl = res.data?.avatar_url ?? res.data?.avatar;
+          if (avatarUrl) {
+            setAvatar(avatarUrl);
+            await AsyncStorage.setItem('user_avatar', String(avatarUrl));
           }
         }
       } catch (err) {
-        console.log('❌ 抓使用者名稱失敗:', err);
+        console.log('❌ 抓使用者姓名/頭像失敗:', err);
       }
     })();
-    return () => { mounted = false; };
   }, [fetchAndCacheName]);
 
   // 聚焦時再校正（回到此頁就更新）
@@ -270,7 +318,7 @@ export default function ElderHome() {
   const goPrev = () => currentIndex > 0 && setCurrentIndex((i) => i - 1);
   const goNext = () => currentIndex < medCards.length - 1 && setCurrentIndex((i) => i + 1);
 
-  // 抓藥物提醒
+  // 抓藥物提醒（period 轉中文）
   useEffect(() => {
     (async () => {
       const token = await AsyncStorage.getItem('access');
@@ -283,7 +331,7 @@ export default function ElderHome() {
         const converted = Object.entries(raw)
           .map(([key, val], idx) => ({
             id: String(idx + 1),
-            period: key,
+            period: toZhPeriod(key),
             time: val?.time ? String(val.time).slice(0, 5) : '',
             meds: Array.isArray(val?.meds) ? val.meds : [],
           }))
@@ -300,7 +348,7 @@ export default function ElderHome() {
     []
   );
 
-  const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, setTick]);
+  const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, tick]);
   const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
 
   // 看診提醒
@@ -402,83 +450,79 @@ export default function ElderHome() {
   };
 
   // ✅ 同步通話紀錄
-  // ✅ 同步通話紀錄（替換整個 handleSyncCalls）
-const handleSyncCalls = async () => {
-  try {
-    const ok = await askCallLogPermission();
-    if (!ok) return;
+  const handleSyncCalls = async () => {
+    try {
+      const ok = await askCallLogPermission();
+      if (!ok) return;
 
-    setSyncing(true);
+      setSyncing(true);
 
-    const access = await AsyncStorage.getItem('access');
-    if (!access) {
+      const access = await AsyncStorage.getItem('access');
+      if (!access) {
+        setSyncing(false);
+        Alert.alert('尚未登入', '請先登入後再試。');
+        return;
+      }
+
+      // 讀取本機通話紀錄
+      const raw = await CallLogs.loadAll();
+
+      // 取得上次同步點（毫秒）
+      const lastTsStr = await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY);
+      const lastTs = Number(lastTsStr || 0);
+      const isFirstSync = !lastTs || Number.isNaN(lastTs) || lastTs === 0;
+
+      // 轉換 → 過濾無號碼/無時間 → 依時間新→舊排序
+      const mapped = raw
+        .map((r: any) => {
+          const tsNum = Number(r.timestamp || 0);
+          return {
+            phone: r.phoneNumber ?? '',
+            name: r.name ?? '',
+            type: mapType(r.type),
+            timestamp: new Date(tsNum).toISOString(),
+            duration: Number(r.duration || 0),
+            _ts: tsNum,
+            extra: { rawType: r.type },
+          };
+        })
+        .filter(x => !!x.phone && x._ts > 0);
+
+      const sortedDesc = mapped.sort((a, b) => b._ts - a._ts);
+
+      const items = isFirstSync
+        ? sortedDesc.slice(0, 100)
+        : sortedDesc.filter(x => x._ts > lastTs).slice(0, 500);
+
+      if (items.length === 0) {
+        setSyncing(false);
+        Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        return;
+      }
+
+      await axios.post(
+        `${BASE}/api/call/upload/`,
+        {
+          records: items.map(({ _ts, ...rest }) => rest),
+        },
+        { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
+      );
+
+      const maxTs = Math.max(...items.map(x => x._ts));
+      await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
+
       setSyncing(false);
-      Alert.alert('尚未登入', '請先登入後再試。');
-      return;
-    }
-
-    // 讀取本機通話紀錄
-    const raw = await CallLogs.loadAll();
-
-    // 取得上次同步點（毫秒）
-    const lastTsStr = await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY);
-    const lastTs = Number(lastTsStr || 0);
-    const isFirstSync = !lastTs || Number.isNaN(lastTs) || lastTs === 0;
-
-    // 轉換 → 過濾無號碼/無時間 → 依時間新→舊排序
-    const mapped = raw
-      .map((r: any) => {
-        const tsNum = Number(r.timestamp || 0); // 毫秒
-        return {
-          phone: r.phoneNumber ?? '',
-          name: r.name ?? '',
-          type: mapType(r.type),
-          timestamp: new Date(tsNum).toISOString(),
-          duration: Number(r.duration || 0),
-          _ts: tsNum,
-          extra: { rawType: r.type },
-        };
-      })
-      .filter(x => !!x.phone && x._ts > 0);
-
-    const sortedDesc = mapped.sort((a, b) => b._ts - a._ts);
-
-    // ✅ 第一次只上傳「最新 100 筆」；之後只上傳 lastTs 之後的新資料（再設上限）
-    const items = isFirstSync
-      ? sortedDesc.slice(0, 100)                    // ← 第一次 ≤100
-      : sortedDesc.filter(x => x._ts > lastTs).slice(0, 500); // ← 之後 ≤500（可調小）
-
-    if (items.length === 0) {
+      Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
+    } catch (e: any) {
       setSyncing(false);
-      Alert.alert('沒有新紀錄', '已經是最新狀態。');
-      return;
+      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
+      Alert.alert('上傳失敗', msg);
     }
+  };
 
-    // 可選：若你想讓「家人端」查看某位長者，這裡也可以帶 elder_id
-    // const elderId = await resolveElderId();
-
-    await axios.post(
-      `${BASE}/api/call/upload/`,
-      {
-        records: items.map(({ _ts, ...rest }) => rest),
-        // elder_id: elderId, // ← 需要就解除註解
-      },
-      { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
-    );
-
-    // 更新同步點（用這批中最大的時間）
-    const maxTs = Math.max(...items.map(x => x._ts));
-    await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
-
-    setSyncing(false);
-    Alert.alert('上傳完成', `成功上傳 `);
-  } catch (e: any) {
-    setSyncing(false);
-    const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
-    Alert.alert('上傳失敗', msg);
-  }
-};
-
+  // ⭐ 計算實際要餵給 <Image> 的來源（URL/檔名 轉 source）
+  const avatarSrc =
+    (getAvatarSource(avatar) as any) || require('../img/elderlyhome/grandpa.png');
 
   return (
     <View style={styles.container}>
@@ -487,7 +531,11 @@ const handleSyncCalls = async () => {
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
-          <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
+          <Image
+            source={avatarSrc}
+            style={styles.userIcon}
+            onError={() => setAvatar(null)}
+          />
           <View style={{ flex: 1 }}>
             <Text style={styles.userName}>{userName}</Text>
           </View>
@@ -527,6 +575,13 @@ const handleSyncCalls = async () => {
                   <View style={styles.infoRow}>
                     <FontAwesome name="user-md" size={20} color={COLORS.textMid} />
                     <Text style={styles.infoText}>{reminder.Doctor}</Text>
+                  </View>
+                  {/* ⭐ 新增：看診號碼 Num */}
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="confirmation-number" size={22} color={COLORS.textMid} />
+                    <Text style={styles.infoText}>
+                      {reminder.Num ?? '—'}
+                    </Text>
                   </View>
                 </>
               ) : (
@@ -589,7 +644,7 @@ const handleSyncCalls = async () => {
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('ElderlyHealth')}
+              onPress={() => navigation.navigate('ElderlyHealth' as never)}
             >
               <Text style={[styles.squareTitle, { color: COLORS.black }]}>健康狀況</Text>
               <View style={styles.squareBottomRow}>
@@ -605,7 +660,7 @@ const handleSyncCalls = async () => {
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('ElderLocation')}  // 👈 跳去 ElderLocation
+              onPress={() => navigation.navigate('ElderLocation' as never)}  // 👈 跳去 ElderLocation
             >
               <Text style={[styles.squareTitle, { color: COLORS.white }]}>即時位置</Text>
               <View style={styles.squareBottomRow}>
@@ -639,7 +694,7 @@ const handleSyncCalls = async () => {
             <TouchableOpacity
               style={styles.fab}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('ElderlyUpload')}
+              onPress={() => navigation.navigate('ElderlyUpload' as never)}
             >
               <Feather name="camera" size={38} color={COLORS.white} />
               <Text style={styles.fabText}>拍照</Text>
@@ -806,14 +861,14 @@ const styles = StyleSheet.create({
 
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
 
-  // ✅ 新增：兩顆 FAB 橫排
+  // 兩顆 FAB 橫排
   fabRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
 
-  // 右邊原拍照 FAB（保留）
+  // 右邊原拍照 FAB
   fab: {
     width: 115,
     height: 115,
@@ -829,7 +884,7 @@ const styles = StyleSheet.create({
   },
   fabText: { color: COLORS.white, fontSize: 25, fontWeight: '900', marginTop: 6 },
 
-  // ✅ 新增：左邊同步通話的小顆 FAB
+  // 左邊同步通話的小顆 FAB
   fabSmall: {
     width: 115,
     height: 115,
@@ -844,7 +899,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabSmallText: {
-    color: COLORS.white, fontSize: 20, fontWeight: '900', marginTop: 6 
+    color: COLORS.white, fontSize: 20, fontWeight: '900', marginTop: 6
   },
 
   // Modal

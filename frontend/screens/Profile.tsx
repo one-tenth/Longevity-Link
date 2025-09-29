@@ -82,7 +82,7 @@ export default function ProfileScreen() {
       }
 
       try {
-        const res = await fetch('http://192.168.0.91:8000/account/me/', {
+        const res = await fetch('http://172.20.10.2:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');
@@ -208,10 +208,6 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' } as never)}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('ChildHome' as never)}>
-          <FontAwesome name="exchange" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
     </View>
