@@ -39,6 +39,7 @@ import CallLogScreen from './screens/CallLogScreen';
 import ScamScreen from './screens/ScamScreen';
 import Location from './screens/Location';
 import ElderLocation from './screens/ElderLocation';
+import ElderHospitalList from './screens/ElderHospitalList';
 // ---- Stack params ----
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
@@ -73,6 +74,7 @@ export type RootStackParamList = {
   CreateFamily: undefined;
   CreateFamilyScreen: undefined;
   CallLogScreen: undefined;
+  ElderHospitalList: undefined;
 
   //定位相關
   Location: { elderId: number };
@@ -156,6 +158,7 @@ const App: React.FC = () => {
         <Stack.Screen name="ElderlyUpload" component={ElderlyUpload} />
         <Stack.Screen name="ElderMedRemind" component={ElderMedRemind} />
         <Stack.Screen name="ReminderScreen" component={ReminderScreen} />
+        <Stack.Screen name="ElderHospitalList" component={ElderHospitalList} />
 
         {/* 家人端 / 共用 */}
         <Stack.Screen name="ChildHome" component={ChildHome} />
