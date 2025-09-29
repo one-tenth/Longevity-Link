@@ -1,4 +1,4 @@
-// ElderHome.tsx
+// screens/ElderHome.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -105,10 +105,13 @@ function toZhPeriod(key?: string): string {
 }
 
 // ---- API base ----
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
+const LAST_SYNC_AT_KEY   = 'calllog:last_sync_at';
+const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000; // ← 每 1 分鐘自動同步一次
+
 function mapType(t?: string) {
   if (!t) return 'UNKNOWN';
   const s = String(t).toUpperCase();
@@ -226,6 +229,9 @@ export default function ElderHome() {
     const t = setInterval(() => setTick((x) => x + 1), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // 用於自動同步的計時器參考
+  const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ====== 使用者姓名/頭像：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
   const fetchAndCacheName = useCallback(async () => {
@@ -381,11 +387,12 @@ export default function ElderHome() {
         try {
           console.log('[ElderHome] fetch:', url);
           const res = await axios.get<HospitalRecord[]>(url, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: { toString: () => `Bearer ${token}` } as any, Authorization_: `Bearer ${token}` }, // 安全起見的 header 容錯
             timeout: 10000,
           });
-          console.log('[ElderHome] got count:', Array.isArray(res.data) ? res.data.length : 'N/A');
-          if (Array.isArray(res.data) && res.data.length) { rows = res.data; break; }
+          const data = Array.isArray(res.data) ? res.data : [];
+          console.log('[ElderHome] got count:', data.length);
+          if (data.length) { rows = data; break; }
         } catch (e) {
           console.log('[ElderHome] fetch fail for', url);
         }
@@ -431,12 +438,15 @@ export default function ElderHome() {
     return `${y}/${m}/${dd}`;
   };
 
-  // ✅ 通話紀錄權限
+  // ===== 權限檢查（先 check 再 request）=====
   const askCallLogPermission = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iOS 無法讀取通話紀錄');
       return false;
     }
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+    if (already) return true;
+
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
       {
@@ -449,8 +459,8 @@ export default function ElderHome() {
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  // ✅ 同步通話紀錄
-  const handleSyncCalls = async () => {
+  // ✅ 同步通話紀錄（支援靜默模式）
+  const handleSyncCalls = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       const ok = await askCallLogPermission();
       if (!ok) return;
@@ -460,7 +470,7 @@ export default function ElderHome() {
       const access = await AsyncStorage.getItem('access');
       if (!access) {
         setSyncing(false);
-        Alert.alert('尚未登入', '請先登入後再試。');
+        if (!silent) Alert.alert('尚未登入', '請先登入後再試。');
         return;
       }
 
@@ -486,17 +496,18 @@ export default function ElderHome() {
             extra: { rawType: r.type },
           };
         })
-        .filter(x => !!x.phone && x._ts > 0);
-
-      const sortedDesc = mapped.sort((a, b) => b._ts - a._ts);
+        .filter(x => !!x.phone && x._ts > 0)
+        .sort((a, b) => b._ts - a._ts);
 
       const items = isFirstSync
-        ? sortedDesc.slice(0, 100)
-        : sortedDesc.filter(x => x._ts > lastTs).slice(0, 500);
+        ? mapped.slice(0, 100)
+        : mapped.filter(x => x._ts > lastTs).slice(0, 500);
 
       if (items.length === 0) {
         setSyncing(false);
-        Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        if (!silent) Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        // 更新「上次嘗試同步時間」
+        await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
         return;
       }
 
@@ -510,15 +521,59 @@ export default function ElderHome() {
 
       const maxTs = Math.max(...items.map(x => x._ts));
       await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
+      await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
 
       setSyncing(false);
-      Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
+      if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
     } catch (e: any) {
       setSyncing(false);
       const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
-      Alert.alert('上傳失敗', msg);
+      if (!silent) Alert.alert('上傳失敗', msg);
     }
   };
+
+  // 判斷距離上次同步是否已超過最小間隔，若是就靜默同步
+  const autoSyncIfNeeded = useCallback(async (reason: string) => {
+    try {
+      const hasPerm = await askCallLogPermission();
+      if (!hasPerm) return;
+
+      const lastSyncStr = await AsyncStorage.getItem(LAST_SYNC_AT_KEY);
+      const lastSyncAt = Number(lastSyncStr || 0);
+      const now = Date.now();
+
+      if (!syncing && (!lastSyncAt || now - lastSyncAt >= SYNC_MIN_INTERVAL_MS)) {
+        console.log(`[CallSync] auto by ${reason}`);
+        await handleSyncCalls({ silent: true });
+      }
+    } catch {}
+  }, [syncing]);
+
+  // 掛載：先嘗試一次自動同步，並啟動每 1 分鐘檢查一次
+  useEffect(() => {
+    (async () => {
+      await autoSyncIfNeeded('mount');
+    })();
+
+    // 啟動輪詢
+    syncTimerRef.current = setInterval(() => {
+      autoSyncIfNeeded('interval');
+    }, SYNC_MIN_INTERVAL_MS);
+
+    return () => {
+      if (syncTimerRef.current) {
+        clearInterval(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+    };
+  }, [autoSyncIfNeeded]);
+
+  // 回到此頁（聚焦）時再嘗試一次
+  useFocusEffect(
+    useCallback(() => {
+      autoSyncIfNeeded('focus');
+    }, [autoSyncIfNeeded])
+  );
 
   // ⭐ 計算實際要餵給 <Image> 的來源（URL/檔名 轉 source）
   const avatarSrc =
@@ -675,20 +730,7 @@ export default function ElderHome() {
         {/* ✅ 底部兩顆 FAB：左「同步通話」、右「拍照」 */}
         <View pointerEvents="box-none" style={styles.fabWrap}>
           <View style={styles.fabRow}>
-            {/* 同步通話 */}
-            <TouchableOpacity
-              style={styles.fabSmall}
-              activeOpacity={0.9}
-              onPress={handleSyncCalls}
-              disabled={syncing}
-            >
-              {syncing ? (
-                <ActivityIndicator />
-              ) : (
-                <Feather name="phone" size={28} color={COLORS.white} />
-              )}
-              <Text style={styles.fabSmallText}>{syncing ? '同步中' : '同步通話'}</Text>
-            </TouchableOpacity>
+            
 
             {/* 拍照 */}
             <TouchableOpacity
@@ -720,7 +762,7 @@ export default function ElderHome() {
 
             {/* 上/下一頁箭頭 */}
             <TouchableOpacity
-              onPress={goPrev}
+              onPress={() => setCurrentIndex((i) => Math.max(0, i - 1))}
               style={[styles.navArrow, { left: -12, opacity: currentIndex === 0 ? 0.3 : 1 }]}
               disabled={currentIndex === 0}
               activeOpacity={0.8}
@@ -728,7 +770,7 @@ export default function ElderHome() {
               <Feather name="chevron-left" size={28} color={COLORS.black} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={goNext}
+              onPress={() => setCurrentIndex((i) => Math.min(medCards.length - 1, i + 1))}
               style={[
                 styles.navArrow,
                 { right: -12, opacity: currentIndex === medCards.length - 1 ? 0.3 : 1 },
