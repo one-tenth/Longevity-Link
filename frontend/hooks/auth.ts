@@ -1,7 +1,8 @@
 //用來統一管理 API 呼叫
 import axios from 'axios';
 
-const API_BASE = 'http://10.2.61.2:8000/api/account';
+const API_BASE = 'http://192.168.0.91:8000/api/account';
+
 
 interface RegisterData { //註冊要傳給後端的資訊
   phone: string;

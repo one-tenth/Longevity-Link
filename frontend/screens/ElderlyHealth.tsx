@@ -1,5 +1,5 @@
 // screens/ElderlyHealth.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Platform,
   StatusBar,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -25,7 +24,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHealth'>;
 
 // ===== 基本設定 =====
-const BASE_URL = 'http://192.168.0.91:8000'; // 模擬器改成 http://10.0.2.2:8000
+const BASE_URL = 'http://192.168.0.91:8000'; 
 
 const COLORS = {
   white: '#FFFFFF',
@@ -35,9 +34,10 @@ const COLORS = {
   textMid: '#333',
   green: '#A6CFA1',
   lightred: '#D67C78',
+  gray: '#E9E9E9',
 };
 
-// YYYY-MM-DD
+// YYYY-MM-DD 格式化函數
 function formatDateYYYYMMDD(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -45,40 +45,39 @@ function formatDateYYYYMMDD(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+type PeriodKey = 'morning' | 'evening';
+
+type BpRecord = {
+  systolic: number | null;
+  diastolic: number | null;
+  pulse: number | null;
+  captured_at?: string | null;
+} | null;
+
+type BpAll = {
+  morning: BpRecord;
+  evening: BpRecord;
+};
+
 export default function ElderlyHealth() {
+  console.log('[ElderlyHealth mounted @', Date.now(), ']');
+
   const navigation = useNavigation<ElderlyHealthNavProp>();
 
   const [todaySteps, setTodaySteps] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
-  const [bpData, setBpData] = useState<{ systolic: number; diastolic: number; pulse: number } | null>(null);
-  const [userName, setUserName] = useState<string>('使用者');
 
-    // ------- 抓使用者名稱 -------
-  useEffect(() => {
-    (async () => {
-      try {
-        const storedName = await AsyncStorage.getItem('user_name');
-        if (storedName) {
-          setUserName(storedName);
-        } else {
-          const token = await AsyncStorage.getItem('access');
-          if (token) {
-            const res = await axios.get(`${BASE_URL}/api/account/me/`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (res.data?.Name) {
-              setUserName(res.data.Name);
-              await AsyncStorage.setItem('user_name', res.data.Name);
-            }
-          }
-        }
-      } catch (err) {
-        console.log('❌ 抓使用者名稱失敗:', err);
-      }
-    })();
-  }, []);
+  // ✅ 當天所有時段血壓（一次撈回 morning/evening）
+  const [bpAll, setBpAll] = useState<BpAll>({ morning: null, evening: null });
+  // ✅ 目前顯示的時段
+  const [period, setPeriod] = useState<PeriodKey>('morning');
+
+  // 按目前時段取對應顯示值
+  const bpData = useMemo(() => {
+    return bpAll[period] ?? null;
+  }, [bpAll, period]);
 
   // ------- 權限（Android 10+ 要求活動辨識） -------
   const requestActivityPermission = async () => {
@@ -97,46 +96,48 @@ export default function ElderlyHealth() {
     return true;
   };
 
-  // ------- 上傳步數到後端 -------
-  const uploadStepsToBackend = async (steps: number, timestamp: Date) => {
+  // ------- 上傳步數到後端（✅ 只送 date 與 steps） -------
+  const uploadStepsToBackend = async (steps: number, dateStr: string) => {
     const token = await AsyncStorage.getItem('access');
     if (!token) return;
     try {
-      const response = await axios.post(
-        'http://192.168.1.106:8000/api/fitdata/',
-        { steps, timestamp: timestamp.toISOString() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const payload = { steps, date: dateStr };
+      const res = await axios.post(`${BASE_URL}/api/fitdata/`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       console.log('✅ 步數成功上傳：', res.data);
     } catch (err: any) {
       console.error('❌ 步數上傳失敗：', err?.response?.data ?? err);
     }
   };
 
-  // ------- 查詢血壓(以 YYYY-MM-DD) -------
-  const fetchBloodPressure = async (date: Date) => {
+  // ------- 查詢血壓（一次拿到 morning + evening） -------
+  const fetchBloodPressureAll = async (date: Date) => {
     const token = await AsyncStorage.getItem('access');
     if (!token) return;
 
     const dateStr = formatDateYYYYMMDD(date);
     try {
-      const response = await axios.get(
-        `http://192.168.1.106:8000/api/healthcare/by-date/?date=${dateStr}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.data) {
-        setBpData({
-          systolic: response.data.systolic,
-          diastolic: response.data.diastolic,
-          pulse: response.data.pulse,
-        });
-      } else {
-        setBpData(null);
-      }
+      const response = await axios.get(`${BASE_URL}/api/healthcare/by-date/`, {
+        params: { date: dateStr },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = response.data || {};
+      console.log('[bp api]', data); // 🔎 debug
+      setBpAll({
+        morning: data.morning ?? null,
+        evening: data.evening ?? null,
+      });
+      setError('');
     } catch (e: any) {
+      if (e?.response?.status === 401) {
+        console.warn('血壓 API 401：token 可能過期');
+      }
       if (e?.response?.status === 404) {
         console.log('ℹ️ 當天無血壓紀錄');
-        setBpData(null);
+        setBpAll({ morning: null, evening: null });
+        setError('');
       } else if (e?.response?.data) {
         console.error('❌ 查詢血壓失敗:', e.response.data);
         setError(String(e.response.data?.error || '查詢血壓時發生錯誤'));
@@ -161,36 +162,33 @@ export default function ElderlyHealth() {
 
     GoogleFit.getDailyStepCountSamples(options)
       .then(results => {
-        // Google Fit 常見來源：'com.google.android.gms:estimated_steps'
         const fitData = results.find(r => r.source === 'com.google.android.gms:estimated_steps');
-        const targetDateStr = formatDateYYYYMMDD(startDate); // 用我們的格式統一比對
-
-        const noonDate = new Date(startDate);
-        noonDate.setHours(12, 0, 0, 0); // 上傳用固定時間點
+        const fallbackDateStr = formatDateYYYYMMDD(startDate);
 
         if (fitData && Array.isArray(fitData.steps)) {
-          const stepData = fitData.steps.find(s => s.date === targetDateStr);
-          if (stepData) {
-            setTodaySteps(stepData.value);
+          const s = fitData.steps.find(x => x.date === fallbackDateStr);
+          if (s) {
+            setTodaySteps(s.value);
             setError('');
-            uploadStepsToBackend(stepData.value, noonDate);
+            uploadStepsToBackend(s.value, s.date); // 用 Google Fit 的日期字串
           } else {
             setTodaySteps(0);
             setError('');
-            uploadStepsToBackend(0, noonDate);
+            uploadStepsToBackend(0, fallbackDateStr);
           }
         } else {
           setTodaySteps(0);
           setError('');
-          uploadStepsToBackend(0, noonDate);
+          uploadStepsToBackend(0, fallbackDateStr);
         }
-
-        // 取完步數後順道查血壓
-        fetchBloodPressure(date);
       })
       .catch(err => {
         console.error('步數讀取錯誤', err);
         setError('取得步數錯誤');
+      })
+      .finally(() => {
+        // ✅ 無論步數成功與否，都撈血壓
+        fetchBloodPressureAll(date);
       });
   };
 
@@ -214,6 +212,18 @@ export default function ElderlyHealth() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ 切換日期就重新取資料
+  const onPickDate = (date: Date) => {
+    setSelectedDate(date);
+    fetchSteps(date); // 會連帶呼叫 fetchBloodPressureAll
+  };
+
+  // ✅ 切換時段只換顯示，不打 API
+  const onChangePeriod = (p: PeriodKey) => {
+    console.log('[period change]', p, 'data =', bpAll?.[p]); // 🔎 debug
+    setPeriod(p);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -223,7 +233,7 @@ export default function ElderlyHealth() {
         <View style={styles.userCard}>
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userName}>爺爺</Text>
           </View>
         </View>
       </View>
@@ -237,6 +247,32 @@ export default function ElderlyHealth() {
         >
           <Text style={styles.pageTitle}>健康狀況</Text>
 
+          {/* ======== 強制可見：時段切換（放在標題下方） ======== */}
+          <View style={styles.segmentWrapStrong}>
+            <TouchableOpacity
+              testID="btn-morning"
+              onPress={() => onChangePeriod('morning')}
+              activeOpacity={0.9}
+              style={[styles.segmentBtnStrong, { marginRight: 6, backgroundColor: period === 'morning' ? COLORS.green : COLORS.white }]}
+            >
+              <Text style={styles.segmentStrongText}>🌅 早上</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="btn-evening"
+              onPress={() => onChangePeriod('evening')}
+              activeOpacity={0.9}
+              style={[styles.segmentBtnStrong, { marginLeft: 6, backgroundColor: period === 'evening' ? COLORS.green : COLORS.white }]}
+            >
+              <Text style={styles.segmentStrongText}>🌙 晚上</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.segmentHint}>
+            {period === 'morning'
+              ? (bpAll?.morning ? '早上：有紀錄' : '早上：未紀錄')
+              : (bpAll?.evening ? '晚上：有紀錄' : '晚上：未紀錄')}
+          </Text>
+
+          {/* 日期選擇 */}
           <TouchableOpacity style={styles.dateButton} onPress={() => setShowPicker(true)}>
             <Text>📅 選擇日期（目前：{formatDateYYYYMMDD(selectedDate)}）</Text>
           </TouchableOpacity>
@@ -248,10 +284,7 @@ export default function ElderlyHealth() {
               display="default"
               onChange={(event, date) => {
                 setShowPicker(false);
-                if (date) {
-                  setSelectedDate(date);
-                  fetchSteps(date);
-                }
+                if (date) onPickDate(date);
               }}
             />
           )}
@@ -271,21 +304,23 @@ export default function ElderlyHealth() {
 
           {error ? <Text style={{ color: 'red', marginBottom: 10 }}>❌ {error}</Text> : null}
 
-          {/* 血壓卡片 */}
+          {/* 血壓卡片（依據目前時段顯示） */}
           <View style={[styles.infoCard, styles.cardShadow, { backgroundColor: COLORS.lightred }]}>
             <View style={styles.cardRow}>
-              <Text style={[styles.cardTitle, { color: COLORS.white }]}>血壓/脈搏</Text>
+              <Text style={[styles.cardTitle, { color: COLORS.white }]}>
+                血壓/脈搏（{period === 'morning' ? '早上' : '晚上'}）
+              </Text>
               <MaterialCommunityIcons name="heart-pulse" size={32} color={COLORS.white} />
             </View>
             <View style={styles.valueBoxDark}>
               <Text style={[styles.cardValue, { color: COLORS.black }]}>
-                收縮壓：{bpData ? bpData.systolic : '未紀錄'}
+                收縮壓：{bpData?.systolic ?? '未紀錄'}
               </Text>
               <Text style={[styles.cardValue, { color: COLORS.black }]}>
-                舒張壓：{bpData ? bpData.diastolic : '未紀錄'}
+                舒張壓：{bpData?.diastolic ?? '未紀錄'}
               </Text>
               <Text style={[styles.cardValue, { color: COLORS.black }]}>
-                脈搏：{bpData ? bpData.pulse : '未紀錄'}
+                脈搏：{bpData?.pulse ?? '未紀錄'}
               </Text>
             </View>
           </View>
@@ -335,7 +370,42 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
   },
-  pageTitle: { fontSize: 38, fontWeight: '900', marginBottom: 20, color: COLORS.textDark },
+  pageTitle: { fontSize: 38, fontWeight: '900', marginBottom: 12, color: COLORS.textDark },
+
+  // ===== 強制可見版 Segmented（放標題下） =====
+  segmentWrapStrong: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    backgroundColor: '#FFE08A',
+    borderColor: '#000',
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+    gap: 12,
+  },
+  segmentBtnStrong: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+  segmentStrongText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#111',
+  },
+  segmentHint: {
+    alignSelf: 'center',
+    marginBottom: 10,
+    color: COLORS.textMid,
+    fontWeight: '700',
+  },
+
+  // ===== 既有樣式 =====
   dateButton: {
     alignSelf: 'flex-start',
     backgroundColor: '#eee',
@@ -397,6 +467,7 @@ const styles = StyleSheet.create({
     elevation: 2,
     gap: 6,
   },
+
   fabWrap: {
     position: 'absolute',
     left: 0,
