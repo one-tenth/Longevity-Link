@@ -1,3 +1,4 @@
+// screens/AddHospitalRecord.tsx
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView,
@@ -10,6 +11,11 @@ import { RootStackParamList } from '../App';
 
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
+// （可選）如果要直接送到後端，打開下面這兩行並設定 BASE & API：
+// import axios from 'axios';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+// const BASE = 'http://192.168.0.24:8000';
 
 type AddHospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'AddHospitalRecord'>;
 
@@ -32,9 +38,15 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-const pad = (n: number) => n.toString().padStart(2, '0');
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// 顯示在畫面上的簡短格式（不影響送出）
 const fmtDate = (d: Date) => `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`; // MM/DD
 const fmtTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;   // HH:MM
+
+// ✅ 用於送後端的「本地」純字串（避免時區偏移）
+const toYMD = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // YYYY-MM-DD
+const toHM  = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`; // HH:mm
 
 export default function AddHospitalRecord() {
   const navigation = useNavigation<AddHospitalRecordNavProp>();
@@ -48,12 +60,42 @@ export default function AddHospitalRecord() {
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!dateVal || !timeVal || !location.trim() || !doctor.trim()) {
       Alert.alert('請完成必填', '日期、時間、地點、醫師皆為必填。');
       return;
     }
-    Alert.alert('已儲存', `時間：${fmtDate(dateVal)} ${fmtTime(timeVal)}\n地點：${location}\n醫師：${doctor}`);
+
+    // ✅ 關鍵：用「本地字串」傳遞，避免 toISOString() 造成日期偏移
+    const dateStr = toYMD(dateVal); // e.g. 2025-09-30
+    const timeStr = toHM(timeVal);  // e.g. 08:00
+
+    // ===== （可選）連接你的 API：把下面區塊解註解並對應你的後端欄位 =====
+    // try {
+    //   const token = await AsyncStorage.getItem('access');
+    //   if (!token) {
+    //     Alert.alert('尚未登入', '請先登入後再試。');
+    //     return;
+    //   }
+    //
+    //   // 如果你的 API 需要 elder_id（長者 ID），請自行從 route 或 AsyncStorage 取出再帶上
+    //   // const elderId = await AsyncStorage.getItem('elder_id');
+    //
+    //   await axios.post(`${BASE}/api/hospital/`, {
+    //     ClinicDate: dateStr,          // 後端建議存「純日期」
+    //     ClinicTime: timeStr,          // 若後端有這欄位就帶上（沒有可移除）
+    //     ClinicPlace: location.trim(),
+    //     Doctor: doctor.trim(),
+    //     // Num: 取號碼可再加
+    //     // user_id: elderId ? Number(elderId) : undefined,
+    //   }, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 });
+    // } catch (e: any) {
+    //   const msg = e?.response?.data?.error || e?.message || '儲存失敗，請稍後再試';
+    //   Alert.alert('儲存失敗', msg);
+    //   return;
+    // }
+
+    Alert.alert('已儲存（本地字串）', `時間：${dateStr} ${timeStr}\n地點：${location}\n醫師：${doctor}`);
     navigation.goBack();
   };
 

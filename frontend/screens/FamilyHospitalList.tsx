@@ -1,4 +1,4 @@
-// FamilyHospitalList.tsx
+// screens/FamilyHospitalList.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -14,8 +14,14 @@ import { useNavigation, useFocusEffect, RouteProp } from '@react-navigation/nati
 import { StackNavigationProp } from '@react-navigation/stack';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import FontAwesome from 'react-native-vector-icons/FontAwesome'; // ★ 修正：補上 import
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import notifee, { TriggerType } from '@notifee/react-native';
 import { RootStackParamList } from '../App';
+import {
+  setupNotificationChannel,
+  ensureNotificationPermission,
+  initVisitNotifications,
+} from '../utils/initNotification';
 
 const BASE = 'http://192.168.0.24:8000';
 
@@ -128,7 +134,11 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
     if (pk == null) return;
     Alert.alert('確認刪除', '確定要刪除這筆看診紀錄嗎？', [
       { text: '取消' },
-      { text: '刪除', style: 'destructive', onPress: () => handleDelete(pk) },
+      {
+        text: '刪除',
+        style: 'destructive',
+        onPress: () => handleDelete(pk),
+      },
     ]);
   };
 
@@ -155,11 +165,14 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
         timeout: 10000,
       });
 
-      setRecords(prev => {
-        const next = prev.filter(r => getPk(r) !== pk);
+      setRecords((prev) => {
+        const next = prev.filter((r) => getPk(r) !== pk);
         if (next.length === 0) setHint('還沒有新增過看診資料');
         return next;
       });
+
+      // ★ 刪除後重排回診通知（避免殘留）
+      await initVisitNotifications();
     } catch (e: any) {
       const status = e?.response?.status;
       const msg =
@@ -167,6 +180,47 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
         (status >= 500 ? '伺服器錯誤，請稍後再試' : '刪除失敗');
       console.log('刪除失敗:', status, e?.response?.data);
       Alert.alert('刪除失敗', msg);
+    }
+  };
+
+  // ★ 測試：為某筆回診建立「1 分鐘後」的通知
+  const scheduleTestNotification = async (r: HospitalRecord) => {
+    try {
+      await setupNotificationChannel();
+      await ensureNotificationPermission();
+
+      const pk = getPk(r) ?? `${r.ClinicDate}-${r.ClinicPlace}`;
+      const inMs = 1 * 60 * 1000; // 1 分鐘
+      const at = new Date(Date.now() + inMs);
+      const notifId = `debug-visit::${pk}::${at.getTime()}`;
+
+      await notifee.createTriggerNotification(
+        {
+          id: notifId,
+          title: '🏥 回診測試通知（1 分鐘後）',
+          body: `${r.ClinicDate}｜${r.ClinicPlace || ''}${r.Doctor ? `｜醫師：${r.Doctor}` : ''}${(r.Num ?? '') !== '' ? `｜號碼：${r.Num}` : ''}`,
+          android: {
+            channelId: 'appointments',
+            smallIcon: 'ic_launcher',
+            pressAction: { id: 'open-visit' },
+          },
+          data: {
+            type: 'visit',
+            visitId: String(pk),
+            date: r.ClinicDate,
+            time: '測試+1分鐘',
+            place: String(r.ClinicPlace || ''),
+            doctor: String(r.Doctor || ''),
+            num: String(r.Num ?? ''),
+          },
+        },
+        { type: TriggerType.TIMESTAMP, timestamp: at.getTime(), alarmManager: true }
+      );
+
+      Alert.alert('已排程', '將在 1 分鐘後跳出這筆回診的測試通知。');
+    } catch (e) {
+      console.log('scheduleTestNotification error:', e);
+      Alert.alert('排程失敗', '請確認通知權限與頻道設定。');
     }
   };
 
@@ -199,9 +253,7 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
       <ScrollView
         style={{ width: '100%' }}
         contentContainerStyle={{ alignItems: 'center' }}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={fetchRecords} />
-        }
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecords} />}
       >
         {records.length > 0 ? (
           records.map((r) => {
@@ -210,14 +262,21 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
               <View key={getKey(r)} style={styles.card}>
                 <View style={styles.cardRow}>
                   <Text style={styles.time}>日期：{r.ClinicDate}</Text>
-                  {pk != null && (
-                    <TouchableOpacity
-                      style={styles.deleteBtn}
-                      onPress={() => confirmDelete(pk)}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {/* 測試通知 */}
+                    {/* <TouchableOpacity
+                      style={styles.testBtn}
+                      onPress={() => scheduleTestNotification(r)}
                     >
-                      <Text style={styles.deleteText}>刪除</Text>
-                    </TouchableOpacity>
-                  )}
+                      <Text style={styles.testText}>測試通知</Text>
+                    </TouchableOpacity> */}
+                    {/* 刪除 */}
+                    {pk != null && (
+                      <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
+                        <Text style={styles.deleteText}>刪除</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
                 <Text style={styles.place}>地點：{r.ClinicPlace}</Text>
                 <Text style={styles.doctor}>醫師：{r.Doctor}</Text>
@@ -295,6 +354,15 @@ const styles = StyleSheet.create({
     ...outerShadow,
   },
   fabText: { fontSize: 16, fontWeight: '900', color: COLORS.cream },
+
+  testBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#1976D2',
+    borderRadius: 6,
+  },
+  testText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+
   deleteBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
