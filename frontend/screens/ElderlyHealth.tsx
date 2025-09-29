@@ -24,7 +24,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHealth'>;
 
 // ===== 基本設定 =====
-const BASE_URL = 'http://192.168.0.24:8000'; // 模擬器請改成 http://10.0.2.2:8000
+const BASE_URL = 'http://192.168.0.91:8000'; 
 
 const COLORS = {
   white: '#FFFFFF',
@@ -37,7 +37,7 @@ const COLORS = {
   gray: '#E9E9E9',
 };
 
-// YYYY-MM-DD
+// YYYY-MM-DD 格式化函數
 function formatDateYYYYMMDD(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -253,10 +253,7 @@ export default function ElderlyHealth() {
               testID="btn-morning"
               onPress={() => onChangePeriod('morning')}
               activeOpacity={0.9}
-              style={[
-                styles.segmentBtnStrong,
-                { marginRight: 6, backgroundColor: period === 'morning' ? COLORS.green : COLORS.white },
-              ]}
+              style={[styles.segmentBtnStrong, { marginRight: 6, backgroundColor: period === 'morning' ? COLORS.green : COLORS.white }]}
             >
               <Text style={styles.segmentStrongText}>🌅 早上</Text>
             </TouchableOpacity>
@@ -264,10 +261,7 @@ export default function ElderlyHealth() {
               testID="btn-evening"
               onPress={() => onChangePeriod('evening')}
               activeOpacity={0.9}
-              style={[
-                styles.segmentBtnStrong,
-                { marginLeft: 6, backgroundColor: period === 'evening' ? COLORS.green : COLORS.white },
-              ]}
+              style={[styles.segmentBtnStrong, { marginLeft: 6, backgroundColor: period === 'evening' ? COLORS.green : COLORS.white }]}
             >
               <Text style={styles.segmentStrongText}>🌙 晚上</Text>
             </TouchableOpacity>

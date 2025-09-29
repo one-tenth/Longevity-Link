@@ -72,7 +72,7 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
 }
 
 // ---- API base ----
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://192.168.0.91:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
@@ -189,8 +189,42 @@ export default function ElderHome() {
     return () => clearInterval(t);
   }, []);
 
-  // 取使用者名稱
+  // ====== 使用者姓名：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
+  // 小工具：從後端抓取並更新快取（偵測 user_id 變更）
+  const fetchAndCacheName = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('access');
+      if (!token) return;
+
+      const res = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000,
+      });
+
+      const name = (res.data?.Name || '').toString().trim();
+      const uid = res.data?.UserID;
+
+      if (name) {
+        // 如果 user_id 與快取不同，覆蓋舊快取的名字
+        const cachedUid = await AsyncStorage.getItem('user_id');
+        if (!cachedUid || cachedUid !== String(uid ?? '')) {
+          await AsyncStorage.multiSet([
+            ['user_id', String(uid ?? '')],
+            ['user_name', name],
+          ]);
+        } else {
+          await AsyncStorage.setItem('user_name', name);
+        }
+        setUserName(name);
+      }
+    } catch (err) {
+      console.log('❌ 取得使用者名稱失敗:', err);
+    }
+  }, []);
+
+  // 掛載時：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
         const storedName = await AsyncStorage.getItem('user_name');
@@ -212,7 +246,15 @@ export default function ElderHome() {
         console.log('❌ 抓使用者名稱失敗:', err);
       }
     })();
-  }, []);
+    return () => { mounted = false; };
+  }, [fetchAndCacheName]);
+
+  // 聚焦時再校正（回到此頁就更新）
+  useFocusEffect(
+    useCallback(() => {
+      fetchAndCacheName();
+    }, [fetchAndCacheName])
+  );
 
   // Modal 控制
   const openMedModal = (startIndex = 0) => {
@@ -227,11 +269,6 @@ export default function ElderHome() {
   const closeMedModal = () => setShowMedModal(false);
   const goPrev = () => currentIndex > 0 && setCurrentIndex((i) => i - 1);
   const goNext = () => currentIndex < medCards.length - 1 && setCurrentIndex((i) => i + 1);
-
-  useEffect(() => {
-    if (!showMedModal) return;
-    flatRef.current?.scrollToIndex({ index: currentIndex, animated: true });
-  }, [currentIndex, showMedModal]);
 
   // 抓藥物提醒
   useEffect(() => {
@@ -447,8 +484,6 @@ const handleSyncCalls = async () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* ★ 新增：無 UI 的定位上傳器（掛載即可定時上傳 GPS） */}
-      <ElderLocation />
       {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
@@ -560,6 +595,22 @@ const handleSyncCalls = async () => {
               <View style={styles.squareBottomRow}>
                 <View style={[styles.iconCircle, { backgroundColor: COLORS.black }]}>
                   <MaterialIcons name="favorite" size={25} color={COLORS.lightred} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* 定位狀況 */}
+          <View style={styles.topGrid}>
+            <TouchableOpacity
+              style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('ElderLocation')}  // 👈 跳去 ElderLocation
+            >
+              <Text style={[styles.squareTitle, { color: COLORS.white }]}>即時位置</Text>
+              <View style={styles.squareBottomRow}>
+                <View style={[styles.iconCircle, { backgroundColor: COLORS.white }]}>
+                  <MaterialIcons name="location-on" size={25} color={COLORS.green} />
                 </View>
               </View>
             </TouchableOpacity>

@@ -23,12 +23,11 @@ type LatestLocationResp = {
   ts: string;
 };
 
-const BASE_URL = 'http://192.168.0.24:8000'; 
+const BASE_URL = 'http://192.168.0.91:8000';   
 
 export default function LocationScreen() {
   const route = useRoute<any>();
   const mapRef = useRef<MapView>(null);
-
   const [elderId, setElderId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [latest, setLatest] = useState<LatestLocationResp | null>(null);
