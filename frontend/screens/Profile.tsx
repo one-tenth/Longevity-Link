@@ -82,7 +82,7 @@ export default function ProfileScreen() {
       }
 
       try {
-        const res = await fetch('http://172.20.10.2:8000/account/me/', {
+        const res = await fetch('http://192.168.0.24:8000/account/me/', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');
@@ -164,9 +164,7 @@ export default function ProfileScreen() {
           <Image source={getAvatarSource(profile.avatar)} style={styles.avatar} /> 
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>{profile.Name || '使用者'}</Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
-              {profile.Phone || ''} · {getGenderText(profile.Gender)}
-            </Text>
+
           </View>
         </View>
       </View>
@@ -176,8 +174,8 @@ export default function ProfileScreen() {
         {/* 基本資料（橫列） */}
         <View style={[styles.infoBox, outerShadow]}>
           <InfoRow label="生日" value={profile.Borndate || '—'} />
-          <InfoRow label="家庭ID" value={profile.FamilyID || '—'} />
-          <InfoRow label="用戶ID" value={String(profile.UserID || '—')} />
+          <InfoRow label="電話號碼" value={profile.Phone || '—'} />
+          <InfoRow label="性別" value={getGenderText(profile.Gender || '—')} />
         </View>
 
         {/* 快捷卡：家庭成員 / 登出 */}

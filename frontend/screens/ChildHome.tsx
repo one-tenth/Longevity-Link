@@ -32,7 +32,7 @@ interface Member {
 }
 
 
-const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
+const API_BASE = 'http://192.168.0.24:8000'; // ← 依環境調整
 
 const COLORS = {
   white: '#FFFFFF',
@@ -178,7 +178,7 @@ export default function ChildHome() {
   const goHospital = async () => {
     if (!selectedMember || !selectedMember.RelatedID) {
       Alert.alert('提醒', '請先選擇要照護的長者');
-      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      navigation.navigate('FamilyScreen', { mode: 'full' } as never);
       return;
     }
     await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
@@ -213,7 +213,7 @@ export default function ChildHome() {
   const goLocation = async () => {
     if (!selectedMember) {
       Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
-      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      navigation.navigate('FamilyScreen', { mode: 'full' } as never);
       return;
     }
     const elderId = selectedMember.RelatedID ?? selectedMember.UserID;
@@ -255,7 +255,7 @@ export default function ChildHome() {
 
           {/* 設定鈕 → 選擇家人頁 */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
           >
             <Feather name="settings" size={22} color={COLORS.black} />

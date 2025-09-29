@@ -37,7 +37,7 @@ const COLORS = {
 };
 
 const R = 22;
-const API_BASE = 'http://172.20.10.2:8000';
+const API_BASE = 'http://192.168.0.24:8000';
 
 const outerShadow = {
   elevation: 4,
@@ -80,17 +80,16 @@ const FamilyScreen = () => {
         if (!resMe.ok) throw new Error('取得使用者失敗');
         const user = await resMe.json();
 
-
         setUserId(user?.id ?? user?.UserID ?? null);
         setFamilyName(
           user?.FamilyName ?? user?.Family?.Name ?? user?.family_name ?? '家庭'
         );
         const codeGuess =
-          user?.FamilyCode ??
-          user?.family_code ??
-          user?.FamilyID?.Code ??
-          user?.FamilyID?.code ??
-          (typeof user?.FamilyID === 'string' ? user.FamilyID : null) ??
+          user?.FamilyCode ?? 
+          user?.family_code ?? 
+          user?.FamilyID?.Code ?? 
+          user?.FamilyID?.code ?? 
+          (typeof user?.FamilyID === 'string' ? user.FamilyID : null) ?? 
           null;
         setFamilyCode(codeGuess);
 
@@ -120,6 +119,11 @@ const FamilyScreen = () => {
   }, [mode, navigation]);
 
   const handleSelect = async (m: Member) => {
+    if (m.RelatedID === null) {
+      Alert.alert('無法選擇', '家人無法選擇');
+      return;
+    }
+
     const elderId = m.RelatedID ?? m.UserID;
     await AsyncStorage.setItem('selectedMember', JSON.stringify(m));
     await AsyncStorage.setItem('elder_id', String(elderId));
@@ -148,41 +152,74 @@ const FamilyScreen = () => {
       {/* ===== 成員清單 ===== */}
       <ScrollView contentContainerStyle={styles.grid}>
         {members.length > 0 ? (
-          members.map((m) => {
-            const src = getAvatarSource(m.avatar) as any | undefined;
-            const initial = m?.Name?.[0] ?? '人';
+          <>
+            {/* 顯示長者 */}
+            {members
+              .filter((m) => m.RelatedID !== null)
+              .map((m) => {
+                const src = getAvatarSource(m.avatar) as any | undefined;
+                const initial = m?.Name?.[0] ?? '人';
 
-            return (
-              <Pressable
-                key={m.UserID}
-                onPress={() => handleSelect(m)}
-                android_ripple={{ color: '#00000010' }}
-                style={({ pressed }) => [
-                  styles.card,
-                  lightShadow,
-                  pressed && { transform: [{ scale: 0.98 }] },
-                ]}
-              >
-                {src ? (
-                  <Image source={src} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarFallback]}>
-                    <Text style={styles.avatarText}>{initial}</Text>
-                  </View>
-                )}
+                return (
+                  <Pressable
+                    key={m.UserID}
+                    onPress={() => handleSelect(m)}  // 只有長者可以選擇
+                    android_ripple={{ color: '#00000010' }}
+                    style={({ pressed }) => [
+                      styles.card,
+                      lightShadow,
+                      pressed && { transform: [{ scale: 0.98 }] },
+                    ]}
+                  >
+                    {src ? (
+                      <Image source={src} style={styles.avatar} />
+                    ) : (
+                      <View style={[styles.avatar, styles.avatarFallback]}>
+                        <Text style={styles.avatarText}>{initial}</Text>
+                      </View>
+                    )}
 
-                <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
-                <Text
-                  style={[
-                    styles.roleBadge,
-                    m.RelatedID ? styles.elderBadge : styles.familyBadge,
-                  ]}
-                >
-                  {m.RelatedID ? '長者' : '家人'}
-                </Text>
-              </Pressable>
-            );
-          })
+                    <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
+                    <Text style={[styles.roleBadge, styles.elderBadge]}>
+                      長者
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
+            {/* 顯示家人 */}
+            {members
+              .filter((m) => m.RelatedID === null)
+              .map((m) => {
+                const src = getAvatarSource(m.avatar) as any | undefined;
+                const initial = m?.Name?.[0] ?? '人';
+
+                return (
+                  <Pressable
+                    key={m.UserID}
+                    style={({ pressed }) => [
+                      styles.card,
+                      lightShadow,
+                      pressed && { transform: [{ scale: 0.98 }] },
+                    ]}
+                    disabled={true}  // 禁用家人的選擇
+                  >
+                    {src ? (
+                      <Image source={src} style={styles.avatar} />
+                    ) : (
+                      <View style={[styles.avatar, styles.avatarFallback]}>
+                        <Text style={styles.avatarText}>{initial}</Text>
+                      </View>
+                    )}
+
+                    <Text style={styles.name}>{m.Name ?? '（未命名）'}</Text>
+                    <Text style={[styles.roleBadge, styles.familyBadge]}>
+                      家人
+                    </Text>
+                  </Pressable>
+                );
+              })}
+          </>
         ) : (
           <Text style={{ textAlign: 'center', color: COLORS.textMid, marginTop: 24 }}>
             尚未取得成員資料
@@ -229,7 +266,8 @@ const FamilyScreen = () => {
   );
 };
 
-/* ===== Styles ===== */
+// Styles...
+/* ====== Styles ====== */
 const styles = StyleSheet.create({
   hero: {
     margin: 16,
