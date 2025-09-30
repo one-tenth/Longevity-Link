@@ -15,9 +15,11 @@ import { navigationRef } from '../App';
 console.log('[initNotification] module loaded');
 
 // ✅ 集中管理 BASE
+const BASE = 'http://172.20.10.8:8000';
 
-const BASE = 'http://172.20.10.2:8000';
-
+// =========================
+// 工具：時間處理
+// =========================
 
 /** 標準化 HH:mm（支援 08:00、8:0、08:00:00、08:00Z、全形冒號） */
 function extractHHMM(raw?: string): { h: number; m: number } | null {
@@ -47,14 +49,28 @@ function createTriggerTime(timeStr: string): Date | null {
   return triggerTime;
 }
 
-// ===== 小工具：可忽略錯誤判斷 =====
-function isUserNotFoundError(err: any): boolean {
-  const status = err?.response?.status;
-  const code = err?.response?.data?.code || err?.response?.data?.detail?.code;
-  return status === 401 && code === 'user_not_found';
+// =========================
+// 工具：錯誤分類（修正版）
+// =========================
+
+function isAuthError(err: any): boolean {
+  return err?.response?.status === 401;
 }
 
-// ===== Android 通知頻道 =====
+function isForbidden(err: any): boolean {
+  return err?.response?.status === 403;
+}
+
+function isNotFoundError(err: any): boolean {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.code || err?.response?.data?.detail?.code;
+  // 以 404 為主要條件；若後端誤把 user_not_found 放在其他狀態，也一併相容
+  return status === 404 || code === 'user_not_found';
+}
+
+// =========================
+/** Android 通知頻道 */
+// =========================
 export async function setupNotificationChannel() {
   await notifee.createChannel({
     id: 'medication',
@@ -78,8 +94,10 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   }
 }
 
-// ===== 初始化提醒（含友善提示）=====
-// 需求：401 + user_not_found 視為成功，不彈 Alert，不影響 UI
+// =========================
+// 初始化提醒（含友善提示）
+// 回傳：'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
+// =========================
 export async function initMedicationNotifications(): Promise<
   'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
 > {
@@ -97,7 +115,7 @@ export async function initMedicationNotifications(): Promise<
   }
 
   try {
-    // 1) /me
+    // 1) /me：確認 token 與基本身分
     try {
       const meRes = await axios.get(`${BASE}/api/account/me/`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -106,13 +124,21 @@ export async function initMedicationNotifications(): Promise<
       console.log('[initNotification] /me status:', meRes.status);
       console.log('✅ 使用者資訊:', meRes.data);
     } catch (err: any) {
-      if (isUserNotFoundError(err)) {
-        // ✅ 你要的特例：當成功處理
-        console.log('[initNotification] /me 返回 user_not_found → 視為成功（不排程，不 Alert）');
-        await notifee.cancelTriggerNotifications(); // 清掉殘留排程
-        return 'success';
+      if (isAuthError(err)) {
+        console.log('[initNotification] 401 → token 無效或過期，清除並要求重新登入');
+        await AsyncStorage.removeItem('access');
+        Alert.alert('登入逾期', '請重新登入後再試一次。');
+        return 'no-token';
       }
-      throw err; // 其他錯誤照舊往外丟
+      if (isNotFoundError(err)) {
+        console.log('[initNotification] /me 404/user_not_found → 取消排程並終止');
+        await notifee.cancelTriggerNotifications();
+        Alert.alert('錯誤', '找不到使用者，請重新登入。');
+        await AsyncStorage.removeItem('access');
+        return 'error';
+      }
+      // 其他錯誤交由外層處理
+      throw err;
     }
 
     // 2) 取得提醒排程
@@ -126,25 +152,22 @@ export async function initMedicationNotifications(): Promise<
       schedule = res.data;
       console.log('✅ 提醒排程資料:', schedule);
     } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.error || err?.message;
-
-      if (isUserNotFoundError(err)) {
-        // ✅ 特例：視為成功，不提醒
-        console.log('[initNotification] get-med-reminders user_not_found → 視為成功（不排程，不 Alert）');
-        await notifee.cancelTriggerNotifications();
-        return 'success';
+      if (isAuthError(err)) {
+        await AsyncStorage.removeItem('access');
+        Alert.alert('登入逾期', '請重新登入後再試一次。');
+        return 'no-token';
       }
-
-      if (status === 403) {
-        console.log('👨‍👩‍👧 家人帳號（由 403 fallback 判定），不排通知');
+      if (isForbidden(err)) {
+        console.log('👨‍👩‍👧 家人帳號（403），不排通知');
         return 'not-elder';
       }
-      if (status === 404) {
-        Alert.alert('資料不足', msg || '尚未設定時間或藥物。');
+      if (isNotFoundError(err)) {
+        console.log('[initNotification] 404/user_not_found → 尚未設定提醒');
+        Alert.alert('資料不足', '尚未設定時間或藥物。');
         return 'no-time';
       }
-
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error || err?.message;
       console.error('[initNotification] 取得提醒失敗:', status, msg);
       Alert.alert('錯誤', msg || '取得提醒失敗，請稍後再試。');
       return 'error';
@@ -231,13 +254,11 @@ export async function initMedicationNotifications(): Promise<
 
     return 'success';
   } catch (err: any) {
-    // ✅ 最外層也再保險攔一次
-    if (isUserNotFoundError(err)) {
-      console.log('[initNotification] 外層攔截 user_not_found → 視為成功（不排程，不 Alert）');
-      await notifee.cancelTriggerNotifications();
-      return 'success';
+    if (isAuthError(err)) {
+      await AsyncStorage.removeItem('access');
+      Alert.alert('登入逾期', '請重新登入後再試一次。');
+      return 'no-token';
     }
-
     console.error(
       '[initNotification] 排程失敗:',
       err?.response?.status,
@@ -248,10 +269,18 @@ export async function initMedicationNotifications(): Promise<
   }
 }
 
-// ===== 通知點擊處理（App 前景）=====
+// =========================
+// 通知點擊事件
+// =========================
+
+// App 前景
 notifee.onForegroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
-    const { period, meds, time } = detail.notification.data as { period?: string; meds?: string; time?: string };
+    const { period, meds, time } = detail.notification.data as {
+      period?: string;
+      meds?: string;
+      time?: string;
+    };
     navigationRef.current?.navigate('ElderHome', {
       period,
       meds: meds?.split(','),
@@ -260,10 +289,15 @@ notifee.onForegroundEvent(async ({ type, detail }) => {
   }
 });
 
-// ===== 通知點擊處理（App 背景）=====
+// App 背景
 notifee.onBackgroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
-    const { period, meds, time } = detail.notification.data as { period?: string; meds?: string; time?: string };
+    const { period, meds, time } = detail.notification.data as {
+      period?: string;
+      meds?: string;
+      time?: string;
+    };
+
     await AsyncStorage.multiSet([
       ['notificationPeriod', period || ''],
       ['notificationMeds', meds || ''],

@@ -13,7 +13,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';              
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'; // ★ 新增
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://172.20.10.8:8000';
 
 const COLORS = {
   white: '#FFFFFF',
