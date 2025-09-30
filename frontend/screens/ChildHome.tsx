@@ -32,7 +32,7 @@ interface Member {
 }
 
 
-const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
+const API_BASE = 'http://192.168.0.24:8000'; // ← 依環境調整
 
 const COLORS = {
   white: '#FFFFFF',
@@ -199,7 +199,7 @@ export default function ChildHome() {
       const maybeElderId = await AsyncStorage.getItem('elder_id');
       if (!maybeElderId) {
         Alert.alert('提醒', '請先選擇要照護的長者');
-        navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+        navigation.navigate('FamilyScreen', { mode: 'full' } as never);
         return;
       }
     } else {
