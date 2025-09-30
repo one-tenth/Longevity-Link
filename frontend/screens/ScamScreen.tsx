@@ -4,7 +4,10 @@ import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
 import axios from 'axios';
 
 
-const API_BASE = 'http://172.20.10.7:8000'; // ⚠️換成實際 IP
+
+
+const API_BASE = 'http://172.20.10.8:8000'; 
+
 
 export default function ScamScreen() {
   const [phone, setPhone] = useState('');

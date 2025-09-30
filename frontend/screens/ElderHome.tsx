@@ -94,7 +94,8 @@ function toZhPeriod(key?: string): string {
 }
 
 // ---- API base ----
-const BASE = 'http://172.20.10.7:8000';
+const BASE = 'http://172.20.10.8:8000';
+
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';

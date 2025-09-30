@@ -31,7 +31,10 @@ interface Member {
   avatar?: string;
 }
 
-const API_BASE = 'http://172.20.10.7:8000'; // ← 依環境調整
+
+
+const API_BASE = 'http://172.20.10.8:8000'; // ← 依環境調整
+
 
 const COLORS = {
   white: '#FFFFFF',

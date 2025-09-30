@@ -52,7 +52,8 @@ interface RegisterData {
   avatar?: string;
 }
 
-const API_BASE = 'http://172.20.10.7:8000';
+const API_BASE = 'http://172.20.10.8:8000';
+
 
 
 export default function RegisterScreen() {

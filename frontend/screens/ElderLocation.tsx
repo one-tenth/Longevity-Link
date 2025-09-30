@@ -24,7 +24,8 @@ import {
   reverseGeocode,
 } from '../utils/locationUtils';
 
-const BASE_URL = 'http://172.20.10.7:8000';
+const BASE_URL = 'http://172.20.10.8:8000';
+
 
 const COLORS = {
   white: '#FFFFFF',
