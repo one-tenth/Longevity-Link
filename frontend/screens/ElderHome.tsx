@@ -25,8 +25,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import CallLogs from 'react-native-call-log';
 import { RootStackParamList } from '../App';
-import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
-import ElderLocation from './ElderLocation';
+import { setupNotificationChannel, initMedicationNotifications, initVisitNotifications } from '../utils/initNotification';
 import { getAvatarSource } from '../utils/avatarMap';
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
@@ -52,13 +51,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // 依現在時間，從 medCards 中挑「下一筆有藥」的原陣列索引
 function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: string[] }>): number {
   if (!cards || cards.length === 0) return -1;
-
   const now = new Date();
-  theNow: {
-    /** keep variable name explicit for readability */
-  }
   const nowStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-
   const sorted = [...cards].sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   const hasMeds = (c: { meds?: string[] }) => Array.isArray(c.meds) && c.meds.length > 0;
 
@@ -68,7 +62,6 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
       : sorted.findIndex(hasMeds);
 
   if (idxInSorted < 0) return -1;
-
   const targetId = sorted[idxInSorted].id;
   return cards.findIndex((c) => c.id === targetId);
 }
@@ -84,13 +77,11 @@ const PERIOD_LABELS: Record<string, string> = {
 function toZhPeriod(key?: string): string {
   if (!key) return '';
   const k = key.trim().toLowerCase();
-
   if (PERIOD_LABELS[k]) return PERIOD_LABELS[k];
 
   const tokens = k.split(/[^a-z]+/).filter(Boolean);
-
-  const hasBefore = tokens.includes('before') || tokens.includes('pre') || tokens.includes('premeal') || tokens.includes('pre') || tokens.includes('pre_meal');
-  const hasAfter  = tokens.includes('after')  || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post') || tokens.includes('post_meal');
+  const hasBefore = tokens.includes('before') || tokens.includes('pre') || tokens.includes('premeal') || tokens.includes('pre_meal');
+  const hasAfter  = tokens.includes('after')  || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post_meal');
   const mealMap: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', meal: '飯' };
   const mealToken = tokens.find(t => mealMap[t]);
   if (mealToken) {
@@ -98,21 +89,17 @@ function toZhPeriod(key?: string): string {
     if (hasBefore) return `${mealZh}前`;
     if (hasAfter)  return `${mealZh}後`;
   }
-
-  for (const t of tokens) {
-    if (PERIOD_LABELS[t]) return PERIOD_LABELS[t];
-  }
-
+  for (const t of tokens) if (PERIOD_LABELS[t]) return PERIOD_LABELS[t];
   return key;
 }
 
 // ---- API base ----
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://172.20.10.7:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
 const LAST_SYNC_AT_KEY   = 'calllog:last_sync_at';
-const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000; // ← 每 1 分鐘自動同步一次
+const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000; // 每 1 分鐘自動同步一次
 
 function mapType(t?: string) {
   if (!t) return 'UNKNOWN';
@@ -219,10 +206,10 @@ export default function ElderHome() {
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
 
-  // ⭐ 使用者頭像
+  // 使用者頭像
   const [avatar, setAvatar] = useState<string | null>(null);
 
-  // ✅ 同步通話 loading 狀態
+  // 同步通話 loading
   const [syncing, setSyncing] = useState(false);
 
   // 每 60 秒刷新一次「下一筆吃藥」
@@ -361,7 +348,7 @@ export default function ElderHome() {
   const [loading, setLoading] = useState(false);
   const [reminder, setReminder] = useState<HospitalRecord | null>(null);
   const [hint, setHint] = useState<string>('');
-  const [visitCount, setVisitCount] = useState<number>(0); // ← 新增：總筆數
+  const [visitCount, setVisitCount] = useState<number>(0);
 
   const loadReminder = useCallback(async () => {
     try {
@@ -394,7 +381,7 @@ export default function ElderHome() {
         } catch {}
       }
 
-      setVisitCount(rows.length); // ← 設定總筆數
+      setVisitCount(rows.length);
 
       if (!rows.length) { setHint('尚無看診資料'); return; }
 
@@ -414,16 +401,16 @@ export default function ElderHome() {
     return unsub;
   }, [navigation, loadReminder]);
 
-  // ✅ 初始化通知排程（吃藥）
+  // ✅ 初始化通知排程（吃藥 + 回診）
   useFocusEffect(
     useCallback(() => {
       (async () => {
         try {
           await setupNotificationChannel();
-          const result = await initMedicationNotifications();
-          console.log('ElderHome init notifications:', result);
+          await initMedicationNotifications();
+          await initVisitNotifications(); // ★ 新增：排回診通知
         } catch (e) {
-          console.log('initMedicationNotifications error:', e);
+          console.log('init notifications error:', e);
         }
       })();
     }, [])
@@ -472,15 +459,11 @@ export default function ElderHome() {
         return;
       }
 
-      // 讀取本機通話紀錄
       const raw = await CallLogs.loadAll();
-
-      // 取得上次同步點（毫秒）
       const lastTsStr = await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY);
       const lastTs = Number(lastTsStr || 0);
       const isFirstSync = !lastTs || Number.isNaN(lastTs) || lastTs === 0;
 
-      // 轉換 → 過濾無號碼/無時間 → 依時間新→舊排序
       const mapped = raw
         .map((r: any) => {
           const tsNum = Number(r.timestamp || 0);
@@ -504,16 +487,13 @@ export default function ElderHome() {
       if (items.length === 0) {
         setSyncing(false);
         if (!silent) Alert.alert('沒有新紀錄', '已經是最新狀態。');
-        // 更新「上次嘗試同步時間」
         await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
         return;
       }
 
       await axios.post(
         `${BASE}/api/call/upload/`,
-        {
-          records: items.map(({ _ts, ...rest }) => rest),
-        },
+        { records: items.map(({ _ts, ...rest }) => rest) },
         { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
       );
 
@@ -553,7 +533,6 @@ export default function ElderHome() {
       await autoSyncIfNeeded('mount');
     })();
 
-    // 啟動輪詢
     syncTimerRef.current = setInterval(() => {
       autoSyncIfNeeded('interval');
     }, SYNC_MIN_INTERVAL_MS);
@@ -606,11 +585,10 @@ export default function ElderHome() {
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
-            onPress={() => navigation.navigate('ElderHospitalList' as never)}
+            onPress={() => navigation.navigate('ElderHospitalList' as never)} // ← 導到列表頁
           >
             <View style={styles.rowTop}>
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>回診資料</Text>
-
               {/* 右上角筆數 Badge */}
               <View style={styles.countBadge}>
                 <MaterialIcons name="list" size={16} color={COLORS.black} />

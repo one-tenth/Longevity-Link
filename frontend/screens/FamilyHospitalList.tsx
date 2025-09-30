@@ -23,7 +23,7 @@ import {
   initVisitNotifications,
 } from '../utils/initNotification';
 
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://172.20.10.7:8000';
 
 type HospitalRecord = {
   HosId?: number;
@@ -56,6 +56,119 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 };
 
+// ========== Auth 輔助：自動帶 Authorization；401 嘗試 refresh ==========
+async function requestWithAuth<T = any>(
+  method: 'get' | 'delete' | 'post' | 'put' | 'patch',
+  url: string,
+  body?: any
+) {
+  let access = await AsyncStorage.getItem('access');
+  const refresh = await AsyncStorage.getItem('refresh');
+
+  if (!access) {
+    console.log('[AUTH] no access token');
+    throw { code: 'NO_ACCESS' };
+  }
+
+  const headers: Record<string, string> = { Authorization: `Bearer ${access}` };
+
+  try {
+    console.log('[AUTH] request', method.toUpperCase(), url);
+    const resp = await axios.request<T>({ method, url, data: body, headers, timeout: 10000 });
+    return resp;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    console.log('[AUTH] first try fail:', status, err?.response?.data);
+
+    if (status !== 401 || !refresh) throw err;
+
+    const candidates = [
+      `${BASE}/api/token/refresh/`,
+      `${BASE}/api/auth/refresh/`,
+      `${BASE}/auth/jwt/refresh/`,
+    ];
+
+    for (const ep of candidates) {
+      try {
+        console.log('[AUTH] try refresh:', ep);
+        const r = await axios.post<{ access: string }>(ep, { refresh }, { timeout: 10000 });
+        if (r?.data?.access) {
+          access = r.data.access;
+          await AsyncStorage.setItem('access', access);
+          const retryHeaders = { Authorization: `Bearer ${access}` };
+          console.log('[AUTH] refresh ok, retry:', method.toUpperCase(), url);
+          const retry = await axios.request<T>({
+            method,
+            url,
+            data: body,
+            headers: retryHeaders,
+            timeout: 10000,
+          });
+          return retry;
+        }
+      } catch {
+        console.log('[AUTH] refresh failed on', ep);
+      }
+    }
+    throw { code: 'REFRESH_FAIL', original: err };
+  }
+}
+
+// ========== elderId 強韌解析（多來源；永遠不用 RelatedID） ==========
+function toValidId(v: any): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function resolveElderIdDeep(routeParams: any): Promise<number | null> {
+  try {
+    console.log('================= [ELDER] resolve start =================');
+
+    // 1) route.params.elderId / elderID
+    const routeRaw = routeParams?.elderId ?? routeParams?.elderID;
+    const routeId = toValidId(routeRaw);
+    console.log('[ELDER] route.params -> raw:', routeRaw, ' parsed:', routeId);
+    if (routeId) return routeId;
+
+    // 2) AsyncStorage.elder_id
+    const savedStr = await AsyncStorage.getItem('elder_id');
+    const savedId = toValidId(savedStr);
+    console.log('[ELDER] storage elder_id -> raw:', savedStr, ' parsed:', savedId);
+    if (savedId) return savedId;
+
+    // 3) AsyncStorage.selectedMember（僅取長者的 UserID 或明確 elderId 欄位）
+    const selStr = await AsyncStorage.getItem('selectedMember');
+    console.log('[ELDER] storage selectedMember (raw string) =', selStr);
+    if (selStr && selStr.trim()) {
+      try {
+        const obj = JSON.parse(selStr);
+        console.log('[ELDER] selectedMember parsed =', obj);
+
+        // 3a) 明確 elderId 欄位
+        const direct = toValidId(obj?.elderId ?? obj?.elder_id ?? obj?.ElderID ?? obj?.elder?.id);
+        console.log('[ELDER] try direct elderId =', direct);
+        if (direct) return direct;
+
+        // 3b) 若物件本身就是長者，使用其 UserID
+        const role = String(obj?.role || '').toLowerCase();
+        const isElder = obj?.isElder === true || role === 'elder' || obj?.RelatedID != null;
+        const uid = toValidId(obj?.UserID ?? obj?.id);
+        console.log('[ELDER] infer isElder =', isElder, ' uid =', uid);
+        if (isElder && uid) return uid;
+
+        // ⚠️ 不使用 RelatedID（多半是指向家人）
+      } catch (e) {
+        console.log('[ELDER] parse selectedMember failed:', e);
+      }
+    }
+
+    console.log('[ELDER] all sources failed → null');
+    return null;
+  } finally {
+    console.log('================= [ELDER] resolve end =================');
+  }
+}
+
 export default function FamilyHospitalList({ route }: { route: HospitalListRoute }) {
   const navigation = useNavigation<HospitalListNav>();
 
@@ -64,60 +177,75 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
   const [elderId, setElderId] = useState<number | null>(null);
   const [hint, setHint] = useState<string>('');
 
-  // 讀 elderId（優先 route → 再 AsyncStorage）
+  // 讀 elderId（優先 route → 再 AsyncStorage）→ 換成強韌解析並寫回 storage
   const loadElderInfo = useCallback(async () => {
-    if (typeof route.params?.elderId === 'number' && !Number.isNaN(route.params.elderId)) {
-      setElderId(route.params.elderId);
-      await AsyncStorage.setItem('elder_id', String(route.params.elderId));
+    const id = await resolveElderIdDeep(route.params);
+    console.log('[ELDER] loadElderInfo resolved id =', id);
+    if (id != null) {
+      setElderId(id);
+      await AsyncStorage.setItem('elder_id', String(id));
     } else {
-      const savedId = await AsyncStorage.getItem('elder_id');
-      const n = savedId ? Number(savedId) : NaN;
-      setElderId(!Number.isNaN(n) ? n : null);
+      setElderId(null);
     }
   }, [route.params]);
 
-  // 取清單
+  // 取清單（每次重新解析，避免 state race）
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     setHint('');
     try {
       const token = await AsyncStorage.getItem('access');
-      let id = elderId;
-      if (id == null || Number.isNaN(id)) {
-        const saved = await AsyncStorage.getItem('elder_id');
-        id = saved ? Number(saved) : NaN;
-      }
-
       if (!token) {
         setHint('尚未登入，無法載入資料');
         setRecords([]);
         return;
       }
-      if (id == null || Number.isNaN(id)) {
+
+      const id = await resolveElderIdDeep(route.params);
+      console.log('[ELDER] fetchRecords resolved id =', id);
+
+      if (!id) {
         setHint('尚未指定長者');
         setRecords([]);
         return;
       }
 
-      const url = `${BASE}/api/hospital/list/?user_id=${id}`;
-      const res = await axios.get<HospitalRecord[]>(url, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
-      });
+      // 同步回寫，其他頁可備援使用
+      await AsyncStorage.setItem('elder_id', String(id));
+      setElderId(id);
 
-      const data = res.data ?? [];
+      const url = `${BASE}/api/hospital/list/?user_id=${id}`;
+      console.log('[ELDER] GET', url);
+
+      const res = await requestWithAuth<HospitalRecord[]>('get', url);
+      const data = Array.isArray(res.data) ? res.data : [];
+
       setRecords(data);
       if (data.length === 0) setHint('還沒有新增過看診資料');
-    } catch (e) {
-      console.log('取得看診紀錄失敗:', e);
+    } catch (e: any) {
+      if (e?.code === 'NO_ACCESS') {
+        setHint('請先登入');
+        setRecords([]);
+        Alert.alert('需要登入', '請先登入');
+        navigation.navigate('LoginScreen' as never);
+        return;
+      }
+      if (e?.code === 'REFRESH_FAIL' || e?.response?.status === 401) {
+        setHint('登入已過期，請重新登入');
+        setRecords([]);
+        Alert.alert('需要重新登入', '登入已過期或刷新失敗，請重新登入');
+        navigation.navigate('LoginScreen' as never);
+        return;
+      }
+      console.log('取得看診紀錄失敗:', e?.response?.status, e?.response?.data || e);
       setRecords([]);
       setHint('資料暫時載入失敗，請稍後下拉重新整理');
     } finally {
       setLoading(false);
     }
-  }, [elderId]);
+  }, [route.params, navigation]);
 
-  // 畫面聚焦→同步 elderId 並拉資料
+  // 畫面聚焦→先解析 id 再拉資料
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -144,26 +272,13 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
 
   const handleDelete = async (pk: number) => {
     try {
-      const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        Alert.alert('錯誤', '尚未登入');
-        return;
-      }
-
-      let id = elderId;
-      if (id == null || Number.isNaN(id)) {
-        const saved = await AsyncStorage.getItem('elder_id');
-        id = saved ? Number(saved) : NaN;
-      }
-      if (id == null || Number.isNaN(id)) {
+      const id = await resolveElderIdDeep(route.params);
+      if (!id) {
         Alert.alert('錯誤', '未指定長者');
         return;
       }
 
-      await axios.delete(`${BASE}/api/hospital/${pk}/?user_id=${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
-      });
+      await requestWithAuth('delete', `${BASE}/api/hospital/${pk}/?user_id=${id}`);
 
       setRecords((prev) => {
         const next = prev.filter((r) => getPk(r) !== pk);
@@ -171,7 +286,6 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
         return next;
       });
 
-      // ★ 刪除後重排回診通知（避免殘留）
       await initVisitNotifications();
     } catch (e: any) {
       const status = e?.response?.status;
@@ -183,7 +297,20 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
     }
   };
 
-  // ★ 測試：為某筆回診建立「1 分鐘後」的通知
+  // ★ 新增紀錄：把 elderId 一路帶到 FamilyAddHospital，並寫進 AsyncStorage 備援
+  const goAddRecord = useCallback(async () => {
+    const id = await resolveElderIdDeep(route.params);
+    if (!Number.isFinite(id as number)) {
+      Alert.alert('提醒', '請先選擇要照護的長者');
+      // 可導至選人頁：navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      return;
+    }
+    await AsyncStorage.setItem('elder_id', String(id));
+    console.log('[ELDER] goAddRecord with id =', id);
+    navigation.navigate('FamilyAddHospital', { elderId: id } as never);
+  }, [route.params, navigation]);
+
+  // ★ 測試：為某筆回診建立「1 分鐘後」的通知（保留）
   const scheduleTestNotification = async (r: HospitalRecord) => {
     try {
       await setupNotificationChannel();
@@ -198,7 +325,9 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
         {
           id: notifId,
           title: '🏥 回診測試通知（1 分鐘後）',
-          body: `${r.ClinicDate}｜${r.ClinicPlace || ''}${r.Doctor ? `｜醫師：${r.Doctor}` : ''}${(r.Num ?? '') !== '' ? `｜號碼：${r.Num}` : ''}`,
+          body: `${r.ClinicDate}｜${r.ClinicPlace || ''}${r.Doctor ? `｜醫師：${r.Doctor}` : ''}${
+            (r.Num ?? '') !== '' ? `｜號碼：${r.Num}` : ''
+          }`,
           android: {
             channelId: 'appointments',
             smallIcon: 'ic_launcher',
@@ -263,14 +392,10 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
                 <View style={styles.cardRow}>
                   <Text style={styles.time}>日期：{r.ClinicDate}</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {/* 測試通知 */}
-                    {/* <TouchableOpacity
-                      style={styles.testBtn}
-                      onPress={() => scheduleTestNotification(r)}
-                    >
+                    {/* 測試通知保留（如需啟用，把按鈕打開）
+                    <TouchableOpacity style={styles.testBtn} onPress={() => scheduleTestNotification(r)}>
                       <Text style={styles.testText}>測試通知</Text>
                     </TouchableOpacity> */}
-                    {/* 刪除 */}
                     {pk != null && (
                       <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(pk)}>
                         <Text style={styles.deleteText}>刪除</Text>
@@ -290,10 +415,7 @@ export default function FamilyHospitalList({ route }: { route: HospitalListRoute
       </ScrollView>
 
       {/* 新增紀錄 FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('FamilyAddHospital' as never)}
-      >
+      <TouchableOpacity style={styles.fab} onPress={goAddRecord}>
         <FontAwesome name="plus" size={18} color={COLORS.cream} style={{ marginRight: 8 }} />
         <Text style={styles.fabText}>新增紀錄</Text>
       </TouchableOpacity>

@@ -18,10 +18,10 @@ console.log('[initNotification] module loaded');
 // =========================
 // 基本設定
 // =========================
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://172.20.10.7:8000';
 
 // ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '08:00';
+const VISIT_NOTIFY_TIME = '11:51';
 
 // =========================
 // 共用工具
