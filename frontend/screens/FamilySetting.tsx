@@ -93,11 +93,7 @@ export default function CreateFamily() {
       const token = await AsyncStorage.getItem('access');
       if (!token) return;
       try {
-<<<<<<< HEAD
-        const res = await fetch('http://172.20.10.7:8000/account/me/', {
-=======
         const res = await fetch('http://172.20.10.8:8000/account/me/', {
->>>>>>> 68afa8547b6d40b889f45734bf5c57447e488793
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,

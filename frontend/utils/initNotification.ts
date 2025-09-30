@@ -6,11 +6,12 @@ import notifee, {
   RepeatFrequency,
   EventType,
   AuthorizationStatus,
+  AndroidStyle,
 } from '@notifee/react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform } from 'react-native';
-import { navigationRef } from '../App';
+import { navigationRef } from '../App'; // 若已抽出 navigationRef.ts，改成 '../navigationRef'
 
 console.log('[initNotification] module loaded');
 
@@ -20,8 +21,7 @@ console.log('[initNotification] module loaded');
 const BASE = 'http://172.20.10.8:8000';
 
 // ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '11:51';
-
+const VISIT_NOTIFY_TIME = '15:07';
 
 // =========================
 // 工具：時間處理
@@ -78,9 +78,16 @@ function isNotFoundError(err: any): boolean {
 /** Android 通知頻道 */
 // =========================
 export async function setupNotificationChannel() {
+  // 吃藥
   await notifee.createChannel({
     id: 'medication',
     name: '吃藥提醒',
+    importance: AndroidImportance.HIGH,
+  });
+  // 回診（獨立頻道，避免互相影響）
+  await notifee.createChannel({
+    id: 'appointments',
+    name: '回診提醒',
     importance: AndroidImportance.HIGH,
   });
 }
@@ -101,7 +108,240 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 }
 
 // =========================
-// 初始化提醒（含友善提示）
+// 回診提醒（動態：地點/醫師/號碼；今天過時立即補發；未來只排一次）
+// =========================
+export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' | 'no-token' | 'no-data' | 'error'> {
+  try {
+    await setupNotificationChannel(); // 冪等
+
+    // ---- 檢查固定提醒時間 ----
+    if (!VISIT_NOTIFY_TIME) {
+      console.log('[visit] 未設定 VISIT_NOTIFY_TIME，略過');
+      return 'skipped';
+    }
+
+    // ---- 權限 / token ----
+    const token = await AsyncStorage.getItem('access');
+    if (!token) return 'no-token';
+    if (Platform.OS === 'android') await ensureNotificationPermission();
+
+    // ---- 讀回診列表 ----
+    type VisitRow = {
+      ClinicDate?: string;
+      ClinicPlace?: string;
+      Doctor?: string;
+      Num?: string | number;
+      HosId?: string | number;
+      HosID?: string | number;
+      id?: string | number;
+      [k: string]: any;
+    };
+
+    let rows: VisitRow[] = [];
+    try {
+      const res = await axios.get(`${BASE}/api/hospital/list/`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        timeout: 10000,
+      });
+      if (Array.isArray(res.data)) rows = res.data;
+    } catch (e) {
+      console.log('[visit] 讀取 /api/hospital/list/ 失敗：', e);
+    }
+
+    if (!rows.length) {
+      // 沒資料 → 清掉舊回診排程
+      await clearVisitTriggersOnly();
+      return 'no-data';
+    }
+
+    // ---- 工具：日期處理（僅此函式使用）----
+    const normalizeYMD = (raw?: string): string | null => {
+      if (!raw) return null;
+      const s = String(raw).trim().replace(/[./]/g, '-');
+      const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (!m) return null;
+      const y = m[1];
+      const mm = String(Math.min(12, Math.max(1, parseInt(m[2], 10)))).padStart(2, '0');
+      const dd = String(Math.min(31, Math.max(1, parseInt(m[3], 10)))).padStart(2, '0');
+      return `${y}-${mm}-${dd}`;
+    };
+    const extractHM = (hm: string) => {
+      const m = hm.replace(/：/g, ':').match(/(\d{1,2}):(\d{1,2})/);
+      if (!m) return { h: 0, m: 0 };
+      return { h: Math.min(23, +m[1]), m: Math.min(59, +m[2]) };
+    };
+    const dtFromYMDHM = (ymd: string, hm: string) => {
+      const [y, m, d] = ymd.split('-').map(Number);
+      const { h, m: mi } = extractHM(hm);
+      const dt = new Date();
+      dt.setFullYear(y, m - 1, d);
+      dt.setHours(h, mi, 0, 0);
+      return dt;
+    };
+    const todayStart = () => {
+      const t = new Date();
+      t.setHours(0, 0, 0, 0);
+      return t;
+    };
+
+    // ---- 建立候選列表（atNotify, place, doctor, num, visitId）並挑最近一筆 ----
+    const today0 = todayStart();
+    const candidates = rows
+      .map((r) => {
+        const ymd = normalizeYMD(r.ClinicDate);
+        if (!ymd) return null;
+        const atNotify = dtFromYMDHM(ymd, VISIT_NOTIFY_TIME);
+        const place = String(r.ClinicPlace ?? '');
+        const doctor = String(r.Doctor ?? '');
+        const num = r.Num != null ? String(r.Num) : '';
+        const visitId = String(r.HosId ?? r.HosID ?? r.id ?? `${ymd}-${place}`);
+        return { ymd, atNotify, place, doctor, num, visitId };
+      })
+      .filter(Boolean) as Array<{ ymd: string; atNotify: Date; place: string; doctor: string; num: string; visitId: string }>;
+
+    // 只保留「今天之後」，（今天）則看指定時間是否已過
+    const now = new Date();
+    const upcoming = candidates
+      .filter((c) => c.atNotify.getTime() >= today0.getTime())
+      .sort((a, b) => a.atNotify.getTime() - b.atNotify.getTime());
+
+    if (!upcoming.length) {
+      await clearVisitTriggersOnly();
+      return 'no-data';
+    }
+
+    // 取最近一筆
+    const next = upcoming[0];
+
+    // ---- 先清掉舊的回診排程（只清回診類）----
+    await clearVisitTriggersOnly();
+
+    // ---- 通知內容：地點 / 醫師 / 回診號碼 / 提醒時間 ----
+    const title = `🏥 回診提醒（${VISIT_NOTIFY_TIME}）`;
+    const bodyLines = [
+      next.place ? `📍 地點：${next.place}` : null,
+      next.doctor ? `👨‍⚕️ 醫師：${next.doctor}` : null,
+      next.num !== '' ? `🎫 回診號碼：${next.num}` : null,
+      `⏰ 提醒時間：${VISIT_NOTIFY_TIME}`,
+    ].filter(Boolean) as string[];
+    const body = bodyLines.join('\n');
+
+    const notifId = `visit::${next.visitId}::${next.ymd}::${VISIT_NOTIFY_TIME}`;
+
+    // ---- 若今天且已過指定時間 → 立即補發一次，並不再排程過去時間 ----
+    const isToday =
+      next.ymd ===
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+        now.getDate()
+      ).padStart(2, '0')}`;
+
+    if (isToday && next.atNotify.getTime() <= now.getTime()) {
+      const shownKey = `visit:shown:${next.visitId}:${next.ymd}`;
+      if ((await AsyncStorage.getItem(shownKey)) !== '1') {
+        await notifee.displayNotification({
+          id: notifId,
+          title,
+          body,
+          ios: { sound: 'default', subtitle: '回診資訊提醒' },
+          android: {
+            channelId: 'appointments',
+            smallIcon: 'ic_launcher',
+            pressAction: { id: 'open-visit' },
+            style: {
+              type: AndroidStyle.BIGTEXT,
+              title: '回診資訊',
+              text: body,
+              summary: next.place || undefined,
+            },
+          },
+          data: {
+            __type: 'visit',
+            date: next.ymd,
+            time: VISIT_NOTIFY_TIME,
+            place: next.place,
+            doctor: next.doctor,
+            num: next.num,
+            visitId: next.visitId,
+          },
+        });
+        await AsyncStorage.setItem(shownKey, '1');
+        console.log(`[visit] ⚡ 已即時補發：${next.ymd} ${VISIT_NOTIFY_TIME} (${next.place})`);
+      }
+      return 'scheduled';
+    }
+
+    // ---- 未來時間 → 正常排程（一次性）----
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: next.atNotify.getTime(),
+      repeatFrequency: undefined, // 只這一次
+      alarmManager: true,
+    };
+
+    await notifee.createTriggerNotification(
+      {
+        id: notifId,
+        title,
+        body,
+        ios: { sound: 'default', subtitle: '回診資訊提醒' },
+        android: {
+          channelId: 'appointments',
+          smallIcon: 'ic_launcher',
+          pressAction: { id: 'open-visit' },
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            title: '回診資訊',
+            text: body,
+            summary: next.place || undefined,
+          },
+        },
+        data: {
+          __type: 'visit',
+          date: next.ymd,
+          time: VISIT_NOTIFY_TIME,
+          place: next.place,
+          doctor: next.doctor,
+          num: next.num,
+          visitId: next.visitId,
+        },
+      },
+      trigger
+    );
+
+    // 驗證目前排程
+    const after = await notifee.getTriggerNotifications();
+    const visitTriggers = after.filter((n) => n.notification?.data?.__type === 'visit');
+    console.log('[visit] triggers total:', after.length, 'visit only:', visitTriggers.length);
+    visitTriggers.forEach((n, i) => {
+      const ts = (n.trigger as any)?.timestamp as number | undefined;
+      console.log(`[visit] #${i} id=${n.notification?.id} ts=${ts} ->`, ts ? new Date(ts) : 'N/A');
+    });
+
+    console.log(`[visit] ✅ 已排程：${next.ymd} ${VISIT_NOTIFY_TIME} @ ${next.place}`);
+    return 'scheduled';
+  } catch (e) {
+    console.error('[visit] 排程失敗：', e);
+    return 'error';
+  }
+}
+
+/** 只清回診相關的觸發排程（不影響吃藥） */
+async function clearVisitTriggersOnly() {
+  const list = await notifee.getTriggerNotifications();
+  await Promise.all(
+    list
+      .filter(
+        (n) =>
+          n.notification?.data?.__type === 'visit' ||
+          n.notification?.data?.type === 'visit' ||
+          n.notification?.id?.startsWith('visit::')
+      )
+      .map((n) => n.notification?.id && notifee.cancelTriggerNotification(n.notification.id))
+  );
+}
+
+// =========================
+// 初始化「吃藥」提醒（從後端時間表）
 // 回傳：'success' | 'no-time' | 'no-meds' | 'no-token' | 'not-elder' | 'error'
 // =========================
 export async function initMedicationNotifications(): Promise<
@@ -200,8 +440,13 @@ export async function initMedicationNotifications(): Promise<
       return 'no-meds';
     }
 
-    // 4) 重新排程（清掉舊的）
-    await notifee.cancelTriggerNotifications();
+    // 4) 重新排程（清掉舊的「吃藥」排程，別動回診）
+    const all = await notifee.getTriggerNotifications();
+    await Promise.all(
+      all
+        .filter((n) => n.notification?.data?.__type === 'med' || n.notification?.data?.type === 'med')
+        .map((n) => n.notification?.id && notifee.cancelTriggerNotification(n.notification.id))
+    );
 
     let medsExist = false;
 
@@ -234,7 +479,7 @@ export async function initMedicationNotifications(): Promise<
             smallIcon: 'ic_launcher',
             pressAction: { id: 'default' },
           },
-          data: { period, meds: meds.join(','), time },
+          data: { period, meds: meds.join(','), time, __type: 'med' },
         },
         trigger
       );
@@ -276,46 +521,72 @@ export async function initMedicationNotifications(): Promise<
 }
 
 // =========================
+// 便利方法：一次初始化全部排程
+// =========================
+export async function initAllNotifications() {
+  await setupNotificationChannel();
+  const med = await initMedicationNotifications();
+  console.log('[initNotification] initMedicationNotifications =>', med);
+  const visit = await initVisitNotifications();
+  console.log('[initNotification] initVisitNotifications =>', visit);
+  return { med, visit };
+}
+
+// =========================
 // 通知點擊事件
 // =========================
 
 // App 前景
 notifee.onForegroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
-    const { period, meds, time } = detail.notification.data as {
-      period?: string;
-      meds?: string;
-      time?: string;
-    };
-    navigationRef.current?.navigate('ElderHome', {
-      period,
-      meds: meds?.split(','),
-      time,
-    });
+    const data = detail.notification.data as any;
+
+    // 吃藥 → 詳情頁
+    if (data?.__type === 'med' || data?.type === 'med') {
+      const { period, meds, time } = data;
+      navigationRef.current?.navigate('ElderMedRemind', {
+        period,
+        meds: meds ? String(meds).split(',') : undefined,
+        time,
+      });
+      return;
+    }
+
+    // 回診 → 回診列表頁（可依需求改為詳情頁）
+    if (data?.__type === 'visit' || data?.type === 'visit') {
+      navigationRef.current?.navigate('ElderHospitalList');
+      return;
+    }
   }
 });
 
 // App 背景
 notifee.onBackgroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
-    const { period, meds, time } = detail.notification.data as {
-      period?: string;
-      meds?: string;
-      time?: string;
-    };
+    const data = detail.notification.data as any;
 
-    await AsyncStorage.multiSet([
-      ['notificationPeriod', period || ''],
-      ['notificationMeds', meds || ''],
-      ['notificationTime', time || ''],
-    ]);
+    if (data?.__type === 'med' || data?.type === 'med') {
+      const { period, meds, time } = data;
+      await AsyncStorage.multiSet([
+        ['notificationPeriod', period || ''],
+        ['notificationMeds', meds || ''],
+        ['notificationTime', time || ''],
+      ]);
+      setTimeout(() => {
+        navigationRef.current?.navigate('ElderMedRemind', {
+          period,
+          meds: meds ? String(meds).split(',') : undefined,
+          time,
+        });
+      }, 800);
+      return;
+    }
 
-    setTimeout(() => {
-      navigationRef.current?.navigate('ElderHome', {
-        period,
-        meds: meds?.split(','),
-        time,
-      });
-    }, 1000);
+    if (data?.__type === 'visit' || data?.type === 'visit') {
+      setTimeout(() => {
+        navigationRef.current?.navigate('ElderHospitalList');
+      }, 800);
+      return;
+    }
   }
 });
