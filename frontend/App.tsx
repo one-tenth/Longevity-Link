@@ -1,10 +1,12 @@
 // App.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import notifee, { EventType } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import axios from 'axios';
+import CallLogs from 'react-native-call-log';
 import { setupNotificationChannel, initMedicationNotifications } from './utils/initNotification';
 
 // ---- Screens ----
@@ -90,10 +92,36 @@ export type RootStackParamList = {
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
+const BASE = 'http://192.168.0.24:8000';
+const UPLOAD_EVERY_MS = 60 * 1000; // 每分鐘上傳通話紀錄
+
+// 上傳通話紀錄
+async function uploadRecentCalls() {
+  try {
+    const logs = await CallLogs.load(10); // 獲取最近 10 筆通話紀錄
+    const payload = logs.map((x: any) => ({
+      phone: x.phoneNumber || '',
+      name: x.name || '',
+      timestamp: Number(x.timestamp) || Date.now(),
+      duration: Number(x.duration) || 0,
+      type: (x.type || '').toString(), // INCOMING/OUTGOING/MISSED...
+    }));
+
+    const access = await AsyncStorage.getItem('access');
+    await axios.post(`${BASE}/api/calls/upload/`, { calls: payload }, {
+      headers: { Authorization: `Bearer ${access}` },
+      timeout: 10000,
+    });
+  } catch (e) {
+    console.log('[uploadRecentCalls] error:', (e instanceof Error) ? e.message : e);
+  }
+}
+
 const App: React.FC = () => {
   useEffect(() => {
     async function initNotifee() {
       try {
+        // 初始化通知頻道和用藥提醒
         await setupNotificationChannel();
         const result = await initMedicationNotifications();
         console.log('init result:', result);
@@ -122,6 +150,7 @@ const App: React.FC = () => {
       }
     }
 
+    // 初始化 Notifee 和通話紀錄上傳
     initNotifee();
 
     // 前景點擊通知 → 導到 ElderMedRemind（與冷啟一致）
@@ -141,7 +170,27 @@ const App: React.FC = () => {
         }
       }
     });
-    return () => unsubscribe();
+
+    // 每分鐘上傳通話紀錄
+    const timer = setInterval(uploadRecentCalls, UPLOAD_EVERY_MS);
+
+    // 監聽 AppState 來確保在背景時也能繼續更新
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        // 當 App 進入前景時，啟動上傳通話紀錄
+        clearInterval(timer);
+        setInterval(uploadRecentCalls, 60 * 1000);
+      } else {
+        clearInterval(timer); // 背景時停止上傳
+      }
+    });
+
+    // 清理函數
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+      appStateSubscription.remove();
+    };
   }, []);
 
   return (

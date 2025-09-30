@@ -15,7 +15,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 // （可選）如果要直接送到後端，打開下面這兩行並設定 BASE & API：
 // import axios from 'axios';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
-// const BASE = 'http://172.20.10.7:8000';
+// const BASE = 'http://192.168.0.24:8000';
 
 type AddHospitalRecordNavProp = StackNavigationProp<RootStackParamList, 'AddHospitalRecord'>;
 
