@@ -15,9 +15,17 @@ type MedicineReminderNavProp = StackNavigationProp<RootStackParamList, 'MedRemin
 type MedicineReminderRouteProp = RouteProp<RootStackParamList, 'MedRemind'>;
 
 type RouteParams = {
-  period?: string;
+  period?: string;    // e.g. 'morning' | 'noon' | 'evening' | 'bedtime'
   meds?: string[] | string;
-  time?: string;
+  time?: string;      // 'HH:mm' 或 'HH:mm:ss'
+};
+
+// ===== 時段中英文對照 =====
+const PERIOD_LABELS: Record<string, string> = {
+  morning: '早上',
+  noon: '中午',
+  evening: '晚上',
+  bedtime: '睡前',
 };
 
 // ===== Theme (沿用 ChildHome 風格) =====
@@ -62,13 +70,19 @@ function toMedList(meds?: string[] | string) {
   return meds.split(',').map(s => s.trim()).filter(Boolean);
 }
 
+function getPeriodLabel(period?: string) {
+  if (!period) return '目前時段';
+  const key = String(period).toLowerCase().trim();
+  return PERIOD_LABELS[key] ?? period; // 找不到就顯示原字串
+}
+
 export default function ElderMedRemind() {
   const navigation = useNavigation<MedicineReminderNavProp>();
   const route = useRoute<MedicineReminderRouteProp>();
   const { period, meds, time } = (route.params || {}) as RouteParams;
 
   const medList = useMemo(() => toMedList(meds), [meds]);
-  const displayPeriod = period || '目前時段';
+  const displayPeriod = getPeriodLabel(period);
   const displayTime = time ? `用藥時間：${formatTime(time)}` : '尚未設定時間';
 
   const onDelay = () => {
@@ -131,9 +145,6 @@ export default function ElderMedRemind() {
           <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.cream }]} onPress={onDelay}>
               <Text style={styles.btnText}>延遲</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.grayBox }]} onPress={onCancel}>
-              <Text style={styles.btnText}>取消</Text>
             </TouchableOpacity>
           </View>
 

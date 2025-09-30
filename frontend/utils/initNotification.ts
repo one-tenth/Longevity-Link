@@ -21,7 +21,22 @@ console.log('[initNotification] module loaded');
 const BASE = 'http://172.20.10.8:8000';
 
 // ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '15:07';
+const VISIT_NOTIFY_TIME = '15:57';
+
+// =========================
+// 時段：中英文對照（新增）
+// =========================
+const PERIOD_LABELS: Record<string, string> = {
+  morning: '早上',
+  noon: '中午',
+  evening: '晚上',
+  bedtime: '睡前',
+};
+function getPeriodLabel(period?: string) {
+  if (!period) return '目前時段';
+  const key = String(period).toLowerCase().trim();
+  return PERIOD_LABELS[key] ?? period;
+}
 
 // =========================
 // 工具：時間處理
@@ -472,13 +487,15 @@ export async function initMedicationNotifications(): Promise<
 
       await notifee.createTriggerNotification(
         {
-          title: `💊 ${period} 吃藥提醒`,
+          // ✅ 這裡改用中文標籤
+          title: `💊 ${getPeriodLabel(period)} 吃藥提醒`,
           body: `請記得服用：${meds.map((m) => String(m)).join(', ')}`,
           android: {
             channelId: 'medication',
             smallIcon: 'ic_launcher',
             pressAction: { id: 'default' },
           },
+          // 保持資料以「英文鍵」傳遞，畫面端再轉中文
           data: { period, meds: meds.join(','), time, __type: 'med' },
         },
         trigger
@@ -541,7 +558,7 @@ notifee.onForegroundEvent(async ({ type, detail }) => {
   if (type === EventType.PRESS && detail.notification?.data) {
     const data = detail.notification.data as any;
 
-    // 吃藥 → 詳情頁
+    // 吃藥 → 詳情頁（period 用英文鍵，畫面端會轉中文）
     if (data?.__type === 'med' || data?.type === 'med') {
       const { period, meds, time } = data;
       navigationRef.current?.navigate('ElderMedRemind', {

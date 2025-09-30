@@ -586,7 +586,7 @@ export default function ElderHome() {
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
-            onPress={() => navigation.navigate('ElderHospitalList' as never)} // ← 導到列表頁
+            onPress={() => navigation.navigate('ElderHospitalList' as never)}
           >
             <View style={styles.rowTop}>
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>回診資料</Text>
@@ -597,7 +597,7 @@ export default function ElderHome() {
               </View>
             </View>
 
-            <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
+            <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}> 
               {loading ? (
                 <Text style={[styles.notePlaceholder, { color: COLORS.textMid }]}>載入中…</Text>
               ) : reminder ? (
@@ -744,7 +744,13 @@ export default function ElderHome() {
 
             {/* 上/下一頁箭頭 */}
             <TouchableOpacity
-              onPress={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+              onPress={() => {
+                setCurrentIndex((i) => {
+                  const next = Math.max(0, i - 1);
+                  flatRef.current?.scrollToIndex({ index: next, animated: true });
+                  return next;
+                });
+              }}
               style={[styles.navArrow, { left: -12, opacity: currentIndex === 0 ? 0.3 : 1 }]}
               disabled={currentIndex === 0}
               activeOpacity={0.8}
@@ -752,7 +758,13 @@ export default function ElderHome() {
               <Feather name="chevron-left" size={28} color={COLORS.black} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setCurrentIndex((i) => Math.min(medCards.length - 1, i + 1))}
+              onPress={() => {
+                setCurrentIndex((i) => {
+                  const next = Math.min(medCards.length - 1, i + 1);
+                  flatRef.current?.scrollToIndex({ index: next, animated: true });
+                  return next;
+                });
+              }}
               style={[
                 styles.navArrow,
                 { right: -12, opacity: currentIndex === medCards.length - 1 ? 0.3 : 1 },
