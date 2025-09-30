@@ -199,7 +199,7 @@ export default function ChildHome() {
       const maybeElderId = await AsyncStorage.getItem('elder_id');
       if (!maybeElderId) {
         Alert.alert('提醒', '請先選擇要照護的長者');
-        navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+        navigation.navigate('FamilyScreen', { mode: 'full' } as never);
         return;
       }
     } else {

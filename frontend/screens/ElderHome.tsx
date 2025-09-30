@@ -1,4 +1,4 @@
-// ElderHome.tsx
+// screens/ElderHome.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -15,7 +15,6 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -28,7 +27,7 @@ import CallLogs from 'react-native-call-log';
 import { RootStackParamList } from '../App';
 import { setupNotificationChannel, initMedicationNotifications } from '../utils/initNotification';
 import ElderLocation from './ElderLocation';
-import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 加入頭像來源工具
+import { getAvatarSource } from '../utils/avatarMap';
 
 type ElderHomeNav = StackNavigationProp<RootStackParamList, 'ElderHome'>;
 
@@ -55,6 +54,9 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
   if (!cards || cards.length === 0) return -1;
 
   const now = new Date();
+  theNow: {
+    /** keep variable name explicit for readability */
+  }
   const nowStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const sorted = [...cards].sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
@@ -109,6 +111,9 @@ const BASE = 'http://172.20.10.8:8000';
 
 // ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
+const LAST_SYNC_AT_KEY   = 'calllog:last_sync_at';
+const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000; // ← 每 1 分鐘自動同步一次
+
 function mapType(t?: string) {
   if (!t) return 'UNKNOWN';
   const s = String(t).toUpperCase();
@@ -214,7 +219,7 @@ export default function ElderHome() {
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
 
-  // ⭐ 新增：使用者頭像字串（URL 或 檔名）
+  // ⭐ 使用者頭像
   const [avatar, setAvatar] = useState<string | null>(null);
 
   // ✅ 同步通話 loading 狀態
@@ -227,7 +232,10 @@ export default function ElderHome() {
     return () => clearInterval(t);
   }, []);
 
-  // ====== 使用者姓名/頭像：先顯示快取，再以後端覆蓋；聚焦時再校正 ======
+  // 自動同步計時器
+  const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ====== 使用者姓名/頭像：先快取再覆蓋；聚焦時校正 ======
   const fetchAndCacheName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('access');
@@ -264,7 +272,7 @@ export default function ElderHome() {
     }
   }, []);
 
-  // 掛載時：先讀快取避免空白，再打 API 覆蓋
+  // 掛載：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
     (async () => {
       try {
@@ -297,7 +305,7 @@ export default function ElderHome() {
     })();
   }, [fetchAndCacheName]);
 
-  // 聚焦時再校正（回到此頁就更新）
+  // 聚焦時再校正
   useFocusEffect(
     useCallback(() => {
       fetchAndCacheName();
@@ -315,8 +323,6 @@ export default function ElderHome() {
     });
   };
   const closeMedModal = () => setShowMedModal(false);
-  const goPrev = () => currentIndex > 0 && setCurrentIndex((i) => i - 1);
-  const goNext = () => currentIndex < medCards.length - 1 && setCurrentIndex((i) => i + 1);
 
   // 抓藥物提醒（period 轉中文）
   useEffect(() => {
@@ -351,45 +357,44 @@ export default function ElderHome() {
   const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, tick]);
   const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
 
-  // 看診提醒
+  // ===== 看診提醒（顯示最近一筆 + 計數） =====
   const [loading, setLoading] = useState(false);
   const [reminder, setReminder] = useState<HospitalRecord | null>(null);
   const [hint, setHint] = useState<string>('');
+  const [visitCount, setVisitCount] = useState<number>(0); // ← 新增：總筆數
 
   const loadReminder = useCallback(async () => {
     try {
       setLoading(true);
       setHint('');
       setReminder(null);
+      setVisitCount(0);
 
       const token = await AsyncStorage.getItem('access');
       if (!token) { setHint('尚未登入'); return; }
 
+      // 解析 elderId
       const elderId = await resolveElderId();
-      if (typeof elderId !== 'number' || Number.isNaN(elderId)) {
-        setHint('找不到長者身分');
-        return;
-      }
-
       const urls = [
-        `${BASE}/api/hospital/list/?user_id=${elderId}`,
+        typeof elderId === 'number' && !Number.isNaN(elderId)
+          ? `${BASE}/api/hospital/list/?user_id=${elderId}`
+          : '',
         `${BASE}/api/hospital/list/`,
-      ];
+      ].filter(Boolean) as string[];
 
       let rows: HospitalRecord[] = [];
       for (const url of urls) {
         try {
-          console.log('[ElderHome] fetch:', url);
           const res = await axios.get<HospitalRecord[]>(url, {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 10000,
           });
-          console.log('[ElderHome] got count:', Array.isArray(res.data) ? res.data.length : 'N/A');
-          if (Array.isArray(res.data) && res.data.length) { rows = res.data; break; }
-        } catch (e) {
-          console.log('[ElderHome] fetch fail for', url);
-        }
+          const data = Array.isArray(res.data) ? res.data : [];
+          if (data.length) { rows = data; break; }
+        } catch {}
       }
+
+      setVisitCount(rows.length); // ← 設定總筆數
 
       if (!rows.length) { setHint('尚無看診資料'); return; }
 
@@ -409,7 +414,7 @@ export default function ElderHome() {
     return unsub;
   }, [navigation, loadReminder]);
 
-  // ✅ 初始化通知排程
+  // ✅ 初始化通知排程（吃藥）
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -431,12 +436,15 @@ export default function ElderHome() {
     return `${y}/${m}/${dd}`;
   };
 
-  // ✅ 通話紀錄權限
+  // ===== 通話權限 =====
   const askCallLogPermission = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iOS 無法讀取通話紀錄');
       return false;
     }
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+    if (already) return true;
+
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
       {
@@ -449,8 +457,8 @@ export default function ElderHome() {
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  // ✅ 同步通話紀錄
-  const handleSyncCalls = async () => {
+  // ✅ 同步通話紀錄（支援靜默模式）
+  const handleSyncCalls = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       const ok = await askCallLogPermission();
       if (!ok) return;
@@ -460,7 +468,7 @@ export default function ElderHome() {
       const access = await AsyncStorage.getItem('access');
       if (!access) {
         setSyncing(false);
-        Alert.alert('尚未登入', '請先登入後再試。');
+        if (!silent) Alert.alert('尚未登入', '請先登入後再試。');
         return;
       }
 
@@ -486,17 +494,18 @@ export default function ElderHome() {
             extra: { rawType: r.type },
           };
         })
-        .filter(x => !!x.phone && x._ts > 0);
-
-      const sortedDesc = mapped.sort((a, b) => b._ts - a._ts);
+        .filter(x => !!x.phone && x._ts > 0)
+        .sort((a, b) => b._ts - a._ts);
 
       const items = isFirstSync
-        ? sortedDesc.slice(0, 100)
-        : sortedDesc.filter(x => x._ts > lastTs).slice(0, 500);
+        ? mapped.slice(0, 100)
+        : mapped.filter(x => x._ts > lastTs).slice(0, 500);
 
       if (items.length === 0) {
         setSyncing(false);
-        Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        if (!silent) Alert.alert('沒有新紀錄', '已經是最新狀態。');
+        // 更新「上次嘗試同步時間」
+        await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
         return;
       }
 
@@ -510,15 +519,59 @@ export default function ElderHome() {
 
       const maxTs = Math.max(...items.map(x => x._ts));
       await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
+      await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
 
       setSyncing(false);
-      Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
+      if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
     } catch (e: any) {
       setSyncing(false);
       const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
-      Alert.alert('上傳失敗', msg);
+      if (!silent) Alert.alert('上傳失敗', msg);
     }
   };
+
+  // 判斷距離上次同步是否已超過最小間隔，若是就靜默同步
+  const autoSyncIfNeeded = useCallback(async (reason: string) => {
+    try {
+      const hasPerm = await askCallLogPermission();
+      if (!hasPerm) return;
+
+      const lastSyncStr = await AsyncStorage.getItem(LAST_SYNC_AT_KEY);
+      const lastSyncAt = Number(lastSyncStr || 0);
+      const now = Date.now();
+
+      if (!syncing && (!lastSyncAt || now - lastSyncAt >= SYNC_MIN_INTERVAL_MS)) {
+        console.log(`[CallSync] auto by ${reason}`);
+        await handleSyncCalls({ silent: true });
+      }
+    } catch {}
+  }, [syncing]);
+
+  // 掛載：先嘗試一次自動同步，並啟動每 1 分鐘檢查一次
+  useEffect(() => {
+    (async () => {
+      await autoSyncIfNeeded('mount');
+    })();
+
+    // 啟動輪詢
+    syncTimerRef.current = setInterval(() => {
+      autoSyncIfNeeded('interval');
+    }, SYNC_MIN_INTERVAL_MS);
+
+    return () => {
+      if (syncTimerRef.current) {
+        clearInterval(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+    };
+  }, [autoSyncIfNeeded]);
+
+  // 回到此頁（聚焦）時再嘗試一次
+  useFocusEffect(
+    useCallback(() => {
+      autoSyncIfNeeded('focus');
+    }, [autoSyncIfNeeded])
+  );
 
   // ⭐ 計算實際要餵給 <Image> 的來源（URL/檔名 轉 source）
   const avatarSrc =
@@ -549,14 +602,20 @@ export default function ElderHome() {
           contentContainerStyle={{ paddingBottom: 140 }}
           style={{ flex: 1 }}
         >
-          {/* 看診提醒（動態） */}
+          {/* 回診資料卡片（可點擊進列表 + 顯示總筆數） */}
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
+            onPress={() => navigation.navigate('ElderHospitalList' as never)}
           >
             <View style={styles.rowTop}>
-              <Text style={[styles.rowTitle, { color: COLORS.white }]}>看診提醒</Text>
-              <FontAwesome name="hospital-o" size={28} color={COLORS.white} />
+              <Text style={[styles.rowTitle, { color: COLORS.white }]}>回診資料</Text>
+
+              {/* 右上角筆數 Badge */}
+              <View style={styles.countBadge}>
+                <MaterialIcons name="list" size={16} color={COLORS.black} />
+                <Text style={styles.countText}>共 {visitCount} 筆</Text>
+              </View>
             </View>
 
             <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
@@ -576,12 +635,9 @@ export default function ElderHome() {
                     <FontAwesome name="user-md" size={20} color={COLORS.textMid} />
                     <Text style={styles.infoText}>{reminder.Doctor}</Text>
                   </View>
-                  {/* ⭐ 新增：看診號碼 Num */}
                   <View style={styles.infoRow}>
                     <MaterialIcons name="confirmation-number" size={22} color={COLORS.textMid} />
-                    <Text style={styles.infoText}>
-                      {reminder.Num ?? '—'}
-                    </Text>
+                    <Text style={styles.infoText}>{reminder.Num ?? '—'}</Text>
                   </View>
                 </>
               ) : (
@@ -590,13 +646,18 @@ export default function ElderHome() {
             </View>
           </TouchableOpacity>
 
-          {/* ===== 吃藥提醒（改成第二支樣式） ===== */}
+          {/* 吃藥提醒 */}
           <TouchableOpacity
             activeOpacity={0.9}
             disabled={!preview}
             onPress={() => {
               if (previewIndex >= 0) {
-                openMedModal(previewIndex);
+                setShowMedModal(true);
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    flatRef.current?.scrollToIndex({ index: previewIndex, animated: false });
+                  });
+                });
               }
             }}
             style={[
@@ -655,12 +716,12 @@ export default function ElderHome() {
             </TouchableOpacity>
           </View>
 
-          {/* 定位狀況 */}
+          {/* 即時位置 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('ElderLocation' as never)}  // 👈 跳去 ElderLocation
+              onPress={() => navigation.navigate('ElderLocation' as never)}
             >
               <Text style={[styles.squareTitle, { color: COLORS.white }]}>即時位置</Text>
               <View style={styles.squareBottomRow}>
@@ -672,25 +733,9 @@ export default function ElderHome() {
           </View>
         </ScrollView>
 
-        {/* ✅ 底部兩顆 FAB：左「同步通話」、右「拍照」 */}
+        {/* ✅ 底部 FAB（拍照） */}
         <View pointerEvents="box-none" style={styles.fabWrap}>
           <View style={styles.fabRow}>
-            {/* 同步通話 */}
-            <TouchableOpacity
-              style={styles.fabSmall}
-              activeOpacity={0.9}
-              onPress={handleSyncCalls}
-              disabled={syncing}
-            >
-              {syncing ? (
-                <ActivityIndicator />
-              ) : (
-                <Feather name="phone" size={28} color={COLORS.white} />
-              )}
-              <Text style={styles.fabSmallText}>{syncing ? '同步中' : '同步通話'}</Text>
-            </TouchableOpacity>
-
-            {/* 拍照 */}
             <TouchableOpacity
               style={styles.fab}
               activeOpacity={0.9}
@@ -704,9 +749,9 @@ export default function ElderHome() {
       </View>
 
       {/* ====== 吃藥提醒浮層（可左右滑動） ====== */}
-      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={closeMedModal}>
+      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={() => setShowMedModal(false)}>
         {/* 半透明暗背景，點擊可關閉 */}
-        <TouchableWithoutFeedback onPress={closeMedModal}>
+        <TouchableWithoutFeedback onPress={() => setShowMedModal(false)}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 
@@ -714,13 +759,13 @@ export default function ElderHome() {
         <View style={styles.modalCenter} pointerEvents="box-none">
           <View style={styles.modalCardWrap}>
             {/* 關閉按鈕 */}
-            <TouchableOpacity style={styles.closeBtn} onPress={closeMedModal} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
               <Feather name="x" size={22} color={COLORS.black} />
             </TouchableOpacity>
 
             {/* 上/下一頁箭頭 */}
             <TouchableOpacity
-              onPress={goPrev}
+              onPress={() => setCurrentIndex((i) => Math.max(0, i - 1))}
               style={[styles.navArrow, { left: -12, opacity: currentIndex === 0 ? 0.3 : 1 }]}
               disabled={currentIndex === 0}
               activeOpacity={0.8}
@@ -728,7 +773,7 @@ export default function ElderHome() {
               <Feather name="chevron-left" size={28} color={COLORS.black} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={goNext}
+              onPress={() => setCurrentIndex((i) => Math.min(medCards.length - 1, i + 1))}
               style={[
                 styles.navArrow,
                 { right: -12, opacity: currentIndex === medCards.length - 1 ? 0.3 : 1 },
@@ -776,7 +821,7 @@ export default function ElderHome() {
                     )}
                   </ScrollView>
 
-                  <TouchableOpacity style={styles.okBtn} onPress={closeMedModal} activeOpacity={0.9}>
+                  <TouchableOpacity style={styles.okBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
                     <Text style={styles.okBtnText}>知道了</Text>
                   </TouchableOpacity>
                 </View>
@@ -855,20 +900,32 @@ const styles = StyleSheet.create({
   noteBox: { marginTop: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   notePlaceholder: { fontSize: 30, fontWeight: '800', color: COLORS.textMid },
 
+  // 回診 badge
+  countBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.white,
+  },
+  countText: { fontSize: 14, fontWeight: '900', color: COLORS.black },
+
   // 看診提醒分行顯示
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   infoText: { fontSize: 24, fontWeight: '800', color: COLORS.textMid },
 
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
 
-  // 兩顆 FAB 橫排
+  // FAB 列
   fabRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
 
-  // 右邊原拍照 FAB
+  // 拍照 FAB
   fab: {
     width: 115,
     height: 115,
@@ -883,24 +940,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: { color: COLORS.white, fontSize: 25, fontWeight: '900', marginTop: 6 },
-
-  // 左邊同步通話的小顆 FAB
-  fabSmall: {
-    width: 115,
-    height: 115,
-    borderRadius: 65,
-    backgroundColor: COLORS.black,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.8,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  fabSmallText: {
-    color: COLORS.white, fontSize: 20, fontWeight: '900', marginTop: 6
-  },
 
   // Modal
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },

@@ -4,6 +4,7 @@ import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
 import axios from 'axios';
 
 
+
 const API_BASE = 'http://172.20.10.8:8000'; 
 
 export default function ScamScreen() {
@@ -21,7 +22,7 @@ export default function ScamScreen() {
         Phone: phone,
         Category: category,
       });
-      Alert.alert('成功', `Scam 新增成功，ID=${res.data.ScamId}`);
+      Alert.alert('成功', `新增成功`);
       setPhone('');
       setCategory('詐騙');
     } catch (err: any) {
