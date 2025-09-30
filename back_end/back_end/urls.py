@@ -34,6 +34,7 @@ urlpatterns = [
     path("api/med/analyze/", views.OcrAnalyzeView.as_view()),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
     path('api/meds/<uuid:prescription_id>/', views.get_med_by_prescription),
+    path('start_medication/', views.start_medication),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/create-med-time/', views.create_med_time_setting, name='create_med_time'),
     path('api/get-med-time/', views.get_med_time_setting),

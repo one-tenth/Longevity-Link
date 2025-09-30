@@ -364,7 +364,7 @@ class OcrAnalyzeView(APIView):
                 return Response({"error": "無法辨識文字"}, status=400)
 
             ocr_text = (annotations[0].description or "").strip()
-            print("🔍 OCR 結果：", ocr_text[:300], "...")
+            print("🔍 OCR 結果：", ocr_text)
 
             # 2) 丟 GPT 解析
             gpt_result = self.analyze_with_gpt(ocr_text)
@@ -400,7 +400,7 @@ class OcrAnalyzeView(APIView):
                 admin = (m.get("administrationRoute") or "未知")[:10]
                 effect = (m.get("effect") or "未知")[:100]
                 side = (m.get("sideEffect") or "未知")[:100]
-
+                TotalDosage = m.get("TotalDosage", 0)
                 print(f"[WRITE] {med_name} | raw_freq='{raw_freq}' -> save='{freq_std}'")
 
                 Med.objects.create(
@@ -411,6 +411,7 @@ class OcrAnalyzeView(APIView):
                     DosageFrequency=freq_std,
                     Effect=effect,
                     SideEffect=side,
+                    TotalDosage=TotalDosage,
                     PrescriptionID=prescription_id,
                 )
                 created += 1
@@ -430,41 +431,38 @@ class OcrAnalyzeView(APIView):
             return Response({"error": str(e)}, status=500)
 
     def analyze_with_gpt(self, ocr_text: str) -> str:
-        """
-        使用 gpt-4o-mini 解析台灣常見藥單格式：
-        - 內服 1.00 x4x3 → 一天四次
-        - 睡前、必要時（PRN）要能辨識
-        - effect/sideEffect 盡量從同列中文說明抽出
-        """
         prompt = f"""
-你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+            你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+            請注意：對於藥物的服藥次數，若有 `xNxD` 格式，請根據 `N`（每天的服藥次數）與 `D`（服藥天數）計算 `TotalDosage`（總服藥次數）。例如：`x4x3` 代表一天四次、服用三天，則 `TotalDosage` 是 4 * 3 = 12 次。
 
-### OCR 內容
-{ocr_text}
+            ### OCR 內容
+            {ocr_text}
 
-### 輸出 JSON Schema
-{{
-  "diseaseNames": string[],   
-  "medications": [
-    {{
-      "medicationName": string,                         
-      "administrationRoute": "內服"|"外用"|"其他",       
-      "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
-      "effect": string,                                  
-      "sideEffect": string                                
-    }}
-  ]
-}}
+            ### 輸出 JSON Schema
+            {{
+            "diseaseNames": string[],   
+            "medications": [
+                {{
+                "medicationName": string,                         
+                "administrationRoute": "內服"|"外用"|"其他",       
+                "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
+                "effect": string,                                  
+                "sideEffect": string,
+                "TotalDosage": integer,  # 計算總服藥次數
+                }}
+            ]
+            }}
 
-### 規則
-1) xNxD → 一天 N 次，D 為天數（D 不需輸出）。
-   - 內服 1.00 x4x3 → 一天四次
-   - 內服 1.00 xlx3 → 一天一次
-2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
-3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
-4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
-5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
-"""
+            ### 規則
+            1) xNxD → 一天 N 次，D 為天數。根據這個格式計算 `TotalDosage`（總服藥次數）。
+            - 內服 1.00 x4x3 → 一天四次，吃三天，`TotalDosage` = 4 * 3 = 12 次
+            - 內服 1.00 xlx3 → 一天一次，吃三天，`TotalDosage` = 1 * 3 = 3 次
+            - 如果是必要時服用，則 `TotalDosage` = 0。
+            2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
+            3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
+            4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
+            5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
+            """
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
@@ -477,6 +475,29 @@ class OcrAnalyzeView(APIView):
         )
 
         return (response.choices[0].message.content or "").strip()
+
+@api_view(['POST'])
+def start_medication(request):
+    user_id = request.data.get('userId')
+    med_names = request.data.get('medName')  # 這裡可能是 list
+
+    if isinstance(med_names, str):
+        med_names = [med_names]
+
+    results = []
+    for med_name in med_names:
+        medication = get_object_or_404(Med, UserID=user_id, MedName=med_name)
+        medication.CurrentDosage += 1
+        medication.save()
+        if medication.CurrentDosage >= medication.TotalDosage:
+            medication.delete()
+            results.append({'medName': med_name, 'message': '藥物已完成，資料已刪除。'})
+        else:
+            results.append({'medName': med_name, 'message': '服藥次數已更新。'})
+
+    return Response({'results': results}, status=status.HTTP_200_OK)
+
+
 
 #藥單查詢
 from rest_framework.views import APIView
@@ -607,7 +628,6 @@ def get_med_time_setting(request):
     except MedTimeSetting.DoesNotExist:
         return Response({'detail': '尚未設定時間'}, status=404)
 
-
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -676,6 +696,8 @@ def get_med_reminders(request):
                     "meds": schedule["bedtime"]},
     }
     return Response(result)
+
+
 
 #----------------------------------------------------------------
 #健康

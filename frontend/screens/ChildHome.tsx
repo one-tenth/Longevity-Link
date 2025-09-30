@@ -33,7 +33,7 @@ interface Member {
 
 
 
-const API_BASE = 'http://172.20.10.8:8000'; // ← 依環境調整
+const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
 
 
 const COLORS = {
