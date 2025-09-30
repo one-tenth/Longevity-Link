@@ -23,7 +23,7 @@ import {
   initVisitNotifications,
 } from '../utils/initNotification';
 
-const BASE = 'http://172.20.10.8:8000';
+const BASE = 'http://192.108.1.106:8000';
 
 
 type HospitalRecord = {

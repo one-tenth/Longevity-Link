@@ -38,7 +38,7 @@ const COLORS = {
 
 const R = 22;
 
-const API_BASE = 'http://172.20.10.8:8000';
+const API_BASE = 'http://192.108.1.106:8000';
 
 
 const outerShadow = {
