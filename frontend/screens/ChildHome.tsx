@@ -1,4 +1,3 @@
-// ChildHome.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -22,6 +21,9 @@ import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
 import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap，有缺就走文字頭像
 
+// 引入詐騙通知的相關方法
+import { handleIncomingCall, setupScamNotificationChannel, ensureNotificationPermission } from '../utils/scamNotification';
+
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 
 interface Member {
@@ -31,10 +33,7 @@ interface Member {
   avatar?: string;
 }
 
-
-
 const API_BASE = 'http://192.168.0.24:8000'; // ← 依環境調整
-
 
 const COLORS = {
   white: '#FFFFFF',
@@ -204,7 +203,7 @@ export default function ChildHome() {
     } as never);
   };
 
-  /** ✅ 通話紀錄：用 elderId（長者 UserID），Android 限制提示 */
+  // ✅ 通話紀錄：用 elderId（長者 UserID），Android 限制提示
   const openCallLogs = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');

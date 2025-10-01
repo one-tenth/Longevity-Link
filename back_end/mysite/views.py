@@ -1455,6 +1455,41 @@ def scam_check_bulk(request):
     matches = {phone: category for phone, category in rows}
     return Response({"matches": matches}, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])  # 如果需要驗證，改為 IsAuthenticated
+def scam_check(request):
+    phone_number = request.GET.get('phone')
+    
+    if not phone_number:
+        return Response({"error": "缺少電話號碼"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 格式化並標準化電話號碼
+    phone_number = normalize_phone(phone_number)
+
+    # 取得電話的最新詐騙記錄
+    latest_category_subq = Subquery(
+        Scam.objects
+            .filter(Phone__Phone=OuterRef('Phone'))
+            .order_by('-ScamId')  # 按照 ScamId 來找最新的
+            .values('Category')[:1]
+    )
+
+    # 查詢電話號碼是否為詐騙
+    rows = (CallRecord.objects
+            .filter(Phone=phone_number)
+            .annotate(latest_category=latest_category_subq)
+            .filter(latest_category__isnull=False)
+            .values('Phone', 'latest_category'))
+
+    # 如果該電話號碼在 Scam 表中有詐騙記錄，返回結果
+    if rows:
+        phone = rows[0]['Phone']
+        category = rows[0]['latest_category']
+        return Response({"phone": phone, "category": category}, status=status.HTTP_200_OK)
+    
+    # 如果找不到該電話的詐騙記錄，返回未找到
+    return Response({"phone": phone_number, "category": "未檢出詐騙"}, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated

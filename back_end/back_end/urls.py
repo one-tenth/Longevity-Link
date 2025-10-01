@@ -52,6 +52,7 @@ urlpatterns = [
     # path('api/callrecords/add/', views.add_call_record, name='add_call_record'),
     path("api/scam/add/", views.scam_add, name="scam_add"),
     path('api/scam/check_bulk/', views.scam_check_bulk, name='scam_check_bulk'),
+    path('api/scam_check/', views.scam_check, name='scam_check'),
     path("api/location/upload/", views.upload_location, name="location-upload"),
     path("api/location/latest/<int:user_id>/", views.get_latest_location, name="location-latest"),
     path("api/location/family/<int:family_id>/", views.get_family_locations, name="location-family"),
