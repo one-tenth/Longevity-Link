@@ -37,7 +37,7 @@ function typeLabel(t?: string) {
   }
 }
 
-// 更新的 fmt 函數
+// 更新的 fmt 函數，處理時區問題
 function fmt(ts?: string | number, dt?: string) {
   let timestamp = ts;
 
@@ -132,11 +132,9 @@ async function authPost<T = any>(url: string, data: any) {
 export default function CallLogScreen() {
   const navigation = useNavigation();
   const [elderId, setElderId] = useState<number | null>(null);
-  const [elderName, setElderName] = useState<string>('');
-  const [scamMap, setScamMap] = useState<Record<string, string>>({});
-  const [deviceLogs, setDeviceLogs] = useState<DeviceCall[]>([]);  // 本機通話紀錄
+  const [elderName, setElderName] = useState<string>('');  
+  const [scamMap, setScamMap] = useState<Record<string, string>>({});  // 用來標註詐騙號碼的映射
   const [serverLogs, setServerLogs] = useState<ServerCall[]>([]);  // 伺服器端通話紀錄
-  const [loadingDevice, setLoadingDevice] = useState(false);
   const [loadingServer, setLoadingServer] = useState(false);
 
   async function loadSelectedElder() {
@@ -154,33 +152,25 @@ export default function CallLogScreen() {
 
   // 加載伺服器端的通話紀錄（最多100筆，按時間排序）
   async function loadServerLogs() {
-  const elderId = await AsyncStorage.getItem('elder_id');
-  if (!elderId) return;
-  setLoadingServer(true);
-  try {
-    const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
-    console.log("Server response:", res);  // 查看伺服器回傳的資料格式
-
-    // 如果回傳的資料是數組，則設置 serverLogs
-    if (Array.isArray(res.data)) {
-      setServerLogs(res.data);
-    } else {
-      console.error('Expected data to be an array, but received:', res.data);
-      setServerLogs([]);  // 如果不是數組，則設置空陣列
+    const elderId = await AsyncStorage.getItem('elder_id');
+    if (!elderId) return;
+    setLoadingServer(true);
+    try {
+      const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
+      setServerLogs(res.data ?? []);  // 儲存伺服器端的通話紀錄
+    } catch (error) {
+      console.error('[uploadRecentCalls] error:', error);
+    } finally {
+      setLoadingServer(false);
     }
-  } catch (error) {
-    console.error('[uploadRecentCalls] error:', error);
-  } finally {
-    setLoadingServer(false);
   }
-}
 
   useEffect(() => {
     loadSelectedElder();
   }, []);
 
   useEffect(() => {
-    if (elderId) loadServerLogs(); // 只有在長者ID有效時才會加載伺服器端通話紀錄
+    if (elderId) loadServerLogs();  // 在有長者ID時才加載伺服器端通話紀錄
   }, [elderId]);
 
   // 更新 scamMap 用來標記詐騙號碼
@@ -203,6 +193,7 @@ export default function CallLogScreen() {
     }
   }, [serverLogs]);
 
+  // 渲染通話紀錄項目
   const renderDeviceItem = ({ item }: { item: ServerCall }) => {
   const phoneNorm = normalizePhone(item.Phone || '');
   const category = scamMap[phoneNorm];
@@ -212,20 +203,26 @@ export default function CallLogScreen() {
     <View style={[styles.item, hit && styles.itemScam]}>
       <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
         {displayPhoneOrUnknown(item.Phone, item.PhoneName)}
-        {hit && <Text style={styles.scamTag}> 詐騙</Text>}
+        {hit && <Text style={styles.scamTag}> {category}</Text>}
       </Text>
 
       <Text style={styles.detail}>
-        {`名稱: ${item.PhoneName || '未知來電'}  · 通話時間: ${item.PhoneTime || "0s"}`}
+        {`名稱: ${item.PhoneName || '未知來電'} · 通話時間: ${item.PhoneTime || "0s"}`}
       </Text>
-
-      <Text style={styles.time}>
-        {fmt(item.PhoneTime, item.PhoneTime)} {/* 這裡也是字串要包裹在 Text 中 */}
-      </Text>
+      
     </View>
   );
 };
 
+// FlatList 渲染
+<FlatList
+  data={serverLogs}  // 顯示伺服器端的通話紀錄
+  keyExtractor={(_, idx) => `d-${idx}`}
+  renderItem={renderDeviceItem}  // 渲染每個通話紀錄項目
+  refreshing={loadingServer}  // 顯示伺服器端通話紀錄的加載狀態
+  onRefresh={loadServerLogs}  // 這裡改為加載伺服器端的資料
+  ListEmptyComponent={<Text style={styles.empty}>目前沒有通話紀錄</Text>}
+/>
 
   return (
     <View style={styles.container}>
