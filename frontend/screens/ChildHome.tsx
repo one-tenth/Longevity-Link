@@ -21,8 +21,8 @@ import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
 import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap，有缺就走文字頭像
 
-// 引入詐騙通知的相關方法
-import { handleIncomingCall, setupScamNotificationChannel, ensureNotificationPermission } from '../utils/scamNotification';
+// // 引入詐騙通知的相關方法
+// import { handleIncomingCall, setupScamNotificationChannel, ensureNotificationPermission } from '../utils/scamNotification';
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
 

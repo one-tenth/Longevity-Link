@@ -1370,29 +1370,16 @@ def upload_call_logs(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_elder_calls(request, elder_id: int):
+@permission_classes([IsAuthenticated])  # 確保用戶已經認證
+def get_call_records(request, elder_id):
     try:
-        elder = User.objects.get(pk=elder_id)  # elder_id 就是 UserId
-    except User.DoesNotExist:
-        return Response({"error": "elder not found"}, status=404)
-
-    calls = CallRecord.objects.filter(UserId=elder).order_by("-PhoneTime")[:50]
-
-    data = [
-        {
-            "CallId": c.CallId,
-            "Phone": c.Phone,
-            "PhoneName": getattr(c, "PhoneName", None),
-            "PhoneTime": str(c.PhoneTime),
-            "Duration": getattr(c, "Duration", 0),
-            "Type": getattr(c, "Type", "UNKNOWN"),
-            "IsScam": getattr(c, "IsScam", False),
-            "UserId": elder.UserID,  # 保留 UserId 方便前端 debug
-        }
-        for c in calls
-    ]
-    return Response(data)
+        # 使用 UserId_id 查詢通話紀錄
+        records = CallRecord.objects.filter(UserId_id=elder_id).order_by('-PhoneTime')[:100]
+        data = [record.to_dict() for record in records]  # 使用 to_dict() 方法來序列化資料
+        return JsonResponse(data, safe=False)  # 返回 JSON 格式的資料
+    except Exception as e:
+        # 如果有錯誤，返回 500 錯誤及錯誤訊息
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 # 新增詐騙資料表
