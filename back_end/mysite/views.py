@@ -1543,6 +1543,10 @@ def upload_location(request):
     ser = LocationUploadSerializer(data=request.data, context={'user': request.user})
     if not ser.is_valid():
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # log
+    print(f"Serialized data: {ser.validated_data}")
+
     rec = ser.save()
     out = LocationLatestSerializer(rec).data  # lat,lon,ts
     return Response({'ok': True, 'user': request.user.pk, **out}, status=status.HTTP_201_CREATED)

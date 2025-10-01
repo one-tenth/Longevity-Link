@@ -12,6 +12,9 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+        // Background Fetch 所需的 repo
+        maven { url "https://transistorsoft.github.io/react-native-background-fetch/maven" }
     }
     dependencies {
         // 版本由 settings.gradle 的 pluginManagement 管理，這裡保留座標即可
@@ -20,6 +23,17 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
         // 只放在 classpath，**不要在根專案 apply**，真正的 apply 放到 app 模組
         classpath("com.google.gms:google-services:4.3.15")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        //套件的正確版本
+        maven { url("${project(':react-native-background-geolocation').projectDir}/libs") }
+        maven { url("${project(':react-native-background-fetch').projectDir}/libs") }
+ 
     }
 }
 

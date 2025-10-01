@@ -5,8 +5,11 @@ rootProject.name = 'frontend'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
 
+//地圖
 include ':react-native-maps'
 project(':react-native-maps').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-maps/android')
-// include ':react-native-maps'
-// project(':react-native-maps').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-maps/android')
+//背景
+include ':react-native-background-geolocation'
+project(':react-native-background-geolocation').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-background-geolocation/android')
+
 

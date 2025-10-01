@@ -12,6 +12,15 @@ if (envFile.exists()) {
     env.load(new FileInputStream(envFile))
 }
 
+// background-geolocation
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+
 // fcm
 // apply plugin: 'com.google.gms.google-services' // ← 若使用 Firebase 再打開
 
