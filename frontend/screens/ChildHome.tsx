@@ -31,7 +31,6 @@ interface Member {
   avatar?: string;
 }
 
-
 const API_BASE = 'http://192.168.200.146:8000'; // ← 依環境調整
 
 const COLORS = {
@@ -71,6 +70,13 @@ function getLocalToday(): string {
   return `${y}-${m}-${day}`;
 }
 
+/** ✅ 由 selectedMember 萃取「長者的 UserID」；不要用 RelatedID（多半是指向家人） */
+function resolveElderIdFromSelected(m?: Member | null): number | null {
+  if (!m) return null;
+  const maybeElderId = Number(m.UserID);
+  return Number.isFinite(maybeElderId) && maybeElderId > 0 ? maybeElderId : null;
+}
+
 export default function ChildHome() {
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -82,7 +88,7 @@ export default function ChildHome() {
   const [heart, setHeart] = useState<string>('N/A'); // 來自 healthcare.pulse
   const [bp, setBp] = useState<string>('N/A');
 
-  // 讀取已選成員（沒有 avatar 時補上預設檔名，並兼容寫入 elder_*）
+  // 讀取已選成員（沒有 avatar 時補上預設檔名，並正確寫入 elder_*）
   useEffect(() => {
     const loadSelectedMember = async () => {
       const stored = await AsyncStorage.getItem('selectedMember');
@@ -95,9 +101,13 @@ export default function ChildHome() {
         const merged: Member = { ...parsed, avatar: parsed.avatar || 'woman.png' };
         setSelectedMember(merged);
 
-        if (parsed?.RelatedID != null) {
-          await AsyncStorage.setItem('elder_name', parsed.Name ?? '');
-          await AsyncStorage.setItem('elder_id', String(parsed.RelatedID));
+        // ✅ 正確存「長者的 UserID」到 elder_id（不要用 RelatedID）
+        const elderId = resolveElderIdFromSelected(merged);
+        await AsyncStorage.setItem('elder_name', merged.Name ?? '');
+        if (elderId) {
+          await AsyncStorage.setItem('elder_id', String(elderId));
+        } else {
+          await AsyncStorage.removeItem('elder_id');
         }
       } catch {
         setSelectedMember(null);
@@ -107,7 +117,7 @@ export default function ChildHome() {
     return unsub;
   }, [navigation]);
 
-  // 查詢「當天」fitdata / healthcare（用 user_id）
+  // 查詢「當天」fitdata / healthcare（用 user_id = 長者的 UserID）
   useEffect(() => {
     const fetchAll = async () => {
       if (!selectedMember?.UserID) return;
@@ -174,54 +184,58 @@ export default function ChildHome() {
     fetchAll();
   }, [selectedMember?.UserID, today, navigation]);
 
-  // 回診資料（仍沿用 RelatedID 給你的回診頁）
+  // ✅ 回診資料（使用 elderId = selectedMember.UserID）
   const goHospital = async () => {
-    if (!selectedMember || !selectedMember.RelatedID) {
+    const elderId = resolveElderIdFromSelected(selectedMember);
+    if (!elderId) {
       Alert.alert('提醒', '請先選擇要照護的長者');
-      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      navigation.navigate('FamilyScreen', { mode: 'full' } as never);
       return;
     }
-    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
-    await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
+    await AsyncStorage.setItem('elder_name', selectedMember!.Name ?? '');
+    await AsyncStorage.setItem('elder_id', String(elderId));
+    console.log('[ChildHome] goHospital -> elderId =', elderId);
     navigation.navigate('FamilyHospitalList', {
-      elderName: selectedMember.Name,
-      elderId: selectedMember.RelatedID,
+      elderName: selectedMember!.Name,
+      elderId, // ✅ 傳「長者的 UserID」
     } as never);
   };
 
-  /** 通話紀錄：未選長者就先跳 FamilyScreen；iOS 限制提示 */
+  /** ✅ 通話紀錄：用 elderId（長者 UserID），Android 限制提示 */
   const openCallLogs = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iPhone 無法讀取通話紀錄');
       return;
     }
-    if (!selectedMember || !selectedMember.RelatedID) {
-      const maybeElderId = await AsyncStorage.getItem('elder_id');
-      if (!maybeElderId) {
-        Alert.alert('提醒', '請先選擇要照護的長者');
-        navigation.navigate('FamilyScreen', { mode: 'select' } as never);
-        return;
-      }
-    } else {
-      await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
-      await AsyncStorage.setItem('elder_id', String(selectedMember.RelatedID));
+    const elderId =
+      resolveElderIdFromSelected(selectedMember) ??
+      Number(await AsyncStorage.getItem('elder_id'));
+
+    if (!Number.isFinite(elderId) || (elderId as number) <= 0) {
+      Alert.alert('提醒', '請先選擇要照護的長者');
+      navigation.navigate('FamilyScreen', { mode: 'full' } as never);
+      return;
     }
+    await AsyncStorage.setItem('elder_name', selectedMember?.Name ?? '');
+    await AsyncStorage.setItem('elder_id', String(elderId));
+    console.log('[ChildHome] openCallLogs -> elderId =', elderId);
     navigation.navigate('CallLogScreen' as never);
   };
 
-  // 定位
+  // ✅ 定位：同樣用 elderId（長者 UserID）
   const goLocation = async () => {
-    if (!selectedMember) {
+    const elderId = resolveElderIdFromSelected(selectedMember);
+    if (!elderId) {
       Alert.alert('尚未選擇長者', '請先到「家庭」頁挑選要關注的成員。');
-      navigation.navigate('FamilyScreen', { mode: 'select' } as never);
+      navigation.navigate('FamilyScreen', { mode: 'full' } as never);
       return;
     }
-    const elderId = selectedMember.RelatedID ?? selectedMember.UserID;
-    await AsyncStorage.setItem('elder_name', selectedMember.Name ?? '');
+    await AsyncStorage.setItem('elder_name', selectedMember!.Name ?? '');
     await AsyncStorage.setItem('elder_id', String(elderId));
+    console.log('[ChildHome] goLocation -> elderId =', elderId);
     navigation.navigate('Location' as never, {
-      elderId,
-      elderName: selectedMember.Name,
+      elderId, // ✅ 傳「長者的 UserID」
+      elderName: selectedMember!.Name,
     } as never);
   };
 
@@ -255,7 +269,7 @@ export default function ChildHome() {
 
           {/* 設定鈕 → 選擇家人頁 */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('FamilyScreen', { mode: 'select' })}
+            onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' })}
             style={[styles.iconBtn, { backgroundColor: COLORS.green }]}
           >
             <Feather name="settings" size={22} color={COLORS.black} />

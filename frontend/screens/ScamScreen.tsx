@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
 import axios from 'axios';
 
-
 const API_BASE = 'http://192.168.200.146:8000'; // ⚠️換成實際 IP
 
 export default function ScamScreen() {
@@ -21,7 +20,7 @@ export default function ScamScreen() {
         Phone: phone,
         Category: category,
       });
-      Alert.alert('成功', `Scam 新增成功，ID=${res.data.ScamId}`);
+      Alert.alert('成功', `新增成功`);
       setPhone('');
       setCategory('詐騙');
     } catch (err: any) {

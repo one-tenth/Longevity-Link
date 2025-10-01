@@ -10,7 +10,13 @@ import CallLogs from 'react-native-call-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
+<<<<<<< HEAD
 const API_BASE = 'http://192.168.200.146:8000'; // ← 換成你的後端 IP
+=======
+
+const API_BASE = 'http://172.20.10.8:8000'; // ← 換成你的後端 IP
+
+>>>>>>> 6db448bb5ef5b07aa982ef160ccbcdfe2403d882
 
 // ===== 型別 =====
 type DeviceCall = {
@@ -251,10 +257,10 @@ export default function CallLogScreen() {
           <Text style={styles.backText}>返回</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>通話紀錄 {elderName && `(${elderName})`}</Text>
-        {/* <TouchableOpacity style={styles.scamAddBtn} onPress={goScamForm}>
+        {/* { <TouchableOpacity style={styles.scamAddBtn} onPress={goScamForm}>
           <Feather name="shield" size={16} color="#fff" />
           <Text style={styles.scamAddText}>新增詐騙</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity> } */}
       </View>
       {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
       {autoSyncMsg ? <Text style={styles.info}>{autoSyncMsg}</Text> : null}

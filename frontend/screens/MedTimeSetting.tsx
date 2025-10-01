@@ -35,7 +35,6 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 6 },
 } as const;
 
-
 const BASE = 'http://192.168.200.146:8000';
 
 export default function TimeSettingInput() {

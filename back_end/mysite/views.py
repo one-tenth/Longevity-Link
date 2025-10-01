@@ -1061,20 +1061,35 @@ from .models import Hos
 from mysite.models import User  # 你的 User 模型
 from django.shortcuts import get_object_or_404
 
+
+def _is_elder_user(u):
+    """
+    認定使用者是否為長者：
+    1) 明確的布林欄位 is_elder（若你有）
+    2) 或以資料設計推斷：長者常態上會有 RelatedID 指向照護者
+    依你的實作擇一或兩者併用
+    """
+    if hasattr(u, 'is_elder'):
+        return bool(getattr(u, 'is_elder'))
+    # 若沒有 is_elder 欄位，改用 RelatedID 是否存在來推斷
+    return getattr(u, 'RelatedID_id', None) is not None
+
+
 def _resolve_target_user_id(request):
     """
-    解析本次操作的老人 UserID：
-    - 老人登入：就是自己
-    - 家人登入：優先讀 ?user_id= 或 body 的 elder_id/user_id，
-      並檢查是否同家庭（或老人.RelatedID == 自己）才放行
+    解析本次操作的【長者】UserID：
+    - 長者登入：就是自己
+    - 家人登入：必須帶 ?user_id= 或 body 的 elder_id/user_id
+      -> 僅接受「長者」ID；若帶到家人 ID，嘗試映射到其所照護的長者（單一長者時）
+      -> 通過授權：同家庭 或 長者.RelatedID == 自己
     """
     me = request.user
 
-    # 1) 老人登入：直接回自己
-    if getattr(me, 'is_elder', False):
+    # 1) 長者登入：直接回自己
+    if _is_elder_user(me):
         return getattr(me, 'UserID', None) or getattr(me, 'pk', None)
 
-    # 2) 家人登入：從參數拿 user_id / elder_id
+    # 2) 家人登入：讀取參數
     raw = (
         request.query_params.get('user_id')
         or request.data.get('elder_id')
@@ -1088,84 +1103,66 @@ def _resolve_target_user_id(request):
     except (TypeError, ValueError):
         return None
 
-    elder = get_object_or_404(User, UserID=uid)
+    # 先抓這個 uid 對應的使用者
+    target = get_object_or_404(User, UserID=uid)
 
-    # 授權檢查（擇一或都檢）：
-    # A) 同家庭
-    same_family = (getattr(elder, 'FamilyID_id', None) and
-                   getattr(me, 'FamilyID_id', None) and
-                   elder.FamilyID_id == me.FamilyID_id)
+    # 如果傳來的是家人 ID（非長者），嘗試映射成他所照護的長者（常見一對一）
+    if not _is_elder_user(target):
+        # 依你的資料關係：長者.RelatedID 指向家人
+        elder_qs = User.objects.filter(RelatedID_id=target.UserID)
+        # 一對一情境下可取 first；若可能多位長者，請改成必要時回 400 並讓前端明確指定
+        mapped_elder = elder_qs.first()
+        if mapped_elder:
+            target = mapped_elder
+        else:
+            # 不是長者且無法映射 -> 拒絕，避免把家人當成長者
+            return None
 
-    # B) 老人的 RelatedID 指向自己（你建立長者時就這樣設）
-    related_to_me = (getattr(elder, 'RelatedID_id', None) == getattr(me, 'UserID', None))
+    # 至此，target 已確保為長者
+    # 授權檢查（擇一或都檢）
+    same_family = (
+        getattr(target, 'FamilyID_id', None) and
+        getattr(me, 'FamilyID_id', None) and
+        target.FamilyID_id == me.FamilyID_id
+    )
+    related_to_me = (getattr(target, 'RelatedID_id', None) == getattr(me, 'UserID', None))
 
     if same_family or related_to_me:
-        return uid
+        return getattr(target, 'UserID', None)
 
     return None
 
-
-# views.py
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import Hos
-from .serializers import HosSerializer
-
-def _resolve_target_user_id(request):
-    """解析目標 elder user_id：家人端必帶 ?user_id，長者端預設用 request.user.id"""
-    q = request.query_params.get("user_id")
-    if q:
-        try:
-            return int(q)
-        except ValueError:
-            return None
-    return request.user.id
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def hospital_list(request):
     target_id = _resolve_target_user_id(request)
     if not target_id:
-        return Response({"error": "沒有指定老人"}, status=400)
+        return Response({"error": "沒有指定有效的長者"}, status=400)
 
-    try:
-        # 嘗試 ForeignKey(User) 寫法
-        qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
-        if not qs.exists():
-            # 若沒有 → 改用 IntegerField 寫法
-            qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
-    except Exception:
-        # 模型若沒有 UserID_id 這個屬性，直接 fallback 為 IntegerField
-        qs = Hos.objects.filter(UserID=target_id).order_by('-ClinicDate')
-
+    qs = Hos.objects.filter(UserID_id=target_id).order_by('-ClinicDate')
+    from .serializers import HosSerializer
     ser = HosSerializer(qs, many=True)
     return Response(ser.data)
-
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def hospital_create(request):
-    """
-    新增看診紀錄：
-    - 老人：自己
-    - 家人：必須帶 elder_id/user_id 指定長者
-    """
     target_id = _resolve_target_user_id(request)
     if not target_id:
-        return Response({"error": "沒有指定老人"}, status=400)
+        return Response({"error": "沒有指定有效的長者"}, status=400)
 
     data = request.data.copy()
 
-    # 日期只留 YYYY-MM-DD（若是 DateField）
-    if 'ClinicDate' in data and isinstance(data['ClinicDate'], str) and ' ' in data['ClinicDate']:
+    # 日期只留 YYYY-MM-DD（若你的欄位是 DateField）
+    if isinstance(data.get('ClinicDate'), str) and ' ' in data['ClinicDate']:
         data['ClinicDate'] = data['ClinicDate'].split(' ')[0]
 
     from .serializers import HosSerializer
     ser = HosSerializer(data=data)
     if ser.is_valid():
-        ser.save(UserID_id=target_id)  # ✅ 明確綁定老人
+        ser.save(UserID_id=target_id)  # 綁定到長者
         return Response(ser.data, status=201)
     return Response(ser.errors, status=400)
 
@@ -1187,7 +1184,6 @@ def hospital_delete(request, pk):
         return Response({"error": "找不到資料或無權限刪除"}, status=404)
 
     return Response({"message": "已刪除"}, status=200)
-
 
 
 from rest_framework.decorators import api_view, permission_classes
@@ -1278,18 +1274,9 @@ def map_type(t: str) -> str:
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_call_logs(request):
-    """
-    payload:
-    {
-      "elder_id": 123,   # 可省略，省略時寫入 request.user
-      "records": [
-        {"phone":"...", "name":"...", "type":"INCOMING|2|...", "timestamp":"ISO|ms|sec", "duration":30, "extra": {...}}
-      ]
-    }
-    """
-    # 目標使用者
     elder_id = request.data.get('elder_id')
     target_user = request.user
+
     if elder_id:
         try:
             target_user = User.objects.get(pk=int(elder_id))
@@ -1301,9 +1288,8 @@ def upload_call_logs(request):
     if not isinstance(records, list) or not records:
         return Response({"error": "no records"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 欄位對應（容錯：模型若叫別名也能撿到）
     model_fields = {f.name for f in CallRecord._meta.get_fields() if hasattr(f, "attname")}
-    def pick(cands):  # 回傳第一個存在於 model 的欄位名
+    def pick(cands):
         for c in cands:
             if c in model_fields:
                 return c
@@ -1320,7 +1306,6 @@ def upload_call_logs(request):
     if not all([PHONE_FIELD, TIME_FIELD, USER_FIELD]):
         return Response({"error": "model required fields not found"}, status=500)
 
-    # 清洗輸入
     cleaned = []
     for r in records:
         phone = normalize_phone(r.get("phone") or '')
@@ -1349,13 +1334,11 @@ def upload_call_logs(request):
     if not cleaned:
         return Response({"saved": 0}, status=status.HTTP_200_OK)
 
-    # 批次限制：第一次最多 100，之後最多 500
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
     cap = 100 if first_upload else 500
     cleaned = cleaned[:cap]
 
-    # 去重：以 (User, Phone, PhoneTime) 判斷
     phones = list({d[PHONE_FIELD] for d in cleaned})
     times  = list({d[TIME_FIELD]  for d in cleaned})
     time_min, time_max = min(times), max(times)
@@ -1384,6 +1367,7 @@ def upload_call_logs(request):
         return Response({"inserted": len(to_create), "skipped": len(cleaned) - len(to_create)}, status=201)
     except Exception as e:
         return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=500)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1472,7 +1456,6 @@ def scam_check_bulk(request):
     return Response({"matches": matches}, status=status.HTTP_200_OK)
 
 
-
 @api_view(['POST'])
 @permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated
 def scam_add(request):
@@ -1544,7 +1527,7 @@ from .serializers import LocationUploadSerializer, LocationLatestSerializer
 User = get_user_model()
 
 class UploadLocationThrottle(UserRateThrottle):
-    rate = '60/min'  #可調整
+    rate = '3/min'  #可調整次數
 
 def _same_family(u1, u2) -> bool:
     return (
