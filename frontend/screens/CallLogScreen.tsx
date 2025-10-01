@@ -23,17 +23,29 @@ type ServerCall = {
   PhoneName: string;
   Phone: string;
   PhoneTime: string;
+  Type: string;  // 這裡新增 Type 屬性，表示通話類型
   IsScam: boolean;
 };
 
 // 工具函數
 function typeLabel(t?: string) {
-  switch ((t || '').toUpperCase()) {
-    case 'INCOMING': return '來電';
-    case 'OUTGOING': return '撥出';
-    case 'MISSED': return '未接';
-    case 'REJECTED': return '已拒接';
-    default: return '未知';
+  console.log('Type received:', t); // 打印傳入的值，檢查它是什麼
+
+  if (!t) {
+    return '未知';  // 如果沒有傳遞 Type，則顯示「未知」
+  }
+
+  switch (t.toUpperCase()) {
+    case 'INCOMING':
+      return '來電';
+    case 'OUTGOING':
+      return '撥出';
+    case 'MISSED':
+      return '未接';
+    case 'REJECTED':
+      return '已拒接';
+    default:
+      return '未知';  // 若是未定義的類型，顯示「未知」
   }
 }
 
@@ -48,19 +60,17 @@ function fmt(ts?: string | number, dt?: string) {
 
   // 如果是有效的時間戳，則繼續處理
   const d = timestamp != null ? new Date(timestamp) : (dt ? new Date(dt) : null);
-  
+
   if (!d || isNaN(+d)) return '無效時間'; // 如果日期無效則返回空字符串
 
-  // 格式化日期
+  // 格式化日期，去掉時間部分
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
 
-  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+  return `${y}-${m}-${day}`;  // 返回格式化的日期（年-月-日）
 }
+
 
 const safeStr = (v: any) => (v == null ? '' : String(v));
 
@@ -157,13 +167,14 @@ export default function CallLogScreen() {
     setLoadingServer(true);
     try {
       const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
+      console.log("Server logs received:", res.data);  // 打印返回的資料，檢查 Type 欄位
       setServerLogs(res.data ?? []);  // 儲存伺服器端的通話紀錄
     } catch (error) {
       console.error('[uploadRecentCalls] error:', error);
     } finally {
       setLoadingServer(false);
     }
-  }
+}
 
   useEffect(() => {
     loadSelectedElder();
@@ -206,25 +217,16 @@ export default function CallLogScreen() {
         {hit && <Text style={styles.scamTag}> {category}</Text>}
       </Text>
 
+      {/* 顯示通話類型 */}
       <Text style={styles.detail}>
-        {`名稱: ${item.PhoneName || '未知來電'} · 通話時間: ${item.PhoneTime || "0s"}`}
+        {`名稱: ${item.PhoneName || '未知來電'}  · 通話時間: ${item.PhoneTime || "0s"}`}
       </Text>
       
     </View>
   );
 };
 
-// FlatList 渲染
-<FlatList
-  data={serverLogs}  // 顯示伺服器端的通話紀錄
-  keyExtractor={(_, idx) => `d-${idx}`}
-  renderItem={renderDeviceItem}  // 渲染每個通話紀錄項目
-  refreshing={loadingServer}  // 顯示伺服器端通話紀錄的加載狀態
-  onRefresh={loadServerLogs}  // 這裡改為加載伺服器端的資料
-  ListEmptyComponent={<Text style={styles.empty}>目前沒有通話紀錄</Text>}
-/>
-
-  return (
+return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.header}>

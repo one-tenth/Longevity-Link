@@ -1271,6 +1271,20 @@ def map_type(t: str) -> str:
 
 
 # --------- 上傳通話（長者端或家人代上傳） ---------
+
+def convert_to_taiwan_time(ts_str):
+    try:
+        # 解析時間戳
+        dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
+        # 設置為 UTC 時間
+        dt = timezone('UTC').localize(dt)
+        # 轉換為台灣時間（UTC+8）
+        dt = dt.astimezone(timezone('Asia/Taipei'))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        print(f"Error converting time: {e}")
+        return None  # 返回 None 代表時間轉換失敗
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_call_logs(request):
@@ -1377,6 +1391,7 @@ def get_call_records(request, elder_id):
         records = CallRecord.objects.filter(UserId_id=elder_id).order_by('-PhoneTime')[:100]
         data = [record.to_dict() for record in records]  # 使用 to_dict() 方法來序列化資料
         return JsonResponse(data, safe=False)  # 返回 JSON 格式的資料
+    
     except Exception as e:
         # 如果有錯誤，返回 500 錯誤及錯誤訊息
         return JsonResponse({'error': str(e)}, status=500)
