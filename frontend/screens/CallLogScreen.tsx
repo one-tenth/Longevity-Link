@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, PermissionsAndroid, TouchableOpacity, Alert, StatusBar } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
-import CallLogs from 'react-native-call-log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
@@ -38,15 +37,28 @@ function typeLabel(t?: string) {
   }
 }
 
+// 更新的 fmt 函數
 function fmt(ts?: string | number, dt?: string) {
-  const d = ts != null ? new Date(Number(ts)) : (dt ? new Date(dt) : null);
-  if (!d || isNaN(+d)) return '';
+  let timestamp = ts;
+
+  // 如果是有效的字串時間，先將其轉換成時間戳
+  if (typeof ts === 'string' && !isNaN(Date.parse(ts))) {
+    timestamp = Date.parse(ts);
+  }
+
+  // 如果是有效的時間戳，則繼續處理
+  const d = timestamp != null ? new Date(timestamp) : (dt ? new Date(dt) : null);
+  
+  if (!d || isNaN(+d)) return '無效時間'; // 如果日期無效則返回空字符串
+
+  // 格式化日期
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   const ss = String(d.getSeconds()).padStart(2, '0');
+
   return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
 }
 
@@ -142,18 +154,26 @@ export default function CallLogScreen() {
 
   // 加載伺服器端的通話紀錄（最多100筆，按時間排序）
   async function loadServerLogs() {
-    const elderId = await AsyncStorage.getItem('elder_id');
-    if (!elderId) return;
-    setLoadingServer(true);
-    try {
-      const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
-      setServerLogs(res.data ?? []);  // 儲存伺服器端的通話紀錄
-    } catch (error) {
-      console.error('[uploadRecentCalls] error:', error);
-    } finally {
-      setLoadingServer(false);
+  const elderId = await AsyncStorage.getItem('elder_id');
+  if (!elderId) return;
+  setLoadingServer(true);
+  try {
+    const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
+    console.log("Server response:", res);  // 查看伺服器回傳的資料格式
+
+    // 如果回傳的資料是數組，則設置 serverLogs
+    if (Array.isArray(res.data)) {
+      setServerLogs(res.data);
+    } else {
+      console.error('Expected data to be an array, but received:', res.data);
+      setServerLogs([]);  // 如果不是數組，則設置空陣列
     }
+  } catch (error) {
+    console.error('[uploadRecentCalls] error:', error);
+  } finally {
+    setLoadingServer(false);
   }
+}
 
   useEffect(() => {
     loadSelectedElder();
@@ -163,8 +183,27 @@ export default function CallLogScreen() {
     if (elderId) loadServerLogs(); // 只有在長者ID有效時才會加載伺服器端通話紀錄
   }, [elderId]);
 
-  // 在 `renderDeviceItem` 函數中，當 `phoneNumber` 或 `name` 為空時，會顯示「未知來電」。
-const renderDeviceItem = ({ item }: { item: ServerCall }) => {
+  // 更新 scamMap 用來標記詐騙號碼
+  useEffect(() => {
+    async function fetchScamData() {
+      const phones = serverLogs.map((log) => normalizePhone(log.Phone));
+      if (!phones.length) return;
+
+      try {
+        const res = await axios.post(`${API_BASE}/api/scam/check_bulk/`, { phones });
+        const scamData = res.data?.matches || {};
+        setScamMap(scamData);  // 更新 scamMap
+      } catch (error) {
+        console.error('Error fetching scam data:', error);
+      }
+    }
+
+    if (serverLogs.length > 0) {
+      fetchScamData();
+    }
+  }, [serverLogs]);
+
+  const renderDeviceItem = ({ item }: { item: ServerCall }) => {
   const phoneNorm = normalizePhone(item.Phone || '');
   const category = scamMap[phoneNorm];
   const hit = !!category;
@@ -175,14 +214,17 @@ const renderDeviceItem = ({ item }: { item: ServerCall }) => {
         {displayPhoneOrUnknown(item.Phone, item.PhoneName)}
         {hit && <Text style={styles.scamTag}> 詐騙</Text>}
       </Text>
+
       <Text style={styles.detail}>
-        {`${displayName(item.PhoneName)} · ${typeLabel(item.PhoneTime)} · ${item.PhoneTime || "0s"}`}
+        {`名稱: ${item.PhoneName || '未知來電'}  · 通話時間: ${item.PhoneTime || "0s"}`}
       </Text>
-      <Text style={styles.time}>{fmt(item.PhoneTime, item.PhoneTime)}</Text>
+
+      <Text style={styles.time}>
+        {fmt(item.PhoneTime, item.PhoneTime)} {/* 這裡也是字串要包裹在 Text 中 */}
+      </Text>
     </View>
   );
 };
-
 
 
   return (
