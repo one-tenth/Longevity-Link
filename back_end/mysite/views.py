@@ -697,8 +697,55 @@ def get_med_reminders(request):
     }
     return Response(result)
 
-
-
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_med_reminders_by_userid(request):
+    user = request.user
+    user_id = request.query_params.get('user_id')
+    if not user_id:
+        return Response({'error': '缺少 user_id'}, status=400)
+    try:
+        target = User.objects.get(UserID=user_id)
+    except User.DoesNotExist:
+        return Response({'error': '查無此用戶'}, status=404)
+    # 權限檢查：只能查自己或同家庭
+    if user.UserID != target.UserID:
+        if not (user.FamilyID and user.FamilyID == target.FamilyID):
+            return Response({'error': '無權限查詢此用戶'}, status=403)
+    try:
+        time_setting = MedTimeSetting.objects.get(UserID=target)
+    except MedTimeSetting.DoesNotExist:
+        return Response({'error': '尚未設定用藥時間'}, status=404)
+    meds = Med.objects.filter(UserID=target)
+    if not meds.exists():
+        return Response({'error': '尚無藥物資料，請先新增藥物'}, status=404)
+    schedule = {'morning': [], 'noon': [], 'evening': [], 'bedtime': []}
+    for med in meds:
+        freq = (getattr(med, 'DosageFrequency', '') or '').strip()
+        if freq == '一天一次':
+            schedule['morning'].append(med.MedName)
+        elif freq == '一天兩次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+        elif freq == '一天三次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+            schedule['evening'].append(med.MedName)
+        elif freq == '一天四次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+            schedule['evening'].append(med.MedName)
+            schedule['bedtime'].append(med.MedName)
+        elif freq == '睡前':
+            schedule['bedtime'].append(med.MedName)
+    result = {
+        'morning': {'time': str(time_setting.MorningTime) if time_setting.MorningTime else None, 'meds': schedule['morning']},
+        'noon':    {'time': str(time_setting.NoonTime)    if time_setting.NoonTime    else None, 'meds': schedule['noon']},
+        'evening': {'time': str(time_setting.EveningTime) if time_setting.EveningTime else None, 'meds': schedule['evening']},
+        'bedtime': {'time': str(time_setting.Bedtime)     if time_setting.Bedtime     else None, 'meds': schedule['bedtime']},
+    }
+    return Response(result)
 #----------------------------------------------------------------
 #健康
 # views.py

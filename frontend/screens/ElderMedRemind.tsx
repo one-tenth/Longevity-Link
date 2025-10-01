@@ -208,11 +208,11 @@ export default function ElderMedRemind() {
           </View>
 
           {/* 操作按鈕列 */}
-          <View style={styles.btnRow}>
+          {/* <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.cream }]} onPress={onDelay}>
               <Text style={styles.btnText}>延遲</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           {/* 主按鈕 */}
           <TouchableOpacity style={styles.mainBtn} onPress={onStart}>
