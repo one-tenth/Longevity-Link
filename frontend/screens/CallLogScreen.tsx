@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 
-const API_BASE = 'http://172.20.10.8:8000'; // ← 換成你的後端 IP
+const API_BASE = 'http://192.168.31.126:8000'; // ← 換成你的後端 IP
 
 
 // ===== 型別 =====
