@@ -476,6 +476,7 @@ class OcrAnalyzeView(APIView):
 
         return (response.choices[0].message.content or "").strip()
 
+#開始服藥
 @api_view(['POST'])
 def start_medication(request):
     user_id = request.data.get('userId')
@@ -612,21 +613,21 @@ def create_med_time_setting(request):
 
 
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import MedTimeSetting
-from .serializers import MedTimeSettingSerializer
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from .models import MedTimeSetting
+# from .serializers import MedTimeSettingSerializer
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_med_time_setting(request):
-    try:
-        setting = MedTimeSetting.objects.get(UserID=request.user)
-        serializer = MedTimeSettingSerializer(setting)
-        return Response(serializer.data)
-    except MedTimeSetting.DoesNotExist:
-        return Response({'detail': '尚未設定時間'}, status=404)
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_med_time_setting(request):
+#     try:
+#         setting = MedTimeSetting.objects.get(UserID=request.user)
+#         serializer = MedTimeSettingSerializer(setting)
+#         return Response(serializer.data)
+#     except MedTimeSetting.DoesNotExist:
+#         return Response({'detail': '尚未設定時間'}, status=404)
 
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated

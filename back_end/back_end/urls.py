@@ -37,7 +37,7 @@ urlpatterns = [
     path('start_medication/', views.start_medication),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/create-med-time/', views.create_med_time_setting, name='create_med_time'),
-    path('api/get-med-time/', views.get_med_time_setting),
+    # path('api/get-med-time/', views.get_med_time_setting),
     path('api/get-med-reminders/', views.get_med_reminders),
     path('api/get-med-reminders-by-userid/', views.get_med_reminders_by_userid),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
