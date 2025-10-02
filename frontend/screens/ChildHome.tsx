@@ -1,5 +1,37 @@
 // ChildHome.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import axios from 'axios';
+import { Modal, FlatList, TouchableWithoutFeedback, Dimensions } from 'react-native';
+const { width } = Dimensions.get('window');
+const CARD_W = Math.min(width * 0.86, 360);
+const SNAP = CARD_W + 24;
+const PERIOD_LABELS: Record<string, string> = {
+  morning: '早上',
+  noon: '中午',
+  evening: '晚上',
+  bedtime: '睡前',
+};
+function toZhPeriod(key?: string): string {
+  if (!key) return '';
+  const k = key.trim().toLowerCase();
+  if (PERIOD_LABELS[k]) return PERIOD_LABELS[k];
+  return key;
+}
+function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: string[] }>): number {
+  if (!cards || cards.length === 0) return -1;
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const nowStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const sorted = [...cards].sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const hasMeds = (c: { meds?: string[] }) => Array.isArray(c.meds) && c.meds.length > 0;
+  const idxInSorted =
+    sorted.findIndex((c) => (c.time && c.time >= nowStr) && hasMeds(c)) >= 0
+      ? sorted.findIndex((c) => (c.time && c.time >= nowStr) && hasMeds(c))
+      : sorted.findIndex(hasMeds);
+  if (idxInSorted < 0) return -1;
+  const targetId = sorted[idxInSorted].id;
+  return cards.findIndex((c) => c.id === targetId);
+}
 import {
   View,
   Text,
@@ -20,6 +52,8 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import { RootStackParamList } from '../App';
+
+import AutoScrollToIndex from './AutoScrollToIndex';
 import { getAvatarSource } from '../utils/avatarMap'; // ⭐ 使用 avatarMap，有缺就走文字頭像
 
 type ChildHomeNavProp = StackNavigationProp<RootStackParamList, 'ChildHome'>;
@@ -33,7 +67,7 @@ interface Member {
 
 
 
-const API_BASE = 'http://172.20.10.8:8000'; // ← 依環境調整
+const API_BASE = 'http://172.20.10.2:8000'; // ← 依環境調整
 
 
 const COLORS = {
@@ -81,8 +115,67 @@ function resolveElderIdFromSelected(m?: Member | null): number | null {
 }
 
 export default function ChildHome() {
+  // 先宣告 navigation, selectedMember
   const navigation = useNavigation<ChildHomeNavProp>();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  // 吃藥提醒狀態
+  const [medCards, setMedCards] = useState<Array<{ id: string; period: string; time?: string; meds: string[] }>>([]);
+  const [showMedModal, setShowMedModal] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatRef = useRef<FlatList<any>>(null);
+  const [tick, setTick] = useState(0);
+
+  // 每 60 秒刷新一次「下一筆吃藥」
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 抓藥物提醒（period 轉中文）
+
+  const fetchMedReminders = useCallback(async () => {
+    if (!selectedMember?.UserID) return;
+    const token = await AsyncStorage.getItem('access');
+    if (!token) return;
+    try {
+      const res = await axios.get(
+        `${API_BASE}/api/get-med-reminders-by-userid/?user_id=${selectedMember.UserID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const raw = res.data as Record<string, { time?: string; meds?: string[] }>;
+      const converted = Object.entries(raw)
+        .map(([key, val], idx) => ({
+          id: String(idx + 1),
+          period: toZhPeriod(key),
+          time: val?.time ? String(val.time).slice(0, 5) : '',
+          meds: Array.isArray(val?.meds) ? val.meds : [],
+        }))
+        .filter((card) => card.time || card.meds.length > 0);
+      setMedCards(converted);
+    } catch (err) {
+      setMedCards([]);
+      console.log('❌ 藥物提醒資料抓取失敗:', err);
+    }
+  }, [selectedMember?.UserID]);
+
+  // 每次進入頁面都撈一次用藥提醒
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', fetchMedReminders);
+    return unsub;
+  }, [navigation, fetchMedReminders]);
+
+  // selectedMember 變動時也要撈一次
+  useEffect(() => {
+    fetchMedReminders();
+  }, [fetchMedReminders]);
+
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({ length: SNAP, offset: SNAP * index, index }),
+    []
+  );
+
+  const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, tick]);
+  const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
   const today = useMemo(getLocalToday, []);
   const [loading, setLoading] = useState(false);
 
@@ -236,10 +329,7 @@ export default function ChildHome() {
     await AsyncStorage.setItem('elder_name', selectedMember!.Name ?? '');
     await AsyncStorage.setItem('elder_id', String(elderId));
     console.log('[ChildHome] goLocation -> elderId =', elderId);
-    navigation.navigate('Location' as never, {
-      elderId, // ✅ 傳「長者的 UserID」
-      elderName: selectedMember!.Name,
-    } as never);
+    navigation.navigate('Location', { elderId });
   };
 
   // Avatar source / fallback
@@ -281,7 +371,7 @@ export default function ChildHome() {
       </View>
 
       {/* 內容捲動區 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }} scrollEnabled={!showMedModal}>
         {loading ? (
           <View style={{ paddingTop: 24, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={COLORS.black} />
@@ -295,6 +385,168 @@ export default function ChildHome() {
           <StatBox title="心率" value={heart} suffix={heart !== 'N/A' ? 'bpm' : undefined} />
           <StatBox title="血壓" value={bp} />
         </View>
+
+
+        {/* 吃藥提醒卡片 */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={!preview}
+          onPress={() => {
+            if (previewIndex >= 0) {
+              setCurrentIndex(previewIndex);
+              setShowMedModal(true);
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  flatRef.current?.scrollToIndex({ index: previewIndex, animated: false });
+                });
+              });
+            }
+          }}
+          style={[
+            styles.rowCard,
+            styles.cardShadow,
+            { backgroundColor: COLORS.green, opacity: preview ? 1 : 0.5, marginHorizontal: 16, marginBottom: 12 },
+          ]}
+        >
+          <View style={styles.rowTop}>
+            <Text style={[styles.rowTitle, { color: COLORS.white }]}>吃藥提醒</Text>
+            <MaterialIcons name="medication" size={30} color={COLORS.black} />
+          </View>
+          <View style={[styles.noteBox, { backgroundColor: '#E9F4E4' }]}> 
+            {preview ? (
+              <>
+                <Text style={styles.notePlaceholder}>
+                  {preview.period} {preview.time || ''}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
+                  {preview.meds.slice(0, 3).map((m: string, i: number) => (
+                    <View key={i} style={styles.miniPill}>
+                      <MaterialIcons name="medication" size={16} color={COLORS.black} />
+                      <Text style={styles.miniPillText}>{m}</Text>
+                    </View>
+                  ))}
+                  {preview.meds.length > 3 && (
+                    <View style={styles.miniPill}>
+                      <Text style={[styles.miniPillText, { fontWeight: '900' }]}>+{preview.meds.length - 3}</Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.notePlaceholder}>尚無資料</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* ====== 吃藥提醒浮層（可左右滑動） ====== */}
+        <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={() => setShowMedModal(false)}>
+          {/* 半透明暗背景，點擊可關閉 */}
+          <TouchableWithoutFeedback onPress={() => setShowMedModal(false)}>
+            <View style={{ flex: 1, backgroundColor: '#0008', position: 'absolute', width: '100%', height: '100%' }} />
+          </TouchableWithoutFeedback>
+
+          {/* 中央卡片區域 */}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} pointerEvents="box-none">
+            <View style={{ width: CARD_W, backgroundColor: COLORS.white, borderRadius: 32, padding: 0, alignItems: 'center', overflow: 'visible', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12 }}>
+              {/* 關閉按鈕 */}
+              <TouchableOpacity style={{ position: 'absolute', top: 18, right: 18, zIndex: 2, padding: 10, backgroundColor: '#fff', borderRadius: 20, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, elevation: 4 }} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
+                <Feather name="x" size={26} color={COLORS.black} />
+              </TouchableOpacity>
+
+              {/* 上/下一頁箭頭 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setCurrentIndex((i) => {
+                    const next = Math.max(0, i - 1);
+                    flatRef.current?.scrollToIndex({ index: next, animated: true });
+                    return next;
+                  });
+                }}
+                style={{ position: 'absolute', left: -8, top: '50%', marginTop: -32, zIndex: 2, backgroundColor: '#fff', borderRadius: 20, padding: 8, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, elevation: 4, opacity: currentIndex === 0 ? 0.3 : 1 }}
+                disabled={currentIndex === 0}
+                activeOpacity={0.8}
+              >
+                <Feather name="chevron-left" size={32} color={COLORS.black} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setCurrentIndex((i) => {
+                    const next = Math.min(medCards.length - 1, i + 1);
+                    flatRef.current?.scrollToIndex({ index: next, animated: true });
+                    return next;
+                  });
+                }}
+                style={{ position: 'absolute', right: -8, top: '50%', marginTop: -32, zIndex: 2, backgroundColor: '#fff', borderRadius: 20, padding: 8, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, elevation: 4, opacity: currentIndex === medCards.length - 1 ? 0.3 : 1 }}
+                disabled={currentIndex === medCards.length - 1}
+                activeOpacity={0.8}
+              >
+                <Feather name="chevron-right" size={32} color={COLORS.black} />
+              </TouchableOpacity>
+
+              {/* 可滑動卡片 */}
+              <FlatList
+                ref={flatRef}
+                data={medCards}
+                keyExtractor={(item) => item.id}
+                horizontal
+                pagingEnabled={true}
+                snapToInterval={CARD_W}
+                decelerationRate="fast"
+                snapToAlignment="start"
+                showsHorizontalScrollIndicator={false}
+                getItemLayout={getItemLayout}
+                scrollEnabled={true}
+                style={{ width: CARD_W }}
+                onMomentumScrollEnd={(e) => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_W);
+                  setCurrentIndex(Math.max(0, Math.min(idx, medCards.length - 1)));
+                }}
+                contentContainerStyle={{ paddingTop: 40, paddingBottom: 24 }}
+                renderItem={({ item }) => (
+                  <View style={{ width: CARD_W, backgroundColor: '#F7F9FB', borderRadius: 28, padding: 24, marginHorizontal: 0, marginBottom: 0, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, elevation: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <Text style={{ fontSize: 22, fontWeight: 'bold', color: COLORS.green, letterSpacing: 1 }}>{item.period}</Text>
+                      <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.textDark }}>{item.time}</Text>
+                    </View>
+                    <View style={{ borderBottomWidth: 1, borderBottomColor: '#e0e0e0', marginBottom: 16 }} />
+                    <View style={{ minHeight: 60, alignItems: 'flex-start', justifyContent: 'center' }}>
+                      {item.meds.length > 0 ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                          {item.meds.map((m: string, i: number) => (
+                            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.green, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8, marginBottom: 8 }}>
+                              <MaterialIcons name="medication" size={18} color={COLORS.black} />
+                              <Text style={{ fontSize: 17, fontWeight: 'bold', color: COLORS.textDark, marginLeft: 8 }}>{m}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={{ fontSize: 18, color: COLORS.textMid, fontWeight: '600' }}>此時段沒有藥物</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity style={{ alignSelf: 'center', marginTop: 24, backgroundColor: COLORS.green, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 48, shadowColor: COLORS.green, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 }} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
+                      <Text style={{ color: COLORS.white, fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>知道了</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+
+              {/* Modal 開啟時自動 scroll 到 currentIndex */}
+              {showMedModal && medCards.length > 0 && (
+                <AutoScrollToIndex flatRef={flatRef} index={currentIndex} />
+              )}
+
+              {/* 指示點 */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginVertical: 16 }}>
+                {medCards.map((_, i) => (
+                  <View
+                    key={i}
+                    style={{ height: 10, borderRadius: 5, marginHorizontal: 3, backgroundColor: COLORS.green, opacity: i === currentIndex ? 1 : 0.35, width: i === currentIndex ? 22 : 10 }}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* 功能列 */}
         <View style={styles.grid2x2}>
@@ -483,6 +735,36 @@ const styles = StyleSheet.create({
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
+
+  // 吃藥提醒卡片樣式
+  rowCard: {
+    borderRadius: 18,
+    padding: 14,
+    minHeight: 108,
+    marginBottom: 12,
+  },
+  cardShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowTitle: { fontSize: 30, fontWeight: '900', color: COLORS.textDark },
+  noteBox: { marginTop: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+  notePlaceholder: { fontSize: 30, fontWeight: '800', color: COLORS.textMid },
+  miniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F7F9FB',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  miniPillText: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginLeft: 6 },
 });
 
 const quick = StyleSheet.create({

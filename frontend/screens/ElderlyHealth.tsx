@@ -25,7 +25,7 @@ type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHeal
 
 // ===== 基本設定 =====
 
-const BASE_URL = 'http://172.20.10.8:8000';
+const BASE_URL = 'http://172.20.10.2:8000';
 
 const COLORS = {
   white: '#FFFFFF',
