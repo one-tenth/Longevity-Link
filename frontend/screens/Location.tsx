@@ -13,50 +13,35 @@ import axios from 'axios';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import { reverseGeocode, formatTs } from '../utils/locationUtils';
-
-
 import Config from 'react-native-config';
 
 // 獲取 Google Maps API 金鑰
 const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
-console.log('Google Maps API Key:', GOOGLE_MAPS_API_KEY);
 
-
-type LatestLocationResp = {
-  ok: boolean;
-  user: number;
-  lat: number;
-  lon: number;
-  ts: string;
-};
-
-const BASE_URL = 'http://192.168.1.106:8000';   
+const BASE_URL = 'http://192.168.1.106:8000';  // 你的後端 API
 
 export default function LocationScreen() {
   const route = useRoute<any>();
   const mapRef = useRef<MapView>(null);
   const [elderId, setElderId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [latest, setLatest] = useState<LatestLocationResp | null>(null);
+  const [latest, setLatest] = useState<any | null>(null);
   const [address, setAddress] = useState<string>('尚未取得地址');
-  
-  // 定義 region 為 useState
+
   const [region, setRegion] = useState<Region>({
-    latitude: 35.681236,
+    latitude: 35.681236,  // 預設位置：東京
     longitude: 139.767125,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
 
-  // 取得 elderId
   useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem('selectedMember');
         if (raw) {
           const obj = JSON.parse(raw);
-          const isElder = obj?.is_elder === true || obj?.RelatedID != null;
-          if (isElder && typeof obj?.UserID === 'number' && !Number.isNaN(obj.UserID)) {
+          if (obj?.is_elder === true || obj?.RelatedID != null) {
             setElderId(obj.UserID);
             return;
           }
@@ -71,7 +56,6 @@ export default function LocationScreen() {
     })();
   }, [route?.params]);
 
-  // 進頁面後自動抓一次
   useEffect(() => {
     if (elderId != null && !Number.isNaN(elderId)) {
       fetchLatest();
@@ -80,7 +64,8 @@ export default function LocationScreen() {
 
   const fetchLatest = async () => {
     if (elderId == null || Number.isNaN(elderId)) {
-      Alert.alert('提示', '尚未選擇長者'); return;
+      Alert.alert('提示', '尚未選擇長者');
+      return;
     }
     const token = await AsyncStorage.getItem('access');
     if (!token) { Alert.alert('提示', '尚未登入'); return; }
@@ -88,12 +73,10 @@ export default function LocationScreen() {
     try {
       setLoading(true);
       const url = `${BASE_URL}/api/location/latest/${elderId}/`;
-      const { data } = await axios.get<LatestLocationResp>(url, {
+      const { data } = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
-
-      console.log('API 回傳:', data);
 
       if (!data?.ok) {
         throw new Error('後端回傳失敗');
@@ -102,28 +85,23 @@ export default function LocationScreen() {
       const lat = Number(data.lat);
       const lon = Number(data.lon);
 
-      console.log('解析後座標:', lat, lon);
-
       if (Number.isNaN(lat) || Number.isNaN(lon)) {
         throw new Error('無定位資料');
       }
 
       setLatest({ ...data, lat, lon });
 
-      // 更新 region，並動態改變地圖位置
-      setRegion({
-        latitude: lat,
-        longitude: lon,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+      mapRef.current?.animateToRegion(
+        {
+          latitude: lat,
+          longitude: lon,
+          latitudeDelta: 0.01,  // 放大顯示區域
+          longitudeDelta: 0.01, // 放大顯示區域
+        },
+        500
+      );
 
-      // 反向地理
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
-
-      console.log('反查地址結果:', addr);
-      console.log('fetchLatest 反查地址:', addr);
-
       setAddress(addr || '無法取得地址');
     } catch (e: any) {
       Alert.alert('錯誤', String(e?.response?.data?.error || e?.message || e));
@@ -136,22 +114,25 @@ export default function LocationScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>家人端定位</Text>
 
+      {/* 按鈕 */}
       <TouchableOpacity style={styles.btn} onPress={fetchLatest} disabled={loading || elderId == null}>
         <Text style={styles.btnText}>{loading ? '更新中…' : '重新整理'}</Text>
       </TouchableOpacity>
 
+      {/* 加載中提示 */}
       {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
 
+      {/* 地圖顯示區域 */}
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          region={region} // 使用動態更新的 region
+          region={region}  // 使用動態更新的 region
         >
+          {/* 顯示 Marker */}
           {latest && (
             <Marker
-              key={`${latest.lat},${latest.lon}`}
               coordinate={{ latitude: latest.lat, longitude: latest.lon }}
               title="長者位置"
               description={address || `更新時間：${formatTs(latest.ts)}`}
@@ -160,11 +141,12 @@ export default function LocationScreen() {
         </MapView>
       </View>
 
+      {/* 顯示底部的地址和座標 */}
       {latest && (
-        <View style={{ marginTop: 12 }}>
+        <View style={styles.infoContainer}>
           <Text style={styles.infoText}>緯度：{latest.lat}</Text>
           <Text style={styles.infoText}>經度：{latest.lon}</Text>
-          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text> 
+          <Text style={styles.infoText}>時間：{formatTs(latest.ts)}</Text>
           <Text style={styles.infoText}>地址：{address}</Text>
         </View>
       )}
@@ -175,14 +157,41 @@ export default function LocationScreen() {
 const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#F4F5F7' },
-  title: { color: '#000', fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  btn: {
-    padding: 14, backgroundColor: '#A6CFA1', borderRadius: 12,
-    alignItems: 'center', marginBottom: 12,
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#F4F5F7',
   },
-  btnText: { color: '#fff', fontWeight: '600' },
-  mapContainer: { flex: 1, marginTop: 10, borderRadius: 12, overflow: 'hidden' },
-  map: { width: width - 40, height: height * 0.7 },
-  infoText: { color: '#000', fontSize: 16, marginBottom: 4 },
+  title: {
+    color: '#000',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  btn: {
+    padding: 14,
+    backgroundColor: '#A6CFA1',
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  btnText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  mapContainer: {
+    flex: 1,
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  map: {
+    width: width - 40,
+    height: height * 0.7,
+  },
+  infoText: {
+    color: '#000',
+    fontSize: 16,
+    marginBottom: 4,
+  },
 });
