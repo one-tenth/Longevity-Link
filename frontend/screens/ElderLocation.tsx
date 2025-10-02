@@ -95,7 +95,8 @@ export default function ElderLocation({ navigation }: any) {
           startOnBoot: true, // 啟動後自動啟動
           enableHeadless: true, // 支援頭像模式
           requiredNetworkType: BackgroundFetch.NETWORK_TYPE_ANY,
-        },
+          debug: true,
+        } as any,  // 把整個 config 物件斷言成 any
         backgroundFetchTask,
         error => {
           console.warn('[BackgroundFetch] failed to start:', error);

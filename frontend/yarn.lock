@@ -941,7 +941,7 @@
     "@babel/helper-create-regexp-features-plugin" "^7.27.1"
     "@babel/helper-plugin-utils" "^7.27.1"
 
-"@babel/preset-env@^7.25.3":
+"@babel/preset-env@^7.25.0", "@babel/preset-env@^7.25.3":
   version "7.28.3"
   resolved "https://registry.npmjs.org/@babel/preset-env/-/preset-env-7.28.3.tgz"
   integrity sha512-ROiDcM+GbYVPYBOeCR6uBXKkQpBExLl8k9HO1ygXEyds39j+vCCsjmj7S8GOniZQlEs81QlkdJZe76IpLSiqpg==
@@ -1026,7 +1026,7 @@
     "@babel/types" "^7.4.4"
     esutils "^2.0.2"
 
-"@babel/preset-react@^7.22.15":
+"@babel/preset-react@^7.22.15", "@babel/preset-react@^7.24.7":
   version "7.27.1"
   resolved "https://registry.npmjs.org/@babel/preset-react/-/preset-react-7.27.1.tgz"
   integrity sha512-oJHWh2gLhU9dW9HHr42q0cI0/iHHXTLGe39qvpAZZzagHy0MzYLCnCVV0symeRvzmjHyVU7mw2K06E6u/JwbhA==
@@ -8294,6 +8294,16 @@ react-native-chart-kit@^6.12.0:
     paths-js "^0.4.10"
     point-in-polygon "^1.0.1"
 
+react-native-config@^1.5.9:
+  version "1.5.9"
+  resolved "https://registry.npmjs.org/react-native-config/-/react-native-config-1.5.9.tgz"
+  integrity sha512-j6EZ+zgcNW21POGDOdE/A42lt9ZZbQvpAfY8rMn/LCWneb+UcxN8DCq1tXcHUW4Yu4adAlDvpuw1WFqj4DR3hw==
+  dependencies:
+    "@babel/core" "^7.25.2"
+    "@babel/preset-env" "^7.25.0"
+    "@babel/preset-react" "^7.24.7"
+    babel-jest "^29.7.0"
+
 react-native-geolocation-service@^5.3.1:
   version "5.3.1"
   resolved "https://registry.npmjs.org/react-native-geolocation-service/-/react-native-geolocation-service-5.3.1.tgz"
@@ -8350,10 +8360,10 @@ react-native-make@^1.0.1:
   resolved "https://registry.npmjs.org/react-native-make/-/react-native-make-1.0.1.tgz"
   integrity sha512-+Wo2JSp6NyeKleH9aZcdPsW7X8KiBOZkwx6L65UkPCDbk4FlcYd4yw+YIuK0SUVFkUaFHTU1n8LjIjFpT+YICA==
 
-react-native-maps@^1.26.9:
-  version "1.26.9"
-  resolved "https://registry.npmjs.org/react-native-maps/-/react-native-maps-1.26.9.tgz"
-  integrity sha512-VHKjI+EMNrFvq2rsOIFMBCyCnmYrTr+IVqduvGRCtLPHmNPJA17rLz3EwsSpTzCm8xSU5Eo1D/ws5ykR0b4waw==
+react-native-maps@^1.26.14:
+  version "1.26.14"
+  resolved "https://registry.npmjs.org/react-native-maps/-/react-native-maps-1.26.14.tgz"
+  integrity sha512-ao4FMa3Iuie8fZuj7SG9LN8D9MEdu3gPm+9UfEEK2L1z+FXtGZTzTdByOsj4KRMGU5SGguFlHpV8aL1Sq5FKnA==
   dependencies:
     "@types/geojson" "^7946.0.13"
 

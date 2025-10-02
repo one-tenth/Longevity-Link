@@ -1,28 +1,25 @@
+// android/app/build.gradle  專案
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+apply plugin: "com.facebook.react.rootproject"
+
 
 
 //讀取.env
 import java.util.Properties
+def env = rootProject.ext.env
+println("GOOGLE_MAPS_API_KEY in app build.gradle: " + env.getProperty("GOOGLE_MAPS_API_KEY", "NOT FOUND"))
 
-def envFile = rootProject.file(".env")
-def env = new Properties()
-if (envFile.exists()) {
-    env.load(new FileInputStream(envFile))
-}
+project.ext.react = [
+    entryFile: file("./index.js"),
+]
 
-// background-geolocation
-rootProject.allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+
 
 
 // fcm
-// apply plugin: 'com.google.gms.google-services' // ← 若使用 Firebase 再打開
+apply plugin: 'com.google.gms.google-services' // ← 若使用 Firebase 再打開
 
 // ✅ 加入字型插件（最重要）
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
@@ -47,7 +44,7 @@ android {
         targetSdkVersion 35
         versionCode 1
         versionName "1.0"
-         manifestPlaceholders = [
+        manifestPlaceholders = [
             GOOGLE_MAPS_API_KEY: env.getProperty("GOOGLE_MAPS_API_KEY", "")
         ]
 
@@ -71,6 +68,27 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    task generateGoogleMapsApiXml {
+        def envApiKey = rootProject.ext.env.getProperty("GOOGLE_MAPS_API_KEY", "")
+        def resDir = file("$projectDir/src/main/res/values")
+        def xmlFile = file("$resDir/google_maps_api.xml")
+
+        doLast {
+            if (!resDir.exists()) {
+                resDir.mkdirs()
+            }
+
+            def content = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="google_maps_key">${envApiKey}</string>
+</resources>
+"""
+            xmlFile.text = content
+            println("Generated google_maps_api.xml with key: ${envApiKey}")
+        }
+    }
+
+    preBuild.dependsOn generateGoogleMapsApiXml
     
 }
 
@@ -95,6 +113,4 @@ dependencies {
     // implementation project(':react-native-maps')
 
 }
-
-
 

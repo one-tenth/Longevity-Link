@@ -1,4 +1,3 @@
-// screens/Location.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -15,6 +14,14 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import { reverseGeocode, formatTs } from '../utils/locationUtils';
 
+
+import Config from 'react-native-config';
+
+// 獲取 Google Maps API 金鑰
+const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
+console.log('Google Maps API Key:', GOOGLE_MAPS_API_KEY);
+
+
 type LatestLocationResp = {
   ok: boolean;
   user: number;
@@ -25,7 +32,6 @@ type LatestLocationResp = {
 
 const BASE_URL = 'http://192.168.1.106:8000';   
 
-
 export default function LocationScreen() {
   const route = useRoute<any>();
   const mapRef = useRef<MapView>(null);
@@ -33,14 +39,14 @@ export default function LocationScreen() {
   const [loading, setLoading] = useState(false);
   const [latest, setLatest] = useState<LatestLocationResp | null>(null);
   const [address, setAddress] = useState<string>('尚未取得地址');
-
-
-  const initialRegion: Region = {
+  
+  // 定義 region 為 useState
+  const [region, setRegion] = useState<Region>({
     latitude: 35.681236,
     longitude: 139.767125,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
-  };
+  });
 
   // 取得 elderId
   useEffect(() => {
@@ -70,7 +76,6 @@ export default function LocationScreen() {
     if (elderId != null && !Number.isNaN(elderId)) {
       fetchLatest();
     }
-    
   }, [elderId]);
 
   const fetchLatest = async () => {
@@ -105,10 +110,13 @@ export default function LocationScreen() {
 
       setLatest({ ...data, lat, lon });
 
-      // 長者座標
-      mapRef.current?.animateToRegion({
-        latitude: lat, longitude: lon, latitudeDelta: 0.01, longitudeDelta: 0.01,
-      }, 500);
+      // 更新 region，並動態改變地圖位置
+      setRegion({
+        latitude: lat,
+        longitude: lon,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
 
       // 反向地理
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
@@ -139,11 +147,11 @@ export default function LocationScreen() {
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          initialRegion={initialRegion}
+          region={region} // 使用動態更新的 region
         >
           {latest && (
             <Marker
-              key={`${latest.lat},${latest.lon}`} // 強制重繪
+              key={`${latest.lat},${latest.lon}`}
               coordinate={{ latitude: latest.lat, longitude: latest.lon }}
               title="長者位置"
               description={address || `更新時間：${formatTs(latest.ts)}`}
@@ -163,9 +171,6 @@ export default function LocationScreen() {
     </View>
   );
 }
-            
-
-
 
 const { width, height } = Dimensions.get('window');
 
