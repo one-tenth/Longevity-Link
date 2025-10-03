@@ -1,4 +1,3 @@
-// utils/initNotification.ts
 import notifee, {
   AndroidImportance,
   TimestampTrigger,
@@ -85,7 +84,6 @@ function isForbidden(err: any): boolean {
 function isNotFoundError(err: any): boolean {
   const status = err?.response?.status;
   const code = err?.response?.data?.code || err?.response?.data?.detail?.code;
-  // 以 404 為主要條件；若後端誤把 user_not_found 放在其他狀態，也一併相容
   return status === 404 || code === 'user_not_found';
 }
 
@@ -243,6 +241,18 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
 
     const notifId = `visit::${next.visitId}::${next.ymd}::${VISIT_NOTIFY_TIME}`;
 
+    // ---- 取得頭像資料 ----
+    let avatar: string | null = null;
+    try {
+      const meRes = await axios.get(`${BASE}/api/account/me/`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        timeout: 10000,
+      });
+      avatar = meRes.data?.avatar ?? null;
+    } catch (e) {
+      console.log('[visit] 取得頭像失敗：', e);
+    }
+
     // ---- 若今天且已過指定時間 → 立即補發一次，並不再排程過去時間 ----
     const isToday =
       next.ymd ===
@@ -277,6 +287,7 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
             doctor: next.doctor,
             num: next.num,
             visitId: next.visitId,
+            avatar: avatar || 'default.png', // 傳遞頭像路徑
           },
         });
         await AsyncStorage.setItem(shownKey, '1');
@@ -318,6 +329,7 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
           doctor: next.doctor,
           num: next.num,
           visitId: next.visitId,
+          avatar: avatar || 'default.png', // 傳遞頭像路徑
         },
       },
       trigger
@@ -377,6 +389,7 @@ export async function initMedicationNotifications(): Promise<
 
   try {
     // 1) /me：確認 token 與基本身分
+    let avatar: string | null = null;
     try {
       const meRes = await axios.get(`${BASE}/api/account/me/`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -384,6 +397,7 @@ export async function initMedicationNotifications(): Promise<
       });
       console.log('[initNotification] /me status:', meRes.status);
       console.log('✅ 使用者資訊:', meRes.data);
+      avatar = meRes.data?.avatar ?? null; // 獲取頭像路徑
     } catch (err: any) {
       if (isAuthError(err)) {
         console.log('[initNotification] 401 → token 無效或過期，清除並要求重新登入');
@@ -496,7 +510,7 @@ export async function initMedicationNotifications(): Promise<
             pressAction: { id: 'default' },
           },
           // 保持資料以「英文鍵」傳遞，畫面端再轉中文
-          data: { period, meds: meds.join(','), time, __type: 'med' },
+          data: { period, meds: meds.join(','), time, __type: 'med', avatar: avatar || 'default.png' }, // 傳遞頭像路徑
         },
         trigger
       );
@@ -560,18 +574,20 @@ notifee.onForegroundEvent(async ({ type, detail }) => {
 
     // 吃藥 → 詳情頁（period 用英文鍵，畫面端會轉中文）
     if (data?.__type === 'med' || data?.type === 'med') {
-      const { period, meds, time } = data;
+      const { period, meds, time, avatar } = data;
       navigationRef.current?.navigate('ElderMedRemind', {
         period,
         meds: meds ? String(meds).split(',') : undefined,
         time,
+        avatar, // 傳遞頭像路徑到畫面
       });
       return;
     }
 
     // 回診 → 回診列表頁（可依需求改為詳情頁）
     if (data?.__type === 'visit' || data?.type === 'visit') {
-      navigationRef.current?.navigate('ElderHospitalList');
+      const { avatar } = data;
+      navigationRef.current?.navigate('ElderHospitalList', { avatar }); // 傳遞頭像路徑
       return;
     }
   }
@@ -583,25 +599,28 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
     const data = detail.notification.data as any;
 
     if (data?.__type === 'med' || data?.type === 'med') {
-      const { period, meds, time } = data;
+      const { period, meds, time, avatar } = data;
       await AsyncStorage.multiSet([
         ['notificationPeriod', period || ''],
         ['notificationMeds', meds || ''],
         ['notificationTime', time || ''],
+        ['notificationAvatar', avatar || ''], // 儲存頭像路徑
       ]);
       setTimeout(() => {
         navigationRef.current?.navigate('ElderMedRemind', {
           period,
           meds: meds ? String(meds).split(',') : undefined,
           time,
+          avatar, // 傳遞頭像路徑
         });
       }, 800);
       return;
     }
 
     if (data?.__type === 'visit' || data?.type === 'visit') {
+      const { avatar } = data;
       setTimeout(() => {
-        navigationRef.current?.navigate('ElderHospitalList');
+        navigationRef.current?.navigate('ElderHospitalList', { avatar }); // 傳遞頭像路徑
       }, 800);
       return;
     }

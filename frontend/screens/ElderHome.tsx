@@ -1,10 +1,8 @@
-// screens/ElderHome.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
   ScrollView,
   Modal,
@@ -15,6 +13,7 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
+  Image,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -45,10 +44,8 @@ const { width } = Dimensions.get('window');
 const CARD_W = Math.min(width * 0.86, 360);
 const SNAP = CARD_W + 24;
 
-// ---- Utils ----
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// 依現在時間，從 medCards 中挑「下一筆有藥」的原陣列索引
 function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: string[] }>): number {
   if (!cards || cards.length === 0) return -1;
   const now = new Date();
@@ -66,7 +63,6 @@ function getNextPreviewIndex(cards: Array<{ id: string; time?: string; meds?: st
   return cards.findIndex((c) => c.id === targetId);
 }
 
-// ---- Period label mapping (EN -> ZH) ----
 const PERIOD_LABELS: Record<string, string> = {
   morning: '早上',
   noon: '中午',
@@ -81,28 +77,25 @@ function toZhPeriod(key?: string): string {
 
   const tokens = k.split(/[^a-z]+/).filter(Boolean);
   const hasBefore = tokens.includes('before') || tokens.includes('pre') || tokens.includes('premeal') || tokens.includes('pre_meal');
-  const hasAfter  = tokens.includes('after')  || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post_meal');
+  const hasAfter = tokens.includes('after') || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post_meal');
   const mealMap: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', meal: '飯' };
-  const mealToken = tokens.find(t => mealMap[t]);
+  const mealToken = tokens.find((t) => mealMap[t]);
   if (mealToken) {
     const mealZh = mealMap[mealToken];
     if (hasBefore) return `${mealZh}前`;
-    if (hasAfter)  return `${mealZh}後`;
+    if (hasAfter) return `${mealZh}後`;
   }
   for (const t of tokens) if (PERIOD_LABELS[t]) return PERIOD_LABELS[t];
   return key;
 }
 
-// ---- API base ----
 const BASE = 'http://192.168.31.126:8000';
 
-
-// ✅ 通話同步常數 / 工具
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
-const LAST_SYNC_AT_KEY   = 'calllog:last_sync_at';
-const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000; // 每 1 分鐘自動同步一次
+const LAST_SYNC_AT_KEY = 'calllog:last_sync_at';
+const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000;
 
-function mapType(t?: string) {
+function mapType(t?: string): string {
   if (!t) return 'UNKNOWN';
   const s = String(t).toUpperCase();
   if (['INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'].includes(s)) return s;
@@ -113,27 +106,24 @@ function mapType(t?: string) {
   return 'UNKNOWN';
 }
 
-// ---- Types ----
 type HospitalRecord = {
   HosId?: number;
   HosID?: number;
   id?: number;
-  ClinicDate: string;
-  ClinicPlace: string;
-  Doctor: string;
-  Num: number;
+  ClinicDate?: string;
+  ClinicPlace?: string;
+  Doctor?: string;
+  Num?: number;
 };
 
 type MeInfo = {
-  UserID: number;
+  UserID?: number;
   RelatedID?: number | null;
   isElder?: boolean;
   Name?: string;
-  avatar_url?: string | null;
   avatar?: string | null;
 };
 
-// 解析 elderId：優先 localStorage('elder_id') → /api/account/me/ 的 RelatedID
 async function resolveElderId(): Promise<number | null> {
   try {
     const saved = await AsyncStorage.getItem('elder_id');
@@ -159,7 +149,6 @@ async function resolveElderId(): Promise<number | null> {
   }
 }
 
-// ===== 日期處理（修正版，支援多種格式） =====
 const normalizeDateStr = (s?: string) => {
   if (!s) return '';
   const core = s.includes('T') ? s.split('T')[0] : s;
@@ -181,7 +170,6 @@ const parseDate = (s?: string) => {
 const onlyDate = (s?: string) => normalizeDateStr(s);
 const normalizeDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-// ===== 取最近看診資料（修正版） =====
 const pickUpcomingNearest = (list: HospitalRecord[]) => {
   const today = normalizeDay(new Date());
   const parsed = list
@@ -200,30 +188,22 @@ const pickUpcomingNearest = (list: HospitalRecord[]) => {
 export default function ElderHome() {
   const navigation = useNavigation<ElderHomeNav>();
 
-  // 吃藥提醒
+  const [userInfo, setUserInfo] = useState<MeInfo | null>(null);
   const [medCards, setMedCards] = useState<Array<{ id: string; period: string; time?: string; meds: string[] }>>([]);
   const [showMedModal, setShowMedModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatRef = useRef<FlatList<any>>(null);
   const [userName, setUserName] = useState<string>('使用者');
-
-  // 使用者頭像
-  const [avatar, setAvatar] = useState<string | null>(null);
-
-  // 同步通話 loading
   const [syncing, setSyncing] = useState(false);
-
-  // 每 60 秒刷新一次「下一筆吃藥」
   const [tick, setTick] = useState(0);
+
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  // 自動同步計時器
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ====== 使用者姓名/頭像：先快取再覆蓋；聚焦時校正 ======
   const fetchAndCacheName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('access');
@@ -236,7 +216,6 @@ export default function ElderHome() {
 
       const name = (res.data?.Name || '').toString().trim();
       const uid = res.data?.UserID;
-      const avatarUrl = (res.data?.avatar_url ?? res.data?.avatar) || null;
 
       if (name) {
         const cachedUid = await AsyncStorage.getItem('user_id');
@@ -250,29 +229,20 @@ export default function ElderHome() {
         }
         setUserName(name);
       }
-
-      if (avatarUrl) {
-        setAvatar(avatarUrl);
-        await AsyncStorage.setItem('user_avatar', String(avatarUrl));
-      }
     } catch (err) {
       console.log('❌ 取得使用者資訊失敗:', err);
     }
   }, []);
 
-  // 掛載：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
     (async () => {
       try {
         const storedName = await AsyncStorage.getItem('user_name');
         if (storedName) setUserName(storedName);
 
-        const storedAvatar = await AsyncStorage.getItem('user_avatar');
-        if (storedAvatar) setAvatar(storedAvatar);
-
         const token = await AsyncStorage.getItem('access');
         if (token) {
-          const res = await axios.get(`${BASE}/api/account/me/`, {
+          const res = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -280,27 +250,34 @@ export default function ElderHome() {
             setUserName(res.data.Name);
             await AsyncStorage.setItem('user_name', res.data.Name);
           }
-
-          const avatarUrl = res.data?.avatar_url ?? res.data?.avatar;
-          if (avatarUrl) {
-            setAvatar(avatarUrl);
-            await AsyncStorage.setItem('user_avatar', String(avatarUrl));
-          }
         }
       } catch (err) {
-        console.log('❌ 抓使用者姓名/頭像失敗:', err);
+        console.log('❌ 抓使用者姓名失敗:', err);
       }
     })();
   }, [fetchAndCacheName]);
 
-  // 聚焦時再校正
   useFocusEffect(
     useCallback(() => {
       fetchAndCacheName();
     }, [fetchAndCacheName])
   );
 
-  // Modal 控制
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('access');
+        if (!token) return;
+        const res = await axios.get<MeInfo>(`${BASE}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUserInfo(res.data || null);
+      } catch (err) {
+        console.log('❌ 取得使用者資訊失敗:', err);
+      }
+    })();
+  }, []);
+
   const openMedModal = (startIndex = 0) => {
     setCurrentIndex(startIndex);
     setShowMedModal(true);
@@ -310,9 +287,9 @@ export default function ElderHome() {
       });
     });
   };
+
   const closeMedModal = () => setShowMedModal(false);
 
-  // 抓藥物提醒（period 轉中文）
   useEffect(() => {
     (async () => {
       const token = await AsyncStorage.getItem('access');
@@ -345,7 +322,6 @@ export default function ElderHome() {
   const previewIndex = useMemo(() => getNextPreviewIndex(medCards), [medCards, tick]);
   const preview = previewIndex >= 0 ? medCards[previewIndex] : null;
 
-  // ===== 看診提醒（顯示最近一筆 + 計數） =====
   const [loading, setLoading] = useState(false);
   const [reminder, setReminder] = useState<HospitalRecord | null>(null);
   const [hint, setHint] = useState<string>('');
@@ -359,9 +335,11 @@ export default function ElderHome() {
       setVisitCount(0);
 
       const token = await AsyncStorage.getItem('access');
-      if (!token) { setHint('尚未登入'); return; }
+      if (!token) {
+        setHint('尚未登入');
+        return;
+      }
 
-      // 解析 elderId
       const elderId = await resolveElderId();
       const urls = [
         typeof elderId === 'number' && !Number.isNaN(elderId)
@@ -378,16 +356,25 @@ export default function ElderHome() {
             timeout: 10000,
           });
           const data = Array.isArray(res.data) ? res.data : [];
-          if (data.length) { rows = data; break; }
+          if (data.length) {
+            rows = data;
+            break;
+          }
         } catch {}
       }
 
       setVisitCount(rows.length);
 
-      if (!rows.length) { setHint('尚無看診資料'); return; }
+      if (!rows.length) {
+        setHint('尚無看診資料');
+        return;
+      }
 
       const nearest = pickUpcomingNearest(rows);
-      if (!nearest) { setHint('尚無看診資料'); return; }
+      if (!nearest) {
+        setHint('尚無看診資料');
+        return;
+      }
       setReminder(nearest);
     } catch {
       setHint('載入失敗');
@@ -402,14 +389,13 @@ export default function ElderHome() {
     return unsub;
   }, [navigation, loadReminder]);
 
-  // ✅ 初始化通知排程（吃藥 + 回診）
   useFocusEffect(
     useCallback(() => {
       (async () => {
         try {
           await setupNotificationChannel();
           await initMedicationNotifications();
-          await initVisitNotifications(); // ★ 新增：排回診通知
+          await initVisitNotifications();
         } catch (e) {
           console.log('init notifications error:', e);
         }
@@ -424,7 +410,6 @@ export default function ElderHome() {
     return `${y}/${m}/${dd}`;
   };
 
-  // ===== 通話權限 =====
   const askCallLogPermission = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert('僅支援 Android', 'iOS 無法讀取通話紀錄');
@@ -445,7 +430,6 @@ export default function ElderHome() {
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  // ✅ 同步通話紀錄（支援靜默模式）
   const handleSyncCalls = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       const ok = await askCallLogPermission();
@@ -478,12 +462,12 @@ export default function ElderHome() {
             extra: { rawType: r.type },
           };
         })
-        .filter(x => !!x.phone && x._ts > 0)
+        .filter((x) => !!x.phone && x._ts > 0)
         .sort((a, b) => b._ts - a._ts);
 
       const items = isFirstSync
         ? mapped.slice(0, 100)
-        : mapped.filter(x => x._ts > lastTs).slice(0, 500);
+        : mapped.filter((x) => x._ts > lastTs).slice(0, 500);
 
       if (items.length === 0) {
         setSyncing(false);
@@ -498,7 +482,7 @@ export default function ElderHome() {
         { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
       );
 
-      const maxTs = Math.max(...items.map(x => x._ts));
+      const maxTs = Math.max(...items.map((x) => x._ts));
       await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
       await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
 
@@ -506,12 +490,11 @@ export default function ElderHome() {
       if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
     } catch (e: any) {
       setSyncing(false);
-      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
+      const msg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || 'unknown';
       if (!silent) Alert.alert('上傳失敗', msg);
     }
   };
 
-  // 判斷距離上次同步是否已超過最小間隔，若是就靜默同步
   const autoSyncIfNeeded = useCallback(async (reason: string) => {
     try {
       const hasPerm = await askCallLogPermission();
@@ -528,7 +511,6 @@ export default function ElderHome() {
     } catch {}
   }, [syncing]);
 
-  // 掛載：先嘗試一次自動同步，並啟動每 1 分鐘檢查一次
   useEffect(() => {
     (async () => {
       await autoSyncIfNeeded('mount');
@@ -546,43 +528,47 @@ export default function ElderHome() {
     };
   }, [autoSyncIfNeeded]);
 
-  // 回到此頁（聚焦）時再嘗試一次
   useFocusEffect(
     useCallback(() => {
       autoSyncIfNeeded('focus');
     }, [autoSyncIfNeeded])
   );
 
-  // ⭐ 計算實際要餵給 <Image> 的來源（URL/檔名 轉 source）
-  const avatarSrc =
-    (getAvatarSource(avatar) as any) || require('../img/elderlyhome/grandpa.png');
+  const avatarSrc = userInfo?.avatar ? getAvatarSource(userInfo.avatar) : null;
+  const initial = userInfo?.Name?.[0] ?? '人';
+
+  console.log('[ElderHome] userInfo:', userInfo);
+  console.log('[ElderHome] userInfo.avatar:', userInfo?.avatar);
+  console.log('[ElderHome] avatarSrc:', avatarSrc);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
-
-      {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
-          <Image
-            source={avatarSrc}
-            style={styles.userIcon}
-            onError={() => setAvatar(null)}
-          />
+          {avatarSrc ? (
+            <Image
+              source={avatarSrc}
+              style={styles.userIcon}
+              defaultSource={getAvatarSource('grandpa.png')}
+              onError={(e) => console.log('[ElderHome] 頭像載入失敗:', userInfo?.avatar, e.nativeEvent.error)}
+            />
+          ) : (
+            <View style={[styles.userIcon, styles.avatarFallback]}>
+              <Text style={styles.avatarText}>{initial}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userName}>{userInfo?.Name || '長者'}</Text>
           </View>
         </View>
       </View>
-
-      {/* 下半：白色圓角面板 */}
       <View style={styles.panel}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 140 }}
           style={{ flex: 1 }}
         >
-          {/* 回診資料卡片（可點擊進列表 + 顯示總筆數） */}
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
@@ -590,14 +576,12 @@ export default function ElderHome() {
           >
             <View style={styles.rowTop}>
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>回診資料</Text>
-              {/* 右上角筆數 Badge */}
               <View style={styles.countBadge}>
                 <MaterialIcons name="list" size={16} color={COLORS.black} />
                 <Text style={styles.countText}>共 {visitCount} 筆</Text>
               </View>
             </View>
-
-            <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}> 
+            <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
               {loading ? (
                 <Text style={[styles.notePlaceholder, { color: COLORS.textMid }]}>載入中…</Text>
               ) : reminder ? (
@@ -624,21 +608,10 @@ export default function ElderHome() {
               )}
             </View>
           </TouchableOpacity>
-
-          {/* 吃藥提醒 */}
           <TouchableOpacity
             activeOpacity={0.9}
             disabled={!preview}
-            onPress={() => {
-              if (previewIndex >= 0) {
-                setShowMedModal(true);
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(() => {
-                    flatRef.current?.scrollToIndex({ index: previewIndex, animated: false });
-                  });
-                });
-              }
-            }}
+            onPress={() => previewIndex >= 0 && openMedModal(previewIndex)}
             style={[
               styles.rowCard,
               styles.cardShadow,
@@ -649,14 +622,12 @@ export default function ElderHome() {
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>吃藥提醒</Text>
               <MaterialIcons name="medication" size={30} color={COLORS.black} />
             </View>
-
             <View style={[styles.noteBox, { backgroundColor: '#E9F4E4' }]}>
               {preview ? (
                 <>
                   <Text style={styles.notePlaceholder}>
                     {preview.period} {preview.time || ''}
                   </Text>
-
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
                     {preview.meds.slice(0, 3).map((m: string, i: number) => (
                       <View key={i} style={styles.miniPill}>
@@ -678,8 +649,6 @@ export default function ElderHome() {
               )}
             </View>
           </TouchableOpacity>
-
-          {/* 健康狀況 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
@@ -694,8 +663,6 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
-
-          {/* 即時位置 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
@@ -711,8 +678,6 @@ export default function ElderHome() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-
-        {/* ✅ 底部 FAB（拍照） */}
         <View pointerEvents="box-none" style={styles.fabWrap}>
           <View style={styles.fabRow}>
             <TouchableOpacity
@@ -726,23 +691,15 @@ export default function ElderHome() {
           </View>
         </View>
       </View>
-
-      {/* ====== 吃藥提醒浮層（可左右滑動） ====== */}
-      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={() => setShowMedModal(false)}>
-        {/* 半透明暗背景，點擊可關閉 */}
-        <TouchableWithoutFeedback onPress={() => setShowMedModal(false)}>
+      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={closeMedModal}>
+        <TouchableWithoutFeedback onPress={closeMedModal}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
-
-        {/* 中央卡片區域 */}
         <View style={styles.modalCenter} pointerEvents="box-none">
           <View style={styles.modalCardWrap}>
-            {/* 關閉按鈕 */}
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.closeBtn} onPress={closeMedModal} activeOpacity={0.9}>
               <Feather name="x" size={22} color={COLORS.black} />
             </TouchableOpacity>
-
-            {/* 上/下一頁箭頭 */}
             <TouchableOpacity
               onPress={() => {
                 setCurrentIndex((i) => {
@@ -774,8 +731,6 @@ export default function ElderHome() {
             >
               <Feather name="chevron-right" size={28} color={COLORS.black} />
             </TouchableOpacity>
-
-            {/* 可滑動卡片 */}
             <FlatList
               ref={flatRef}
               data={medCards}
@@ -798,8 +753,6 @@ export default function ElderHome() {
                     <Text style={styles.medPeriod}>{item.period}</Text>
                     <Text style={styles.medTime}>{item.time}</Text>
                   </View>
-
-                  {/* 卡片內垂直滾動的藥品清單 */}
                   <ScrollView style={styles.medScroll} contentContainerStyle={styles.medList}>
                     {item.meds.map((m, i) => (
                       <View key={i} style={styles.medPill}>
@@ -811,15 +764,12 @@ export default function ElderHome() {
                       <Text style={{ fontSize: 16, color: COLORS.textMid }}>此時段沒有藥物</Text>
                     )}
                   </ScrollView>
-
-                  <TouchableOpacity style={styles.okBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
+                  <TouchableOpacity style={styles.okBtn} onPress={closeMedModal} activeOpacity={0.9}>
                     <Text style={styles.okBtnText}>知道了</Text>
                   </TouchableOpacity>
                 </View>
               )}
             />
-
-            {/* 指示點 */}
             <View style={styles.dots}>
               {medCards.map((_, i) => (
                 <View
@@ -838,14 +788,14 @@ export default function ElderHome() {
   );
 }
 
-const IMAGE_SIZE = 80;
+const IMAGE_SIZE = 64;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.black },
+  container: { flex: 1, backgroundColor: COLORS.white },
   topArea: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.black },
   userCard: {
     backgroundColor: COLORS.black,
-    borderRadius: 20,
+    borderRadius: 22,
     paddingHorizontal: 4,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -857,8 +807,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, borderRadius: IMAGE_SIZE / 2 },
-  userName: { color: COLORS.white, fontSize: 35, fontWeight: '900' },
+  userIcon: {
+    width: IMAGE_SIZE,
+    height: IMAGE_SIZE,
+    borderRadius: IMAGE_SIZE / 2,
+    borderWidth: 2,
+    borderColor: '#F2F2F2',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallback: {
+    backgroundColor: '#EAF6EA',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.textDark,
+  },
+  userName: { color: COLORS.white, fontSize: 22, fontWeight: '900' },
   panel: {
     flex: 1,
     backgroundColor: COLORS.white,
@@ -890,8 +857,6 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 30, fontWeight: '900', color: COLORS.textDark },
   noteBox: { marginTop: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   notePlaceholder: { fontSize: 30, fontWeight: '800', color: COLORS.textMid },
-
-  // 回診 badge
   countBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -902,21 +867,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   countText: { fontSize: 14, fontWeight: '900', color: COLORS.black },
-
-  // 看診提醒分行顯示
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   infoText: { fontSize: 24, fontWeight: '800', color: COLORS.textMid },
-
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center' },
-
-  // FAB 列
   fabRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
-
-  // 拍照 FAB
   fab: {
     width: 115,
     height: 115,
@@ -931,8 +889,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: { color: COLORS.white, fontSize: 25, fontWeight: '900', marginTop: 6 },
-
-  // Modal
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
   modalCenter: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 14 },
   modalCardWrap: { width: CARD_W + 24, alignItems: 'center' },
@@ -950,8 +906,6 @@ const styles = StyleSheet.create({
   okBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '800' },
   dots: { flexDirection: 'row', gap: 6, marginTop: 12, justifyContent: 'center' },
   dot: { height: 8, borderRadius: 999, backgroundColor: COLORS.black, width: 8 },
-
-  // 吃藥提醒卡片內預覽小藥丸
   miniPill: {
     flexDirection: 'row',
     alignItems: 'center',
