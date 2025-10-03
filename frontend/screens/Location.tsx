@@ -18,7 +18,7 @@ import Config from 'react-native-config';
 // 獲取 Google Maps API 金鑰
 const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
 
-const BASE_URL = 'http://172.20.10.3:8000';  // 你的後端 API
+const BASE_URL = 'http://192.168.1.106:8000';  // 你的後端 API
 
 export default function LocationScreen() {
   const route = useRoute<any>();
@@ -29,8 +29,8 @@ export default function LocationScreen() {
   const [address, setAddress] = useState<string>('尚未取得地址');
 
   const [region, setRegion] = useState<Region>({
-    latitude: 35.681236,  // 預設位置：東京
-    longitude: 139.767125,
+    latitude: 25.033964,  // 預設位置：東京
+    longitude: 121.564468,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
