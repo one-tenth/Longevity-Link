@@ -25,7 +25,6 @@ import {
 
 const BASE = 'http://172.20.10.2:8000';
 
-
 type HospitalRecord = {
   HosId?: number;
   HosID?: number;

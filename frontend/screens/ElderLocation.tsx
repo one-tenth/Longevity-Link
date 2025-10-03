@@ -255,7 +255,11 @@ const styles = StyleSheet.create({
   topArea: { padding: 20, paddingTop: 40 },
   userCard: { flexDirection: 'row', alignItems: 'center' },
   userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, marginRight: 15, resizeMode: 'contain' },
+<<<<<<< HEAD
+  userName: { fontSize: 35, fontWeight: '900', color: COLORS.white },
+=======
   userName: { fontSize: 35, fontWeight: 'bold', color: COLORS.white },
+>>>>>>> 6db448bb5ef5b07aa982ef160ccbcdfe2403d882
 
   panel: {
     flex: 1,
@@ -264,7 +268,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     padding: 20,
   },
+<<<<<<< HEAD
+  pageTitle: { fontSize: 38, fontWeight: '900', marginBottom: 20, color: COLORS.black },
+=======
   pageTitle: { fontSize: 38, fontWeight: 'bold', marginBottom: 20, color: COLORS.black },
+>>>>>>> 6db448bb5ef5b07aa982ef160ccbcdfe2403d882
 
   infoCard: {
     borderRadius: 12,
@@ -306,4 +314,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 5,
   },
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 6db448bb5ef5b07aa982ef160ccbcdfe2403d882
