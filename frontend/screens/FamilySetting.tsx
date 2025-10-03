@@ -128,7 +128,6 @@ export default function CreateFamily() {
     try {
 
       const response = await fetch('http://172.20.10.7:8000/api/family/create/', {
-
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

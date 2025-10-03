@@ -7,6 +7,8 @@ import axios from 'axios';
 
 const API_BASE = 'http://172.20.10.7:8000';  // ← 根據你的後端 IP 進行設置
 
+
+// ===== 型別 =====
 type DeviceCall = {
   phoneNumber?: string;
   name?: string;

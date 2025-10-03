@@ -55,8 +55,6 @@ interface RegisterData {
 
 const API_BASE = 'http://172.20.10.7:8000';
 
-
-
 export default function RegisterScreen() {
   const navigation = useNavigation();
   const route = useRoute<RegisterRouteProp>();
