@@ -8,6 +8,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../App';
 
 // ===== Route / Nav Types =====
@@ -28,7 +30,6 @@ const PERIOD_LABELS: Record<string, string> = {
   bedtime: '睡前',
 };
 
-// ===== Theme (沿用 ChildHome 風格) =====
 const COLORS = {
   white: '#FFFFFF',
   black: '#111111',
@@ -60,7 +61,6 @@ const lightShadow = {
 // ===== Helpers =====
 function formatTime(t?: string) {
   if (!t) return '';
-  // 08:00:00 -> 08:00
   return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
@@ -93,9 +93,75 @@ export default function ElderMedRemind() {
     Alert.alert('已取消', '本次提醒已取消。');
   };
 
-  const onStart = () => {
-    navigation.navigate('ElderHome');
-  };
+   const onStart = async () => {
+     try {
+       console.log('onStart called');
+       Alert.alert('Debug', 'onStart called');
+       // 取得 userId
+  const userId = await AsyncStorage.getItem('userID');
+       if (!userId) {
+         console.log('userId 不存在');
+         Alert.alert('錯誤', '找不到 userId');
+         return;
+       }
+       if (!meds) {
+         console.log('meds 不存在');
+         Alert.alert('錯誤', '找不到藥物資訊');
+         return;
+       }
+
+       // 取得 access token
+       const accessToken = await AsyncStorage.getItem('access');
+       if (!accessToken) {
+         console.log('access token 不存在');
+         Alert.alert('錯誤', '找不到授權資訊，請重新登入');
+         return;
+       }
+
+       // 處理藥物清單
+       const medList = toMedList(meds);
+       if (medList.length === 0) {
+         console.log('medList 為空');
+         Alert.alert('錯誤', '藥物清單為空');
+         return;
+       }
+
+       // 創建要送出的資料
+       const requestData = {
+         userId,
+         medName: medList,
+       };
+
+       console.log('送出的資料:', requestData);
+       Alert.alert('Debug', `送出的資料: ${JSON.stringify(requestData)}`);
+
+       // 發送請求到後端，帶上 access token
+       const response = await axios.post(
+         'http://172.20.10.7:8000/start_medication/',
+         requestData,
+         {
+           headers: {
+             Authorization: `Bearer ${accessToken}`,
+             'Content-Type': 'application/json',
+           },
+         }
+       );
+
+       console.log('伺服器回應:', response.data);
+       Alert.alert('Debug', `伺服器回應: ${JSON.stringify(response.data)}`);
+
+       if (response.status === 200) {
+         Alert.alert('服藥提醒', response.data.message);
+         navigation.navigate('ElderHome');
+       } else {
+         Alert.alert('錯誤', '發生錯誤，請稍後再試');
+       }
+     } catch (error) {
+       console.error('錯誤:', error);
+       Alert.alert('錯誤', error?.message || '請求失敗，請檢查網路連線');
+     }
+   };
+
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -142,11 +208,11 @@ export default function ElderMedRemind() {
           </View>
 
           {/* 操作按鈕列 */}
-          <View style={styles.btnRow}>
+          {/* <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.cream }]} onPress={onDelay}>
               <Text style={styles.btnText}>延遲</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           {/* 主按鈕 */}
           <TouchableOpacity style={styles.mainBtn} onPress={onStart}>

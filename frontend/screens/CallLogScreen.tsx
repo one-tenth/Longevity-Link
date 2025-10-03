@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.24:8000'; // 根據需要設置你的 API 基本 URL
+const API_BASE = 'http://172.20.10.7:8000';  // ← 根據你的後端 IP 進行設置
 
-// 型別定義
 type DeviceCall = {
   phoneNumber?: string;
   name?: string;
@@ -24,13 +23,11 @@ type ServerCall = {
   Phone: string;
   PhoneTime: string;
   Type: string;  // 這裡新增 Type 屬性，表示通話類型
-  IsScam: boolean;
+  IsScam: boolean;  // 詐騙標註
 };
 
-// 工具函數
+// 工具函數：處理通話類型顯示
 function typeLabel(t?: string) {
-  console.log('Type received:', t); // 打印傳入的值，檢查它是什麼
-
   if (!t) {
     return '未知';  // 如果沒有傳遞 Type，則顯示「未知」
   }
@@ -45,25 +42,22 @@ function typeLabel(t?: string) {
     case 'REJECTED':
       return '已拒接';
     default:
-      return '未知';  // 若是未定義的類型，顯示「未知」
+      return '未知';
   }
 }
 
-// 更新的 fmt 函數，處理時區問題
+// 更新的 fmt 函數，處理時間格式
 function fmt(ts?: string | number, dt?: string) {
   let timestamp = ts;
 
-  // 如果是有效的字串時間，先將其轉換成時間戳
   if (typeof ts === 'string' && !isNaN(Date.parse(ts))) {
     timestamp = Date.parse(ts);
   }
 
-  // 如果是有效的時間戳，則繼續處理
   const d = timestamp != null ? new Date(timestamp) : (dt ? new Date(dt) : null);
 
-  if (!d || isNaN(+d)) return '無效時間'; // 如果日期無效則返回空字符串
+  if (!d || isNaN(+d)) return '無效時間';  // 如果時間無效則返回錯誤訊息
 
-  // 格式化日期，去掉時間部分
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -71,24 +65,14 @@ function fmt(ts?: string | number, dt?: string) {
   return `${y}-${m}-${day}`;  // 返回格式化的日期（年-月-日）
 }
 
-
 const safeStr = (v: any) => (v == null ? '' : String(v));
 
-function toPayload(elderId: number, log: DeviceCall) {
-  return {
-    UserId: elderId,
-    PhoneName: safeStr(log.name || '未知來電'),
-    Phone: safeStr(log.phoneNumber || ''),
-    PhoneTime: fmt(log.timestamp, log.dateTime),
-    IsScam: false,
-  };
-}
-
+// 正規化電話號碼，移除非數字字符，並根據台灣的區域號碼格式進行格式化
 const normalizePhone = (p: string) =>
   (p || '').replace(/\D/g, '').replace(/^886(?=\d{9,})/, '0');
 
-const displayName = (n?: string) =>
-  n && n.trim().length > 0 ? n.trim() : '未知來電';
+// 顯示電話號碼或名稱
+const displayName = (n?: string) => (n && n.trim().length > 0 ? n.trim() : '未知來電');
 
 const displayPhoneOrUnknown = (p?: string, n?: string) => {
   const phone = (p || '').trim();
@@ -147,10 +131,11 @@ export default function CallLogScreen() {
   const [serverLogs, setServerLogs] = useState<ServerCall[]>([]);  // 伺服器端通話紀錄
   const [loadingServer, setLoadingServer] = useState(false);
 
+  // 加載長者ID和名稱
   async function loadSelectedElder() {
-    const [eid, ename] = await Promise.all([
-      AsyncStorage.getItem('elder_id'),
-      AsyncStorage.getItem('elder_name'),
+    const [eid, ename] = await Promise.all([ 
+      AsyncStorage.getItem('elder_id'), 
+      AsyncStorage.getItem('elder_name') 
     ]);
     if (!eid) {
       setElderId(null);
@@ -174,7 +159,7 @@ export default function CallLogScreen() {
     } finally {
       setLoadingServer(false);
     }
-}
+  }
 
   useEffect(() => {
     loadSelectedElder();
@@ -193,40 +178,47 @@ export default function CallLogScreen() {
       try {
         const res = await axios.post(`${API_BASE}/api/scam/check_bulk/`, { phones });
         const scamData = res.data?.matches || {};
-        setScamMap(scamData);  // 更新 scamMap
+
+        console.log('詐騙資料:', scamData);  // 輸出詐騙資料，查看是否正確
+
+        // 更新 scamMap，這裡是用來標註詐騙號碼的映射
+        setScamMap(scamData);  // 確保 scamMap 被正確更新
       } catch (error) {
         console.error('Error fetching scam data:', error);
       }
     }
 
     if (serverLogs.length > 0) {
-      fetchScamData();
+      fetchScamData();  // 只有當通話紀錄有內容時才進行詐騙檢查
     }
-  }, [serverLogs]);
+  }, [serverLogs]);  // 在 serverLogs 更新時觸發詐騙檢查
 
-  // 渲染通話紀錄項目
+  // 渲染每個通話紀錄項目
   const renderDeviceItem = ({ item }: { item: ServerCall }) => {
-  const phoneNorm = normalizePhone(item.Phone || '');
-  const category = scamMap[phoneNorm];
-  const hit = !!category;
+    const phoneNorm = normalizePhone(item.Phone || '');
+    const category = scamMap[phoneNorm];  // 從 scamMap 中查詢是否該電話號碼是詐騙
+    const hit = !!category;
+
+    return (
+      <View style={[styles.item, hit && styles.itemScam]}>
+        <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
+          {displayPhoneOrUnknown(item.Phone, item.PhoneName)}
+          {hit && <Text style={styles.scamTag}> {category}</Text>}  {/* 顯示詐騙標註 */}
+        </Text>
+
+        <Text style={styles.detail}>
+          {`名稱: ${item.PhoneName || '未知來電'}  · 通話時間: ${item.PhoneTime || "0s"}`}
+        </Text>
+      </View>
+    );
+  };
+
+  // 定義 goScamForm 函數，點擊後跳轉到 ScamFormScreen
+  const goScamForm = () => {
+    navigation.navigate('ScamScreen');  // 確保 ScamFormScreen 已經在導航設定中註冊
+  };
 
   return (
-    <View style={[styles.item, hit && styles.itemScam]}>
-      <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
-        {displayPhoneOrUnknown(item.Phone, item.PhoneName)}
-        {hit && <Text style={styles.scamTag}> {category}</Text>}
-      </Text>
-
-      {/* 顯示通話類型 */}
-      <Text style={styles.detail}>
-        {`名稱: ${item.PhoneName || '未知來電'}  · 通話時間: ${item.PhoneTime || "0s"}`}
-      </Text>
-      
-    </View>
-  );
-};
-
-return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.header}>
@@ -235,6 +227,10 @@ return (
           <Text style={styles.backText}>返回</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>通話紀錄 {elderName && `(${elderName})`}</Text>
+        {/* <TouchableOpacity style={styles.scamAddBtn} onPress={goScamForm}>
+          <Feather name="shield" size={16} color="#fff" />
+          <Text style={styles.scamAddText}>新增詐騙</Text>
+        </TouchableOpacity> */}
       </View>
       <FlatList
         data={serverLogs}  // 顯示伺服器端的通話紀錄
@@ -258,6 +254,13 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 64 },
   backText: { color: '#111', fontSize: 16, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#111' },
+  scamAddBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#111', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+  },
+  scamAddText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  error: { color: 'red', margin: 12 },
+  info: { color: '#111', margin: 12 },
   item: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
   itemScam: {
     borderWidth: 1.5, borderColor: '#E53935', backgroundColor: '#FFF4F4',

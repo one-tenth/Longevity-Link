@@ -92,10 +92,10 @@ export type RootStackParamList = {
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://172.20.10.7:8000';
 const UPLOAD_EVERY_MS = 60 * 1000; // 每分鐘上傳通話紀錄
 
-// 上傳通話紀錄
+// 通話紀錄上傳
 async function uploadRecentCalls() {
   try {
     const logs = await CallLogs.load(10); // 獲取最近 10 筆通話紀錄
@@ -117,43 +117,41 @@ async function uploadRecentCalls() {
   }
 }
 
+// 請求通話紀錄權限
+async function requestCallLogPermission() {
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_CALL_LOG
+    );
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log('您已獲得讀取通話紀錄的權限');
+      uploadRecentCalls(); // 請求到權限後就上傳通話紀錄
+    } else {
+      console.log('您拒絕了讀取通話紀錄的權限');
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
 const App: React.FC = () => {
   useEffect(() => {
-    async function initNotifee() {
-      try {
-        // 初始化通知頻道和用藥提醒
-        await setupNotificationChannel();
-        const result = await initMedicationNotifications();
-        console.log('init result:', result);
-
-        // 冷啟：若有儲存的通知資料，啟動即跳轉
-        const [storedPeriod, storedMeds, storedTime] = await Promise.all([
-          AsyncStorage.getItem('notificationPeriod'),
-          AsyncStorage.getItem('notificationMeds'),
-          AsyncStorage.getItem('notificationTime'),
-        ]);
-
-        if (storedPeriod && navigationRef.isReady()) {
-          navigationRef.navigate('ElderMedRemind', {
-            period: storedPeriod,
-            meds: storedMeds ? storedMeds.split(',') : undefined,
-            time: storedTime ?? undefined,
-          });
-          await AsyncStorage.multiRemove([
-            'notificationPeriod',
-            'notificationMeds',
-            'notificationTime',
-          ]);
-        }
-      } catch (e) {
-        console.warn('initNotifee error:', e);
+    async function checkUser() {
+      const user = await AsyncStorage.getItem('user');
+      if (user === 'elder') {
+        console.log('長者端：請求通話紀錄權限並上傳紀錄');
+        requestCallLogPermission();  // 長者端請求權限
+      } else if (user === 'family') {
+        console.log('家人端：檢查並請求通話紀錄權限');
+        // 家人端也需要請求權限
+        requestCallLogPermission();
       }
     }
 
-    // 初始化 Notifee 和通話紀錄上傳
-    initNotifee();
+    // 檢查用戶身份並執行相應操作
+    checkUser();
 
-    // 前景點擊通知 → 導到 ElderMedRemind（與冷啟一致）
+    // 通知處理
     const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
       if (type === EventType.PRESS && detail.notification?.data) {
         const { period, meds, time } = detail.notification.data as {
@@ -171,25 +169,8 @@ const App: React.FC = () => {
       }
     });
 
-    // 每分鐘上傳通話紀錄
-    const timer = setInterval(uploadRecentCalls, UPLOAD_EVERY_MS);
-
-    // 監聽 AppState 來確保在背景時也能繼續更新
-    const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        // 當 App 進入前景時，啟動上傳通話紀錄
-        clearInterval(timer);
-        setInterval(uploadRecentCalls, 60 * 1000);
-      } else {
-        clearInterval(timer); // 背景時停止上傳
-      }
-    });
-
-    // 清理函數
     return () => {
       unsubscribe();
-      clearInterval(timer);
-      appStateSubscription.remove();
     };
   }, []);
 
