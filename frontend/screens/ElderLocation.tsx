@@ -8,7 +8,7 @@ import BackgroundFetch from 'react-native-background-fetch';
 
 import { requestLocationPermissions, reverseGeocode, formatTs } from '../utils/locationUtils';
 
-const BASE_URL = 'http://172.16.34.214:8000';
+const BASE_URL = 'http://172.20.10.3:8000';
 
 const COLORS = {
   white: '#FFFFFF',

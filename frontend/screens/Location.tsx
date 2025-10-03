@@ -18,7 +18,7 @@ import Config from 'react-native-config';
 // 獲取 Google Maps API 金鑰
 const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
 
-const BASE_URL = 'http://172.16.34.214:8000';  // 你的後端 API
+const BASE_URL = 'http://172.20.10.3:8000';  // 你的後端 API
 
 export default function LocationScreen() {
   const route = useRoute<any>();
