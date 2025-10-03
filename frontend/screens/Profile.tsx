@@ -200,6 +200,20 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+      {/* 回首頁按鈕，浮在底部功能列上方 */}
+  <View style={{ position: 'absolute', left: 80, right: 80, bottom: 260 }}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          android_ripple={{ color: '#ffffff20' }}
+          style={({ pressed }) => [
+            styles.bottomBtn,
+            { backgroundColor: COLORS.cream, height: 60 },
+            pressed && { transform: [{ scale: 0.98 }] },
+          ]}
+        >
+          <Text style={[styles.bottomText, { color: COLORS.black, fontSize: 24 }]}>回首頁</Text>
+        </Pressable>
+      </View>
 
       {/* 底部功能列 */}
       <View style={styles.bottomBox}>
@@ -287,6 +301,14 @@ const styles = StyleSheet.create({
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    bottomBtn: {
+    flex: 1,
+    borderRadius: R,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+  },
+  bottomText: { fontSize: 16, fontWeight: '900' },
 });
 
 const quick = StyleSheet.create({

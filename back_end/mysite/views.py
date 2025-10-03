@@ -364,7 +364,7 @@ class OcrAnalyzeView(APIView):
                 return Response({"error": "無法辨識文字"}, status=400)
 
             ocr_text = (annotations[0].description or "").strip()
-            print("🔍 OCR 結果：", ocr_text[:300], "...")
+            print("🔍 OCR 結果：", ocr_text)
 
             # 2) 丟 GPT 解析
             gpt_result = self.analyze_with_gpt(ocr_text)
@@ -400,7 +400,7 @@ class OcrAnalyzeView(APIView):
                 admin = (m.get("administrationRoute") or "未知")[:10]
                 effect = (m.get("effect") or "未知")[:100]
                 side = (m.get("sideEffect") or "未知")[:100]
-
+                TotalDosage = m.get("TotalDosage", 0)
                 print(f"[WRITE] {med_name} | raw_freq='{raw_freq}' -> save='{freq_std}'")
 
                 Med.objects.create(
@@ -411,6 +411,7 @@ class OcrAnalyzeView(APIView):
                     DosageFrequency=freq_std,
                     Effect=effect,
                     SideEffect=side,
+                    TotalDosage=TotalDosage,
                     PrescriptionID=prescription_id,
                 )
                 created += 1
@@ -430,41 +431,38 @@ class OcrAnalyzeView(APIView):
             return Response({"error": str(e)}, status=500)
 
     def analyze_with_gpt(self, ocr_text: str) -> str:
-        """
-        使用 gpt-4o-mini 解析台灣常見藥單格式：
-        - 內服 1.00 x4x3 → 一天四次
-        - 睡前、必要時（PRN）要能辨識
-        - effect/sideEffect 盡量從同列中文說明抽出
-        """
         prompt = f"""
-你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+            你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
+            請注意：對於藥物的服藥次數，若有 `xNxD` 格式，請根據 `N`（每天的服藥次數）與 `D`（服藥天數）計算 `TotalDosage`（總服藥次數）。例如：`x4x3` 代表一天四次、服用三天，則 `TotalDosage` 是 4 * 3 = 12 次。
 
-### OCR 內容
-{ocr_text}
+            ### OCR 內容
+            {ocr_text}
 
-### 輸出 JSON Schema
-{{
-  "diseaseNames": string[],   
-  "medications": [
-    {{
-      "medicationName": string,                         
-      "administrationRoute": "內服"|"外用"|"其他",       
-      "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
-      "effect": string,                                  
-      "sideEffect": string                                
-    }}
-  ]
-}}
+            ### 輸出 JSON Schema
+            {{
+            "diseaseNames": string[],   
+            "medications": [
+                {{
+                "medicationName": string,                         
+                "administrationRoute": "內服"|"外用"|"其他",       
+                "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
+                "effect": string,                                  
+                "sideEffect": string,
+                "TotalDosage": integer,  # 計算總服藥次數
+                }}
+            ]
+            }}
 
-### 規則
-1) xNxD → 一天 N 次，D 為天數（D 不需輸出）。
-   - 內服 1.00 x4x3 → 一天四次
-   - 內服 1.00 xlx3 → 一天一次
-2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
-3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
-4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
-5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
-"""
+            ### 規則
+            1) xNxD → 一天 N 次，D 為天數。根據這個格式計算 `TotalDosage`（總服藥次數）。
+            - 內服 1.00 x4x3 → 一天四次，吃三天，`TotalDosage` = 4 * 3 = 12 次
+            - 內服 1.00 xlx3 → 一天一次，吃三天，`TotalDosage` = 1 * 3 = 3 次
+            - 如果是必要時服用，則 `TotalDosage` = 0。
+            2) 若文字含「一天/每日 N 次」「N次/日」，請正規化為對應字串。
+            3) 出現「睡前/睡覺前」→ 睡前；「必要時/PRN」→ 必要時。
+            4) 路徑：出現「內服/口服」→ 內服；「外用」→ 外用；其餘 → 其他。
+            5) 僅輸出 JSON，不得包含說明文字或程式碼圍欄。
+            """
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
@@ -477,6 +475,30 @@ class OcrAnalyzeView(APIView):
         )
 
         return (response.choices[0].message.content or "").strip()
+
+#開始服藥
+@api_view(['POST'])
+def start_medication(request):
+    user_id = request.data.get('userId')
+    med_names = request.data.get('medName')  # 這裡可能是 list
+
+    if isinstance(med_names, str):
+        med_names = [med_names]
+
+    results = []
+    for med_name in med_names:
+        medication = get_object_or_404(Med, UserID=user_id, MedName=med_name)
+        medication.CurrentDosage += 1
+        medication.save()
+        if medication.CurrentDosage >= medication.TotalDosage:
+            medication.delete()
+            results.append({'medName': med_name, 'message': '藥物已完成，資料已刪除。'})
+        else:
+            results.append({'medName': med_name, 'message': '服藥次數已更新。'})
+
+    return Response({'results': results}, status=status.HTTP_200_OK)
+
+
 
 #藥單查詢
 from rest_framework.views import APIView
@@ -591,22 +613,21 @@ def create_med_time_setting(request):
 
 
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import MedTimeSetting
-from .serializers import MedTimeSettingSerializer
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from .models import MedTimeSetting
+# from .serializers import MedTimeSettingSerializer
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_med_time_setting(request):
-    try:
-        setting = MedTimeSetting.objects.get(UserID=request.user)
-        serializer = MedTimeSettingSerializer(setting)
-        return Response(serializer.data)
-    except MedTimeSetting.DoesNotExist:
-        return Response({'detail': '尚未設定時間'}, status=404)
-
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_med_time_setting(request):
+#     try:
+#         setting = MedTimeSetting.objects.get(UserID=request.user)
+#         serializer = MedTimeSettingSerializer(setting)
+#         return Response(serializer.data)
+#     except MedTimeSetting.DoesNotExist:
+#         return Response({'detail': '尚未設定時間'}, status=404)
 
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
@@ -677,6 +698,55 @@ def get_med_reminders(request):
     }
     return Response(result)
 
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_med_reminders_by_userid(request):
+    user = request.user
+    user_id = request.query_params.get('user_id')
+    if not user_id:
+        return Response({'error': '缺少 user_id'}, status=400)
+    try:
+        target = User.objects.get(UserID=user_id)
+    except User.DoesNotExist:
+        return Response({'error': '查無此用戶'}, status=404)
+    # 權限檢查：只能查自己或同家庭
+    if user.UserID != target.UserID:
+        if not (user.FamilyID and user.FamilyID == target.FamilyID):
+            return Response({'error': '無權限查詢此用戶'}, status=403)
+    try:
+        time_setting = MedTimeSetting.objects.get(UserID=target)
+    except MedTimeSetting.DoesNotExist:
+        return Response({'error': '尚未設定用藥時間'}, status=404)
+    meds = Med.objects.filter(UserID=target)
+    if not meds.exists():
+        return Response({'error': '尚無藥物資料，請先新增藥物'}, status=404)
+    schedule = {'morning': [], 'noon': [], 'evening': [], 'bedtime': []}
+    for med in meds:
+        freq = (getattr(med, 'DosageFrequency', '') or '').strip()
+        if freq == '一天一次':
+            schedule['morning'].append(med.MedName)
+        elif freq == '一天兩次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+        elif freq == '一天三次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+            schedule['evening'].append(med.MedName)
+        elif freq == '一天四次':
+            schedule['morning'].append(med.MedName)
+            schedule['noon'].append(med.MedName)
+            schedule['evening'].append(med.MedName)
+            schedule['bedtime'].append(med.MedName)
+        elif freq == '睡前':
+            schedule['bedtime'].append(med.MedName)
+    result = {
+        'morning': {'time': str(time_setting.MorningTime) if time_setting.MorningTime else None, 'meds': schedule['morning']},
+        'noon':    {'time': str(time_setting.NoonTime)    if time_setting.NoonTime    else None, 'meds': schedule['noon']},
+        'evening': {'time': str(time_setting.EveningTime) if time_setting.EveningTime else None, 'meds': schedule['evening']},
+        'bedtime': {'time': str(time_setting.Bedtime)     if time_setting.Bedtime     else None, 'meds': schedule['bedtime']},
+    }
+    return Response(result)
 #----------------------------------------------------------------
 #健康
 # views.py
@@ -1186,23 +1256,23 @@ def hospital_delete(request, pk):
     return Response({"message": "已刪除"}, status=200)
 
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from .models import CallRecord
-from django.db import IntegrityError
-from .serializers import CallRecordSerializer
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from rest_framework import status
+# from .models import CallRecord
+# from django.db import IntegrityError
+# from .serializers import CallRecordSerializer
 
-# 新增通話紀錄
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_call_record(request):
-    serializer = CallRecordSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# # 新增通話紀錄
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_call_record(request):
+#     serializer = CallRecordSerializer(data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -1271,6 +1341,20 @@ def map_type(t: str) -> str:
 
 
 # --------- 上傳通話（長者端或家人代上傳） ---------
+
+# def convert_to_taiwan_time(ts_str):
+#     try:
+#         # 解析時間戳
+#         dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
+#         # 設置為 UTC 時間
+#         dt = timezone('UTC').localize(dt)
+#         # 轉換為台灣時間（UTC+8）
+#         dt = dt.astimezone(timezone('Asia/Taipei'))
+#         return dt.strftime("%Y-%m-%d %H:%M:%S")
+#     except Exception as e:
+#         print(f"Error converting time: {e}")
+#         return None  # 返回 None 代表時間轉換失敗
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_call_logs(request):
@@ -1336,7 +1420,7 @@ def upload_call_logs(request):
 
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
-    cap = 100 if first_upload else 500
+    cap = 100 if first_upload else 100
     cleaned = cleaned[:cap]
 
     phones = list({d[PHONE_FIELD] for d in cleaned})
@@ -1370,29 +1454,17 @@ def upload_call_logs(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_elder_calls(request, elder_id: int):
+@permission_classes([IsAuthenticated])  # 確保用戶已經認證
+def get_call_records(request, elder_id):
     try:
-        elder = User.objects.get(pk=elder_id)  # elder_id 就是 UserId
-    except User.DoesNotExist:
-        return Response({"error": "elder not found"}, status=404)
-
-    calls = CallRecord.objects.filter(UserId=elder).order_by("-PhoneTime")[:50]
-
-    data = [
-        {
-            "CallId": c.CallId,
-            "Phone": c.Phone,
-            "PhoneName": getattr(c, "PhoneName", None),
-            "PhoneTime": str(c.PhoneTime),
-            "Duration": getattr(c, "Duration", 0),
-            "Type": getattr(c, "Type", "UNKNOWN"),
-            "IsScam": getattr(c, "IsScam", False),
-            "UserId": elder.UserID,  # 保留 UserId 方便前端 debug
-        }
-        for c in calls
-    ]
-    return Response(data)
+        # 使用 UserId_id 查詢通話紀錄
+        records = CallRecord.objects.filter(UserId_id=elder_id).order_by('-PhoneTime')[:100]
+        data = [record.to_dict() for record in records]  # 使用 to_dict() 方法來序列化資料
+        return JsonResponse(data, safe=False)  # 返回 JSON 格式的資料
+    
+    except Exception as e:
+        # 如果有錯誤，返回 500 錯誤及錯誤訊息
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 # 新增詐騙資料表
@@ -1454,6 +1526,41 @@ def scam_check_bulk(request):
 
     matches = {phone: category for phone, category in rows}
     return Response({"matches": matches}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # 如果需要驗證，改為 IsAuthenticated
+def scam_check(request):
+    phone_number = request.GET.get('phone')
+    
+    if not phone_number:
+        return Response({"error": "缺少電話號碼"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 格式化並標準化電話號碼
+    phone_number = normalize_phone(phone_number)
+
+    # 取得電話的最新詐騙記錄
+    latest_category_subq = Subquery(
+        Scam.objects
+            .filter(Phone__Phone=OuterRef('Phone'))
+            .order_by('-ScamId')  # 按照 ScamId 來找最新的
+            .values('Category')[:1]
+    )
+
+    # 查詢電話號碼是否為詐騙
+    rows = (CallRecord.objects
+            .filter(Phone=phone_number)
+            .annotate(latest_category=latest_category_subq)
+            .filter(latest_category__isnull=False)
+            .values('Phone', 'latest_category'))
+
+    # 如果該電話號碼在 Scam 表中有詐騙記錄，返回結果
+    if rows:
+        phone = rows[0]['Phone']
+        category = rows[0]['latest_category']
+        return Response({"phone": phone, "category": category}, status=status.HTTP_200_OK)
+    
+    # 如果找不到該電話的詐騙記錄，返回未找到
+    return Response({"phone": phone_number, "category": "未檢出詐騙"}, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])

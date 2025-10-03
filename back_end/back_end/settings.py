@@ -101,7 +101,7 @@ WSGI_APPLICATION = 'back_end.wsgi.application'
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'USER_ID_FIELD': 'UserID',  # 👈 告訴它你的主鍵欄位是 UserID
     'USER_ID_CLAIM': 'user_id',# JWT token 中的 key 名稱

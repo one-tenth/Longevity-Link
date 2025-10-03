@@ -28,6 +28,7 @@ const CreateFamilyScreen: React.FC = () => {
       try {
         const res = await fetch('http://192.168.1.106:8000/account/me/', {
 
+        
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,

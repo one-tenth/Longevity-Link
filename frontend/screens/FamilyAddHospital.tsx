@@ -16,6 +16,7 @@ import { RootStackParamList } from '../App';
 const BASE = 'http://192.108.1.106:8000';
 
 
+
 const COLORS = {
   white: '#FFFFFF',
   black: '#111111',

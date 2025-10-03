@@ -34,10 +34,12 @@ urlpatterns = [
     path("api/med/analyze/", views.OcrAnalyzeView.as_view()),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
     path('api/meds/<uuid:prescription_id>/', views.get_med_by_prescription),
+    path('start_medication/', views.start_medication),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),
     path('api/create-med-time/', views.create_med_time_setting, name='create_med_time'),
-    path('api/get-med-time/', views.get_med_time_setting),
+    # path('api/get-med-time/', views.get_med_time_setting),
     path('api/get-med-reminders/', views.get_med_reminders),
+    path('api/get-med-reminders-by-userid/', views.get_med_reminders_by_userid),
     path('api/register/', views.register_user, name='register'),#因為要存入資料庫 所以寫這個
     path('api/account/login/', views.login, name='login'),# 因為要從資料庫拿出來 所以寫這個
     path('api/family/create/', views.CreateFamilyView.as_view(), name='create_family'),
@@ -52,11 +54,12 @@ urlpatterns = [
     # path('api/callrecords/add/', views.add_call_record, name='add_call_record'),
     path("api/scam/add/", views.scam_add, name="scam_add"),
     path('api/scam/check_bulk/', views.scam_check_bulk, name='scam_check_bulk'),
+    path('api/scam_check/', views.scam_check, name='scam_check'),
     path("api/location/upload/", views.upload_location, name="location-upload"),
     path("api/location/latest/<int:user_id>/", views.get_latest_location, name="location-latest"),
     path("api/location/family/<int:family_id>/", views.get_family_locations, name="location-family"),
     path("api/reverse_geocode/", views.reverse_geocode, name="reverse-geocode"),
     path('api/call/upload/', views.upload_call_logs),
-    path("api/call/elder/<int:elder_id>/", views.get_elder_calls, name="get_elder_calls"),
+    path('api/callrecords/<int:elder_id>/', views.get_call_records, name='get_call_records'),
     # path('api/call/list/', views.list_call_logs, name='list_call_logs'),
 ]

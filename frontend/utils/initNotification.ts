@@ -21,7 +21,7 @@ console.log('[initNotification] module loaded');
 const BASE = 'http://192.108.1.106:8000';
 
 // ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '15:57';
+const VISIT_NOTIFY_TIME = '10:45';
 
 // =========================
 // 時段：中英文對照（新增）
@@ -105,6 +105,7 @@ export async function setupNotificationChannel() {
     name: '回診提醒',
     importance: AndroidImportance.HIGH,
   });
+
 }
 
 /**（可選）Android 13+ 申請通知權限 */
@@ -377,6 +378,7 @@ export async function initMedicationNotifications(): Promise<
 
   try {
     // 1) /me：確認 token 與基本身分
+    let userId: string | number | undefined; // ⭐ 新增
     try {
       const meRes = await axios.get(`${BASE}/api/account/me/`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -384,6 +386,8 @@ export async function initMedicationNotifications(): Promise<
       });
       console.log('[initNotification] /me status:', meRes.status);
       console.log('✅ 使用者資訊:', meRes.data);
+      // 依後端返回的字段（可能是 UserID、id 或 userId）來獲取 userId
+      userId = meRes?.data?.UserID ?? meRes?.data?.id ?? meRes?.data?.userId;
     } catch (err: any) {
       if (isAuthError(err)) {
         console.log('[initNotification] 401 → token 無效或過期，清除並要求重新登入');
@@ -398,12 +402,11 @@ export async function initMedicationNotifications(): Promise<
         await AsyncStorage.removeItem('access');
         return 'error';
       }
-      // 其他錯誤交由外層處理
       throw err;
     }
 
     // 2) 取得提醒排程
-    let schedule: Record<string, { time?: string; meds?: string[] }>;
+    let schedule: Record<string, { time?: string; meds?: string[] }> = {};
     try {
       const res = await axios.get(`${BASE}/api/get-med-reminders/`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -466,7 +469,7 @@ export async function initMedicationNotifications(): Promise<
     let medsExist = false;
 
     for (const [period, data] of Object.entries(schedule)) {
-      const { time, meds } = (data || {}) as { time?: string; meds?: string[] };
+      const { time, meds, medIds } = (data || {}) as { time?: string; meds?: string[] };
       if (!time || !Array.isArray(meds) || meds.length === 0) continue;
 
       const triggerTime = createTriggerTime(time);
@@ -485,9 +488,9 @@ export async function initMedicationNotifications(): Promise<
 
       console.log(`🔔 預排：${period} → ${time} (${triggerTime})`);
 
+      // **關鍵步驟：這裡將 userId 和 medIds 加入通知的 data 中**
       await notifee.createTriggerNotification(
         {
-          // ✅ 這裡改用中文標籤
           title: `💊 ${getPeriodLabel(period)} 吃藥提醒`,
           body: `請記得服用：${meds.map((m) => String(m)).join(', ')}`,
           android: {
@@ -496,7 +499,14 @@ export async function initMedicationNotifications(): Promise<
             pressAction: { id: 'default' },
           },
           // 保持資料以「英文鍵」傳遞，畫面端再轉中文
-          data: { period, meds: meds.join(','), time, __type: 'med' },
+          data: {
+            __type: 'med',
+            period,
+            meds: meds.join(','),
+            medIds: Array.isArray(medIds) ? medIds.join(',') : '',  // 確保 medIds 以逗號分隔的字串形式傳遞
+            userId: userId != null ? String(userId) : '',  // 將 userId 傳遞進來
+            time,
+          },
         },
         trigger
       );
@@ -536,6 +546,7 @@ export async function initMedicationNotifications(): Promise<
     return 'error';
   }
 }
+
 
 // =========================
 // 便利方法：一次初始化全部排程
@@ -583,17 +594,35 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
     const data = detail.notification.data as any;
 
     if (data?.__type === 'med' || data?.type === 'med') {
-      const { period, meds, time } = data;
+      const { period, meds, time, userId } = data;
+
+      // 打印資料確認
+      console.log('Sending to ElderMedRemind:', {
+        period,
+        meds: meds ? String(meds).split(',') : undefined,
+        time,
+        userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
+      });
+
       await AsyncStorage.multiSet([
         ['notificationPeriod', period || ''],
         ['notificationMeds', meds || ''],
         ['notificationTime', time || ''],
+        ['notificationUserId', userId ? String(userId) : ''], // 儲存 userId
       ]);
+
       setTimeout(() => {
+        console.log('Navigating to ElderMedRemind with params:', {
+          period,
+          meds: meds ? String(meds).split(',') : undefined,
+          time,
+          userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
+        });
         navigationRef.current?.navigate('ElderMedRemind', {
           period,
           meds: meds ? String(meds).split(',') : undefined,
           time,
+          userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
         });
       }, 800);
       return;

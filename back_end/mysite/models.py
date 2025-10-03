@@ -164,6 +164,23 @@ class HealthCare(models.Model):
 
 
 
+# class Med(models.Model):
+#     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
+#     MedId = models.AutoField(primary_key=True)
+#     Disease = models.CharField(max_length=50)
+#     MedName = models.CharField(max_length=50)
+#     AdministrationRoute = models.CharField(max_length=10)  # oral / topical
+#     DosageFrequency = models.CharField(max_length=50)
+#     Effect = models.CharField(max_length=100)
+#     SideEffect = models.CharField(max_length=100)
+#     PrescriptionID = models.UUIDField(default=uuid.uuid4)
+#     created_at = models.DateTimeField(default=timezone.now)  # ✅ 新增這行
+
+
+#     class Meta:
+#         verbose_name = "Med"
+#         verbose_name_plural = "Med"
+
 class Med(models.Model):
     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
     MedId = models.AutoField(primary_key=True)
@@ -174,12 +191,16 @@ class Med(models.Model):
     Effect = models.CharField(max_length=100)
     SideEffect = models.CharField(max_length=100)
     PrescriptionID = models.UUIDField(default=uuid.uuid4)
-    created_at = models.DateTimeField(default=timezone.now)  # ✅ 新增這行
-
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    # 新增的欄位
+    TotalDosage = models.IntegerField(default=0)  # 記錄總次數
+    CurrentDosage = models.IntegerField(default=0)  # 記錄當前已服用次數
 
     class Meta:
         verbose_name = "Med"
         verbose_name_plural = "Med"
+
 
 class MedTimeSetting(models.Model):
     UserID = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserID')
@@ -200,6 +221,16 @@ class CallRecord(models.Model):
     Phone = models.CharField(max_length=20)      
     PhoneTime = models.CharField(max_length=20)  
     IsScam = models.BooleanField(default=False)
+
+    def to_dict(self):
+        return {
+            'CallId': self.CallId,
+            'UserId': self.UserId_id,  # 外鍵 id
+            'PhoneName': self.PhoneName,
+            'Phone': self.Phone,
+            'PhoneTime': self.PhoneTime,
+            'IsScam': self.IsScam,
+        }
 
     class Meta:
         verbose_name = "Call record"

@@ -14,8 +14,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Text as SvgText, TextPath, Defs, Path } from 'react-native-svg';
-// 0822(onetenth)
-import { initMedicationNotifications } from '../utils/initNotification'; // 根據實際路徑調整
+import { initMedicationNotifications } from '../utils/initNotification'; 
 
 type LoginScreenNavProp = StackNavigationProp<RootStackParamList, 'LoginScreen'>;
 
@@ -59,7 +58,7 @@ export default function LoginScreen() {
 
       let data;
       try {
-        data = JSON.parse(text);
+        data = JSON.parse(text);  // 確保 JSON 解析不會出錯
       } catch (e) {
         throw new Error('伺服器回傳格式錯誤');
       }
@@ -123,14 +122,12 @@ export default function LoginScreen() {
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.container}>
-        {/* 彎曲文字 + logo + 標題 */}
         <View style={styles.headerContainer}>
           <ArcText />
           <Image source={require('../img/childhome/1.png')} style={styles.logo} />
           <Text style={styles.footerText}>長照通</Text>
         </View>
 
-        {/* 帳號欄位 */}
         <View style={styles.inputGroup}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabelInline}>帳號</Text>
@@ -144,7 +141,6 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* 密碼欄位 */}
         <View style={styles.inputGroup}>
           <View style={styles.inputBox}>
             <Text style={styles.inputLabelInline}>密碼</Text>
@@ -158,12 +154,10 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* 登入按鈕 */}
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>登入</Text>
         </TouchableOpacity>
 
-        {/* 註冊連結 */}
         <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
           <Text style={styles.registerText}>沒有帳號？註冊</Text>
         </TouchableOpacity>

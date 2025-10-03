@@ -1,10 +1,12 @@
 // App.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import notifee, { EventType } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import axios from 'axios';
+import CallLogs from 'react-native-call-log';
 import { setupNotificationChannel, initMedicationNotifications } from './utils/initNotification';
 
 // ---- Screens ----
@@ -90,41 +92,66 @@ export type RootStackParamList = {
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
+const BASE = 'http://172.20.10.7:8000';
+const UPLOAD_EVERY_MS = 60 * 1000; // 每分鐘上傳通話紀錄
+
+// 通話紀錄上傳
+async function uploadRecentCalls() {
+  try {
+    const logs = await CallLogs.load(10); // 獲取最近 10 筆通話紀錄
+    const payload = logs.map((x: any) => ({
+      phone: x.phoneNumber || '',
+      name: x.name || '',
+      timestamp: Number(x.timestamp) || Date.now(),
+      duration: Number(x.duration) || 0,
+      type: (x.type || '').toString(), // INCOMING/OUTGOING/MISSED...
+    }));
+
+    const access = await AsyncStorage.getItem('access');
+    await axios.post(`${BASE}/api/calls/upload/`, { calls: payload }, {
+      headers: { Authorization: `Bearer ${access}` },
+      timeout: 10000,
+    });
+  } catch (e) {
+    console.log('[uploadRecentCalls] error:', (e instanceof Error) ? e.message : e);
+  }
+}
+
+// 請求通話紀錄權限
+async function requestCallLogPermission() {
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_CALL_LOG
+    );
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log('您已獲得讀取通話紀錄的權限');
+      uploadRecentCalls(); // 請求到權限後就上傳通話紀錄
+    } else {
+      console.log('您拒絕了讀取通話紀錄的權限');
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
 const App: React.FC = () => {
   useEffect(() => {
-    async function initNotifee() {
-      try {
-        await setupNotificationChannel();
-        const result = await initMedicationNotifications();
-        console.log('init result:', result);
-
-        // 冷啟：若有儲存的通知資料，啟動即跳轉
-        const [storedPeriod, storedMeds, storedTime] = await Promise.all([
-          AsyncStorage.getItem('notificationPeriod'),
-          AsyncStorage.getItem('notificationMeds'),
-          AsyncStorage.getItem('notificationTime'),
-        ]);
-
-        if (storedPeriod && navigationRef.isReady()) {
-          navigationRef.navigate('ElderMedRemind', {
-            period: storedPeriod,
-            meds: storedMeds ? storedMeds.split(',') : undefined,
-            time: storedTime ?? undefined,
-          });
-          await AsyncStorage.multiRemove([
-            'notificationPeriod',
-            'notificationMeds',
-            'notificationTime',
-          ]);
-        }
-      } catch (e) {
-        console.warn('initNotifee error:', e);
+    async function checkUser() {
+      const user = await AsyncStorage.getItem('user');
+      if (user === 'elder') {
+        console.log('長者端：請求通話紀錄權限並上傳紀錄');
+        requestCallLogPermission();  // 長者端請求權限
+      } else if (user === 'family') {
+        console.log('家人端：檢查並請求通話紀錄權限');
+        // 家人端也需要請求權限
+        requestCallLogPermission();
       }
     }
 
-    initNotifee();
+    // 檢查用戶身份並執行相應操作
+    checkUser();
 
-    // 前景點擊通知 → 導到 ElderMedRemind（與冷啟一致）
+    // 通知處理
     const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
       if (type === EventType.PRESS && detail.notification?.data) {
         const { period, meds, time } = detail.notification.data as {
@@ -141,7 +168,10 @@ const App: React.FC = () => {
         }
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   return (

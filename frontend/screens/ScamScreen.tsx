@@ -24,7 +24,7 @@ export default function ScamScreen() {
         Phone: phone,
         Category: category,
       });
-      Alert.alert('成功', `新增成功`);
+      Alert.alert('成功', `Scam 新增成功，ID=${res.data.ScamId}`);
       setPhone('');
       setCategory('詐騙');
     } catch (err: any) {
