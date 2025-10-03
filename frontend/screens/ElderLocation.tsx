@@ -1,68 +1,36 @@
-// screens/ElderLocation.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Alert, StatusBar, ScrollView, Image, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import Geolocation from 'react-native-geolocation-service';
+import BackgroundFetch from 'react-native-background-fetch';
 
-import {
-  requestLocationPermissions,
-  getCurrentCoords,
-  watchCoords,
-  Coords,
-  formatTs,
-  reverseGeocode,
-} from '../utils/locationUtils';
+import { requestLocationPermissions, reverseGeocode, formatTs } from '../utils/locationUtils';
 
-const BASE_URL = '72.20.10.2:8000';
-export default function ElderLocation() {
+const BASE_URL = 'http://192.168.1.106:8000';
+
+const COLORS = {
+  white: '#FFFFFF',
+  black: '#111111',
+  cream: '#FFFCEC',
+  green: '#A6CFA1',
+};
+
+export default function ElderLocation({ navigation }: any) {
   const [uploading, setUploading] = useState(false);
-  const [coords, setCoords] = useState<Coords | null>(null);
-  const [lastUploadedAt, setLastUploadedAt] = useState<string>('');
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [lastUploadedAt, setLastUploadedAt] = useState<string>(''); // 記錄上傳時間
   const [address, setAddress] = useState<string>('尚未取得地址');
-
-  // 監聽停止
-  const stopRef = useRef<null | (() => void)>(null);
-
+  const [userName, setUserName] = useState<string>('使用者');
   const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
+  const watchId = useRef<number | null>(null); // 用來儲存 watchPosition id，方便停止
 
-    (async () => {
-      const ok = await requestLocationPermissions();
-      if (!ok) {
-        Alert.alert('提示', '需要定位權限才能上傳位置');
-        return;
-      }
-      try {
-        const c = await getCurrentCoords();
-        if (!mountedRef.current) return;
-        setCoords(c);
-
-        // 顯示目前位址的中文地址
-        const addr = await reverseGeocode(c.latitude, c.longitude, 'zh-TW', BASE_URL);
-        if (mountedRef.current && addr) setAddress(addr);
-      } catch (e: any) {
-        console.warn('getCurrentCoords error', e?.message ?? e);
-      }
-    })();
-
-    return () => {
-      mountedRef.current = false;
-      stopRef.current?.();
-    };
-  }, []);
-
-  async function upload(c: Coords) {
+  // 上傳位置API
+  async function uploadLocation(latitude: number, longitude: number) {
     const token = await AsyncStorage.getItem('access');
     if (!token) {
-      Alert.alert('錯誤', '尚未登入');
+      console.log('尚未登入，無法上傳位置');
       return;
     }
 
@@ -70,113 +38,223 @@ export default function ElderLocation() {
       setUploading(true);
       await axios.post(
         `${BASE_URL}/api/location/upload/`,
-        { lat: Number(c.latitude), lon: Number(c.longitude) },
+        { lat: latitude, lon: longitude },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
       );
-
       const nowIso = new Date().toISOString();
       if (mountedRef.current) setLastUploadedAt(formatTs(nowIso));
 
-      // 上傳成功後再反查一次地址
-      const addr = await reverseGeocode(c.latitude, c.longitude, 'zh-TW', BASE_URL);
+      const addr = await reverseGeocode(latitude, longitude, 'zh-TW', BASE_URL);
       if (mountedRef.current && addr) setAddress(addr);
 
+      console.log('位置上傳成功:', latitude, longitude);
     } catch (e: any) {
-
-      const status = e?.response?.status;
-      if (status === 401) {
-        Alert.alert('驗證失敗', '請重新登入（401）');
-      } else if (status === 403) {
-        Alert.alert('權限不足', '此帳號不是長者或無權上傳（403）');
-      } else {
-        Alert.alert('上傳失敗', String(e?.message ?? e));
-      }
-      console.warn('位址上傳失敗', e?.message ?? e);
+      console.warn('位置上傳失敗:', e.message || e);
     } finally {
       if (mountedRef.current) setUploading(false);
     }
   }
 
-  const handleUploadOnce = async () => {
-    try {
-      const c = await getCurrentCoords();
-      if (!mountedRef.current) return;
-      setCoords(c);
-      await upload(c);
-      Alert.alert('完成', `已上傳：${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}`);
-    } catch (e: any) {
-      Alert.alert('錯誤', String(e?.message ?? e));
-    }
-  };
+  // 初始化背景定位任務和權限
+  useEffect(() => {
+    mountedRef.current = true;
 
-  const startWatching = async () => {
-    // ✅ 防止重複監聽
-    if (stopRef.current) {
-      Alert.alert('提示', '已在持續上傳中');
-      return;
-    }
-  
-    stopRef.current = watchCoords(
-      async (c) => {
-        if (!mountedRef.current) return;
-        setCoords(c);
+    (async () => {
+      const ok = await requestLocationPermissions();
+      if (!ok) {
+        Alert.alert('提示', '需要定位權限才能啟用背景定位');
+        return;
+      }
 
-        await upload(c);
+      // 抓使用者名稱
+      try {
+        const storedName = await AsyncStorage.getItem('user_name');
+        if (storedName) {
+          setUserName(storedName);
+        } else {
+          const token = await AsyncStorage.getItem('access');
+          if (token) {
+            const res = await axios.get(`${BASE_URL}/api/account/me/`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.data?.Name) {
+              setUserName(res.data.Name);
+              await AsyncStorage.setItem('user_name', res.data.Name);
+            }
+          }
+        }
+      } catch (err) {
+        console.log('抓使用者名稱失敗:', err);
+      }
+
+      // 初始化背景 fetch
+      BackgroundFetch.configure(
+        {
+          minimumFetchInterval: 15, // 15 分鐘喚醒一次
+          stopOnTerminate: false, // 保持背景運行
+          startOnBoot: true, // 啟動後自動啟動
+          enableHeadless: true, // 支援頭像模式
+          requiredNetworkType: BackgroundFetch.NETWORK_TYPE_ANY,
+          debug: true,
+        } as any,  // 把整個 config 物件斷言成 any
+        backgroundFetchTask,
+        error => {
+          console.warn('[BackgroundFetch] failed to start:', error);
+        }
+      );
+
+      // 啟動背景 fetch
+      BackgroundFetch.start();
+
+      // app 啟動先做一次定位並上傳
+      Geolocation.getCurrentPosition(
+        async position => {
+          const { latitude, longitude } = position.coords;
+          if (!mountedRef.current) return;
+          setCoords({ latitude, longitude });
+          await uploadLocation(latitude, longitude);
+        },
+        error => {
+          console.warn('初次定位錯誤:', error);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+
+      // 持續定位(距離)
+      watchId.current = Geolocation.watchPosition(
+        async position => {
+          const { latitude, longitude } = position.coords;
+          if (!mountedRef.current) return;
+          setCoords({ latitude, longitude });
+          await uploadLocation(latitude, longitude);
+        },
+        error => {
+          console.warn('持續定位錯誤:', error);
+        },
+        { enableHighAccuracy: true, distanceFilter: 3 } // 每當移動一定距離就更新
+      );
+    })();
+
+    return () => {
+      mountedRef.current = false;
+      // 停止定位
+      if (watchId.current !== null) {
+        Geolocation.clearWatch(watchId.current);
+      }
+      BackgroundFetch.stop(); // 停止背景定位
+    };
+  }, []);
+
+  // 背景任務中取得位置並上傳
+  async function backgroundFetchTask(taskId: string) {
+    console.log('[BackgroundFetch] task start:', taskId);
+    //首次定位
+    Geolocation.getCurrentPosition(
+      async position => {
+        const { latitude, longitude } = position.coords;
+        if (!mountedRef.current) {
+          BackgroundFetch.finish(taskId);
+          return;
+        }
+        setCoords({ latitude, longitude });
+        await uploadLocation(latitude, longitude);
+        BackgroundFetch.finish(taskId);
       },
-      (e) => console.warn('watch error', e?.message ?? e)
+      error => {
+        console.warn('[BackgroundFetch] getCurrentPosition error:', error);
+        BackgroundFetch.finish(taskId);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 3000,
+        maximumAge: 10000,
+        forceRequestLocation: true,
+      }
     );
-    Alert.alert('已開始', '持續上傳定位中（每 60 秒）');
-  };
-
-  const stopWatching = () => {
-    stopRef.current?.();
-    stopRef.current = null;
-    Alert.alert('已停止', '停止持續上傳位址');
-  };
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>長者定位上傳</Text>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
+      <View style={styles.topArea}>
+        <View style={styles.userCard}>
+          <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{userName}</Text>
+          </View>
+        </View>
+      </View>
 
-      <Text style={styles.coord}>
-        經緯度：{coords ? `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}` : '尚未取得'}
-      </Text>
+      <View style={styles.panel}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 160 }}>
+          <Text style={styles.pageTitle}> 定位資訊</Text>
 
-      
-      <Text style={styles.info}>最近上傳時間：{lastUploadedAt || '—'}</Text>
+          <View style={[styles.infoCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}>
+            <Text style={styles.cardText}>
+              緯度：{coords ? coords.latitude.toFixed(6) : '尚未取得'}
+            </Text>
+            <Text style={styles.cardText}>
+              經度：{coords ? coords.longitude.toFixed(6) : '尚未取得'}
+            </Text>
+            <Text style={styles.cardText}>
+              上傳時間：{lastUploadedAt || '—'}
+            </Text>
+            <Text style={styles.cardText}>
+              地址：{address || '尚未取得地址'}
+            </Text>
+          </View>
 
-      <TouchableOpacity style={styles.btn} onPress={handleUploadOnce} disabled={uploading}>
-        <Text style={styles.btnText}>{uploading ? '上傳中…' : '定位目前位址並上傳'}</Text>
-      </TouchableOpacity>
+          {uploading && <ActivityIndicator style={{ marginTop: 8 }} size="large" color="#333" />}
+        </ScrollView>
+      </View>
 
-      <TouchableOpacity style={styles.btn} onPress={startWatching}>
-        <Text style={styles.btnText}>持續定位</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.btn, styles.stop]} onPress={stopWatching}>
-        <Text style={styles.btnText}>停止定位</Text>
-      </TouchableOpacity>
-
-      {uploading && <ActivityIndicator style={{ marginTop: 8 }} />}
+      <View pointerEvents="box-none" style={styles.fabWrap}>
+        <MaterialIcons name="home" size={80} color={COLORS.white} />
+      </View>
     </View>
   );
 }
 
-
-     //<Text style={styles.info}>地址：{address || '尚未取得地址'}</Text>
+const IMAGE_SIZE = 80;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  coord: { fontSize: 16, marginBottom: 8 },
-  info: { fontSize: 14, color: '#333', marginBottom: 6 },
-  btn: {
-    padding: 14,
-    backgroundColor: '#A6CFA1',
+  container: { flex: 1, backgroundColor: COLORS.black },
+  topArea: { padding: 20, paddingTop: 40 },
+  userCard: { flexDirection: 'row', alignItems: 'center' },
+  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, marginRight: 15, resizeMode: 'contain' },
+  userName: { fontSize: 35, fontWeight: '900', color: COLORS.white },
+
+  panel: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 20,
+  },
+
+  pageTitle: { fontSize: 38, fontWeight: '900', marginBottom: 20, color: COLORS.black },
+
+  infoCard: {
     borderRadius: 12,
-    marginBottom: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  cardShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cardText: { fontSize: 24, color: COLORS.black, marginBottom: 6 },
+
+  fabWrap: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
     alignItems: 'center',
   },
-  stop: { backgroundColor: '#444' },
-  btnText: { color: '#fff', fontWeight: '600' },
+  
 });
+

@@ -82,7 +82,9 @@ export default function ProfileScreen() {
       }
 
       try {
-        const res = await fetch('http://172.20.10.2:8000/account/me/', {
+
+        const res = await fetch('http://192.108.1.106:8000/account/me/', {
+
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('取得失敗');
@@ -164,9 +166,7 @@ export default function ProfileScreen() {
           <Image source={getAvatarSource(profile.avatar)} style={styles.avatar} /> 
           <View style={{ flex: 1 }}>
             <Text style={[styles.hello, { color: COLORS.white }]}>{profile.Name || '使用者'}</Text>
-            <Text style={{ color: COLORS.green, opacity: 0.95 }}>
-              {profile.Phone || ''} · {getGenderText(profile.Gender)}
-            </Text>
+
           </View>
         </View>
       </View>
@@ -176,8 +176,8 @@ export default function ProfileScreen() {
         {/* 基本資料（橫列） */}
         <View style={[styles.infoBox, outerShadow]}>
           <InfoRow label="生日" value={profile.Borndate || '—'} />
-          <InfoRow label="家庭ID" value={profile.FamilyID || '—'} />
-          <InfoRow label="用戶ID" value={String(profile.UserID || '—')} />
+          <InfoRow label="電話號碼" value={profile.Phone || '—'} />
+          <InfoRow label="性別" value={getGenderText(profile.Gender || '—')} />
         </View>
 
         {/* 快捷卡：家庭成員 / 登出 */}
@@ -200,6 +200,20 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+      {/* 回首頁按鈕，浮在底部功能列上方 */}
+  <View style={{ position: 'absolute', left: 80, right: 80, bottom: 260 }}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          android_ripple={{ color: '#ffffff20' }}
+          style={({ pressed }) => [
+            styles.bottomBtn,
+            { backgroundColor: COLORS.cream, height: 60 },
+            pressed && { transform: [{ scale: 0.98 }] },
+          ]}
+        >
+          <Text style={[styles.bottomText, { color: COLORS.black, fontSize: 24 }]}>回首頁</Text>
+        </Pressable>
+      </View>
 
       {/* 底部功能列 */}
       <View style={styles.bottomBox}>
@@ -210,10 +224,6 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('FamilyScreen', { mode: 'full' } as never)}>
           <FontAwesome name="home" size={28} color="#fff" />
           <Text style={styles.settingLabel}>家庭</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingItem} onPress={() => navigation.navigate('ChildHome' as never)}>
-          <FontAwesome name="exchange" size={28} color="#fff" />
-          <Text style={styles.settingLabel}>切換</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -291,6 +301,14 @@ const styles = StyleSheet.create({
   },
   settingItem: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   settingLabel: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    bottomBtn: {
+    flex: 1,
+    borderRadius: R,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+  },
+  bottomText: { fontSize: 16, fontWeight: '900' },
 });
 
 const quick = StyleSheet.create({

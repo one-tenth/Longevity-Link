@@ -24,7 +24,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 type ElderlyHealthNavProp = StackNavigationProp<RootStackParamList, 'ElderlyHealth'>;
 
 // ===== 基本設定 =====
-const BASE_URL = 'http://172.20.10.2:8000'; // 模擬器請改成 http://10.0.2.2:8000
+
+const BASE_URL = 'http://192.108.1.106:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -32,12 +33,12 @@ const COLORS = {
   cream: '#FFFCEC',
   textDark: '#111',
   textMid: '#333',
-  green: '#A6CFA1',
-  lightred: '#D67C78',
+  green: '#87adffff',
+  lightred: '#006d21ff',
   gray: '#E9E9E9',
 };
 
-// YYYY-MM-DD
+// YYYY-MM-DD 格式化函數
 function formatDateYYYYMMDD(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -68,6 +69,9 @@ export default function ElderlyHealth() {
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
+
+  // ✅ 使用者姓名（新增）
+  const [userName, setUserName] = useState<string>('');
 
   // ✅ 當天所有時段血壓（一次撈回 morning/evening）
   const [bpAll, setBpAll] = useState<BpAll>({ morning: null, evening: null });
@@ -212,6 +216,35 @@ export default function ElderlyHealth() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ------- 載入目前登入者姓名（新增） -------
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        // 先用快取
+        const cached = await AsyncStorage.getItem('user_name');
+        if (cached && alive) setUserName(cached);
+
+        // 再向後端確認最新姓名
+        const token = await AsyncStorage.getItem('access');
+        if (!token) return;
+        const res = await axios.get(`${BASE_URL}/api/account/me/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const name = res?.data?.Name ?? res?.data?.name;
+        if (name && alive) {
+          setUserName(name);
+          await AsyncStorage.setItem('user_name', name);
+        }
+      } catch (err) {
+        console.log('❌ 抓使用者名稱失敗:', err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // ✅ 切換日期就重新取資料
   const onPickDate = (date: Date) => {
     setSelectedDate(date);
@@ -233,7 +266,7 @@ export default function ElderlyHealth() {
         <View style={styles.userCard}>
           <Image source={require('../img/elderlyhome/grandpa.png')} style={styles.userIcon} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>爺爺</Text>
+            <Text style={styles.userName}>{userName || '使用者'}</Text>
           </View>
         </View>
       </View>
@@ -272,11 +305,6 @@ export default function ElderlyHealth() {
               <Text style={styles.segmentStrongText}>🌙 晚上</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.segmentHint}>
-            {period === 'morning'
-              ? (bpAll?.morning ? '早上：有紀錄' : '早上：未紀錄')
-              : (bpAll?.evening ? '晚上：有紀錄' : '晚上：未紀錄')}
-          </Text>
 
           {/* 日期選擇 */}
           <TouchableOpacity style={styles.dateButton} onPress={() => setShowPicker(true)}>
@@ -382,9 +410,8 @@ const styles = StyleSheet.create({
   segmentWrapStrong: {
     flexDirection: 'row',
     alignSelf: 'stretch',
-    backgroundColor: '#FFE08A',
+    backgroundColor: '#131313ff',
     borderColor: '#000',
-    borderWidth: 2,
     borderRadius: 12,
     padding: 8,
     marginBottom: 8,
@@ -396,11 +423,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
     borderColor: '#000',
   },
   segmentStrongText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: '#111',
   },

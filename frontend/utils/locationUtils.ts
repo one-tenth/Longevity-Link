@@ -59,11 +59,12 @@ export function getCurrentCoords(): Promise<Coords> {
 export function watchCoords(
   onChange: (c: Coords) => void,
   onError?: (e: any) => void,
+  interval: number = 60000  // 默認為 1 分鐘
 ) {
   const id = Geolocation.watchPosition(
     p => onChange({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
     e => onError?.(e),
-    { enableHighAccuracy: true, distanceFilter: 5, interval: 60000 },
+    { enableHighAccuracy: true, distanceFilter: 5, interval },
   );
   return () => Geolocation.clearWatch(id);
 }

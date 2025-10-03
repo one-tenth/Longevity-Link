@@ -101,7 +101,7 @@ WSGI_APPLICATION = 'back_end.wsgi.application'
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'USER_ID_FIELD': 'UserID',  # 👈 告訴它你的主鍵欄位是 UserID
     'USER_ID_CLAIM': 'user_id',# JWT token 中的 key 名稱
@@ -112,9 +112,9 @@ SIMPLE_JWT = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
+        'NAME': 'caremate_0830',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'eric264859',   # ← 登入用的密碼
+        'PASSWORD': 'root1234',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }

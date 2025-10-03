@@ -52,7 +52,8 @@ interface RegisterData {
   avatar?: string;
 }
 
-const API_BASE = 'http://172.20.10.2:8000';
+const API_BASE = 'http://192.108.1.106:8000';
+
 
 
 export default function RegisterScreen() {
@@ -256,7 +257,7 @@ export default function RegisterScreen() {
             <TouchableOpacity
               style={[styles.btn, { backgroundColor: '#A0C334', marginTop: 10 }]}
               // @ts-ignore
-              onPress={() => navigation.navigate('index')}
+              onPress={() => navigation.navigate('LoginScreen')}
             >
               <Text style={styles.btnText}>返回主頁</Text>
             </TouchableOpacity>

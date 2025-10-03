@@ -1,5 +1,24 @@
 // android/build.gradle  ← 根專案
 
+import java.util.Properties
+
+def envFile = rootProject.file("../.env")
+
+println("Reading env from: " + envFile.absolutePath)
+
+def env = new Properties()
+if (envFile.exists()) {
+    env.load(new FileInputStream(envFile))
+    println("GOOGLE_MAPS_API_KEY from .env: " + env.getProperty("GOOGLE_MAPS_API_KEY", "NOT FOUND"))
+} else {
+    println("**************************")
+    println("*** Missing .env file ****")
+    println("**************************")
+}
+
+// 把 env 物件放進 project.ext 供子模組使用
+project.ext.env = env
+
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
@@ -12,6 +31,9 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+        // Background Fetch 所需的 repo
+        maven  { url("${project(':react-native-background-fetch').projectDir}/libs") }
     }
     dependencies {
         // 版本由 settings.gradle 的 pluginManagement 管理，這裡保留座標即可
@@ -20,6 +42,17 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
         // 只放在 classpath，**不要在根專案 apply**，真正的 apply 放到 app 模組
         classpath("com.google.gms:google-services:4.3.15")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        //套件的正確版本
+        maven { url("${project(':react-native-background-geolocation').projectDir}/libs") }
+        maven { url("${project(':react-native-background-fetch').projectDir}/libs") }
+ 
     }
 }
 
@@ -33,7 +66,7 @@ subprojects {
 }
 
 apply plugin: "com.facebook.react.rootproject"
-apply plugin: 'com.google.gms.google-services'
+
 
 
 newArchEnabled=false
