@@ -806,7 +806,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 # 註冊
 # --------------------
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def register_user(request):
     creator_id = request.data.get('creator_id')  # 可選參數
 
@@ -846,7 +846,7 @@ def register_user(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def login(request):
     Phone = request.data.get('Phone')
     password = request.data.get('password')
@@ -1186,23 +1186,23 @@ def hospital_delete(request, pk):
     return Response({"message": "已刪除"}, status=200)
 
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from .models import CallRecord
-from django.db import IntegrityError
-from .serializers import CallRecordSerializer
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from rest_framework import status
+# from .models import CallRecord
+# from django.db import IntegrityError
+# from .serializers import CallRecordSerializer
 
-# 新增通話紀錄
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_call_record(request):
-    serializer = CallRecordSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# # 新增通話紀錄
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_call_record(request):
+#     serializer = CallRecordSerializer(data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -1272,18 +1272,18 @@ def map_type(t: str) -> str:
 
 # --------- 上傳通話（長者端或家人代上傳） ---------
 
-def convert_to_taiwan_time(ts_str):
-    try:
-        # 解析時間戳
-        dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
-        # 設置為 UTC 時間
-        dt = timezone('UTC').localize(dt)
-        # 轉換為台灣時間（UTC+8）
-        dt = dt.astimezone(timezone('Asia/Taipei'))
-        return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception as e:
-        print(f"Error converting time: {e}")
-        return None  # 返回 None 代表時間轉換失敗
+# def convert_to_taiwan_time(ts_str):
+#     try:
+#         # 解析時間戳
+#         dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
+#         # 設置為 UTC 時間
+#         dt = timezone('UTC').localize(dt)
+#         # 轉換為台灣時間（UTC+8）
+#         dt = dt.astimezone(timezone('Asia/Taipei'))
+#         return dt.strftime("%Y-%m-%d %H:%M:%S")
+#     except Exception as e:
+#         print(f"Error converting time: {e}")
+#         return None  # 返回 None 代表時間轉換失敗
     
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1350,7 +1350,7 @@ def upload_call_logs(request):
 
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
-    cap = 100 if first_upload else 500
+    cap = 100 if first_upload else 100
     cleaned = cleaned[:cap]
 
     phones = list({d[PHONE_FIELD] for d in cleaned})
@@ -1431,7 +1431,7 @@ def add_scam_from_callrecord(request):
     return JsonResponse({"message": f"電話號碼 {phone_number} 已成功新增到詐騙資料表"}, status=200)
 
 @api_view(['POST'])
-@permission_classes([AllowAny])   
+@permission_classes([IsAuthenticated])   
 def scam_check_bulk(request):
     raw_list = request.data.get('phones') or []
     phones = [normalize_phone(x) for x in raw_list if x]
@@ -1458,7 +1458,7 @@ def scam_check_bulk(request):
     return Response({"matches": matches}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # 如果需要驗證，改為 IsAuthenticated
+@permission_classes([IsAuthenticated])  # 如果需要驗證，改為 IsAuthenticated
 def scam_check(request):
     phone_number = request.GET.get('phone')
     
@@ -1494,7 +1494,7 @@ def scam_check(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # 若要驗證可改回 IsAuthenticated
+@permission_classes([IsAuthenticated])  # 若要驗證可改回 IsAuthenticated
 def scam_add(request):
     """
     支援兩種傳法：
@@ -1670,7 +1670,7 @@ def _google_reverse(lat, lng, lang):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def reverse_geocode(request):
     lat = request.GET.get("lat")
     lng = request.GET.get("lng")
