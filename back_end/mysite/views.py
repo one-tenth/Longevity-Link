@@ -1628,6 +1628,7 @@ def _google_reverse(lat, lng, lang):
     )
     j = r.json()
     print('Google Geocode API 回傳 status:', j.get("status"))  # 可看API錯誤訊息
+    
 
     if j.get("status") == "OK" and j.get("results"):
         first = j["results"][0]
