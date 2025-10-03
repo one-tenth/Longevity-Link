@@ -77,13 +77,13 @@ function toZhPeriod(key?: string): string {
 
   const tokens = k.split(/[^a-z]+/).filter(Boolean);
   const hasBefore = tokens.includes('before') || tokens.includes('pre') || tokens.includes('premeal') || tokens.includes('pre_meal');
-  const hasAfter = tokens.includes('after') || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post_meal');
+  const hasAfter  = tokens.includes('after')  || tokens.includes('post') || tokens.includes('postmeal') || tokens.includes('post_meal');
   const mealMap: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', meal: '飯' };
-  const mealToken = tokens.find((t) => mealMap[t]);
+  const mealToken = tokens.find(t => mealMap[t]);
   if (mealToken) {
     const mealZh = mealMap[mealToken];
     if (hasBefore) return `${mealZh}前`;
-    if (hasAfter) return `${mealZh}後`;
+    if (hasAfter)  return `${mealZh}後`;
   }
   for (const t of tokens) if (PERIOD_LABELS[t]) return PERIOD_LABELS[t];
   return key;
@@ -92,10 +92,10 @@ function toZhPeriod(key?: string): string {
 const BASE = 'http://192.168.31.126:8000';
 
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
-const LAST_SYNC_AT_KEY = 'calllog:last_sync_at';
+const LAST_SYNC_AT_KEY   = 'calllog:last_sync_at';
 const SYNC_MIN_INTERVAL_MS = 1 * 60 * 1000;
 
-function mapType(t?: string): string {
+function mapType(t?: string) {
   if (!t) return 'UNKNOWN';
   const s = String(t).toUpperCase();
   if (['INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'].includes(s)) return s;
@@ -110,17 +110,18 @@ type HospitalRecord = {
   HosId?: number;
   HosID?: number;
   id?: number;
-  ClinicDate?: string;
-  ClinicPlace?: string;
-  Doctor?: string;
-  Num?: number;
+  ClinicDate: string;
+  ClinicPlace: string;
+  Doctor: string;
+  Num: number;
 };
 
 type MeInfo = {
-  UserID?: number;
+  UserID: number;
   RelatedID?: number | null;
   isElder?: boolean;
   Name?: string;
+  avatar_url?: string | null;
   avatar?: string | null;
 };
 
@@ -188,7 +189,10 @@ const pickUpcomingNearest = (list: HospitalRecord[]) => {
 export default function ElderHome() {
   const navigation = useNavigation<ElderHomeNav>();
 
+  // ⭐ 新增 userInfo 狀態
   const [userInfo, setUserInfo] = useState<MeInfo | null>(null);
+
+  // 吃藥提醒
   const [medCards, setMedCards] = useState<Array<{ id: string; period: string; time?: string; meds: string[] }>>([]);
   const [showMedModal, setShowMedModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -204,6 +208,7 @@ export default function ElderHome() {
 
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ====== 使用者姓名：先快取再覆蓋；聚焦時校正 ======
   const fetchAndCacheName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('access');
@@ -234,6 +239,7 @@ export default function ElderHome() {
     }
   }, []);
 
+  // 掛載：先讀快取避免空白，再打 API 覆蓋
   useEffect(() => {
     (async () => {
       try {
@@ -242,7 +248,7 @@ export default function ElderHome() {
 
         const token = await AsyncStorage.getItem('access');
         if (token) {
-          const res = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
+          const res = await axios.get(`${BASE}/api/account/me/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -263,21 +269,23 @@ export default function ElderHome() {
     }, [fetchAndCacheName])
   );
 
+  // ⭐ 取得 userInfo（含頭像與名稱）
   useEffect(() => {
     (async () => {
       try {
         const token = await AsyncStorage.getItem('access');
         if (!token) return;
-        const res = await axios.get<MeInfo>(`${BASE}/`, {
+        const res = await axios.get<MeInfo>(`${BASE}/api/account/me/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setUserInfo(res.data || null);
+        setUserInfo(res.data);
       } catch (err) {
         console.log('❌ 取得使用者資訊失敗:', err);
       }
     })();
   }, []);
 
+  // Modal 控制
   const openMedModal = (startIndex = 0) => {
     setCurrentIndex(startIndex);
     setShowMedModal(true);
@@ -287,7 +295,6 @@ export default function ElderHome() {
       });
     });
   };
-
   const closeMedModal = () => setShowMedModal(false);
 
   useEffect(() => {
@@ -335,10 +342,7 @@ export default function ElderHome() {
       setVisitCount(0);
 
       const token = await AsyncStorage.getItem('access');
-      if (!token) {
-        setHint('尚未登入');
-        return;
-      }
+      if (!token) { setHint('尚未登入'); return; }
 
       const elderId = await resolveElderId();
       const urls = [
@@ -356,25 +360,16 @@ export default function ElderHome() {
             timeout: 10000,
           });
           const data = Array.isArray(res.data) ? res.data : [];
-          if (data.length) {
-            rows = data;
-            break;
-          }
+          if (data.length) { rows = data; break; }
         } catch {}
       }
 
       setVisitCount(rows.length);
 
-      if (!rows.length) {
-        setHint('尚無看診資料');
-        return;
-      }
+      if (!rows.length) { setHint('尚無看診資料'); return; }
 
       const nearest = pickUpcomingNearest(rows);
-      if (!nearest) {
-        setHint('尚無看診資料');
-        return;
-      }
+      if (!nearest) { setHint('尚無看診資料'); return; }
       setReminder(nearest);
     } catch {
       setHint('載入失敗');
@@ -462,12 +457,12 @@ export default function ElderHome() {
             extra: { rawType: r.type },
           };
         })
-        .filter((x) => !!x.phone && x._ts > 0)
+        .filter(x => !!x.phone && x._ts > 0)
         .sort((a, b) => b._ts - a._ts);
 
       const items = isFirstSync
         ? mapped.slice(0, 100)
-        : mapped.filter((x) => x._ts > lastTs).slice(0, 500);
+        : mapped.filter(x => x._ts > lastTs).slice(0, 500);
 
       if (items.length === 0) {
         setSyncing(false);
@@ -482,7 +477,7 @@ export default function ElderHome() {
         { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
       );
 
-      const maxTs = Math.max(...items.map((x) => x._ts));
+      const maxTs = Math.max(...items.map(x => x._ts));
       await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
       await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
 
@@ -490,7 +485,7 @@ export default function ElderHome() {
       if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
     } catch (e: any) {
       setSyncing(false);
-      const msg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || 'unknown';
+      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
       if (!silent) Alert.alert('上傳失敗', msg);
     }
   };
@@ -534,7 +529,8 @@ export default function ElderHome() {
     }, [autoSyncIfNeeded])
   );
 
-  const avatarSrc = userInfo?.avatar ? getAvatarSource(userInfo.avatar) : null;
+  // ⭐ 頭像來源與首字
+  const avatarSrc = getAvatarSource(userInfo?.avatar);
   const initial = userInfo?.Name?.[0] ?? '人';
 
   console.log('[ElderHome] userInfo:', userInfo);
@@ -544,8 +540,11 @@ export default function ElderHome() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
+
+      {/* 上半：使用者列 */}
       <View style={styles.topArea}>
         <View style={styles.userCard}>
+          {/* ⭐ 頭像顯示 */}
           {avatarSrc ? (
             <Image
               source={avatarSrc}
@@ -563,12 +562,15 @@ export default function ElderHome() {
           </View>
         </View>
       </View>
+
+      {/* 下半內容（panel、ScrollView、卡片等） */}
       <View style={styles.panel}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 140 }}
           style={{ flex: 1 }}
         >
+          {/* 回診資料卡片 */}
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
@@ -608,10 +610,16 @@ export default function ElderHome() {
               )}
             </View>
           </TouchableOpacity>
+
+          {/* 吃藥提醒 */}
           <TouchableOpacity
             activeOpacity={0.9}
             disabled={!preview}
-            onPress={() => previewIndex >= 0 && openMedModal(previewIndex)}
+            onPress={() => {
+              if (previewIndex >= 0) {
+                openMedModal(previewIndex);
+              }
+            }}
             style={[
               styles.rowCard,
               styles.cardShadow,
@@ -649,6 +657,8 @@ export default function ElderHome() {
               )}
             </View>
           </TouchableOpacity>
+
+          {/* 健康狀況 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.cream }]}
@@ -663,6 +673,8 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* 即時位置 */}
           <View style={styles.topGrid}>
             <TouchableOpacity
               style={[styles.squareCard, styles.cardShadow, { backgroundColor: COLORS.green }]}
@@ -678,6 +690,7 @@ export default function ElderHome() {
             </TouchableOpacity>
           </View>
         </ScrollView>
+
         <View pointerEvents="box-none" style={styles.fabWrap}>
           <View style={styles.fabRow}>
             <TouchableOpacity
@@ -691,6 +704,7 @@ export default function ElderHome() {
           </View>
         </View>
       </View>
+
       <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={closeMedModal}>
         <TouchableWithoutFeedback onPress={closeMedModal}>
           <View style={styles.backdrop} />
@@ -795,7 +809,7 @@ const styles = StyleSheet.create({
   topArea: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.black },
   userCard: {
     backgroundColor: COLORS.black,
-    borderRadius: 22,
+    borderRadius: 20,
     paddingHorizontal: 4,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -807,24 +821,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  userIcon: {
-    width: IMAGE_SIZE,
-    height: IMAGE_SIZE,
-    borderRadius: IMAGE_SIZE / 2,
-    borderWidth: 2,
-    borderColor: '#F2F2F2',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarFallback: {
-    backgroundColor: '#EAF6EA',
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: COLORS.textDark,
-  },
+  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, borderRadius: IMAGE_SIZE / 2, borderWidth: 2, borderColor: '#F2F2F2', marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  avatarFallback: { backgroundColor: '#EAF6EA' },
+  avatarText: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
   userName: { color: COLORS.white, fontSize: 22, fontWeight: '900' },
   panel: {
     flex: 1,
