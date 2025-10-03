@@ -18,7 +18,7 @@ import Config from 'react-native-config';
 // 獲取 Google Maps API 金鑰
 const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
 
-const BASE_URL = 'http://192.168.1.106:8000';  // 你的後端 API
+const BASE_URL = 'http://172.20.10.3:8000';  // 你的後端 API
 
 export default function LocationScreen() {
   const route = useRoute<any>();
@@ -91,6 +91,7 @@ export default function LocationScreen() {
 
       setLatest({ ...data, lat, lon });
 
+      // 更新地圖區域，並平滑過渡
       mapRef.current?.animateToRegion(
         {
           latitude: lat,
@@ -102,6 +103,7 @@ export default function LocationScreen() {
       );
 
       const addr = await reverseGeocode(lat, lon, 'zh-TW', BASE_URL);
+      console.log('取得地址:', addr);
       setAddress(addr || '無法取得地址');
     } catch (e: any) {
       Alert.alert('錯誤', String(e?.response?.data?.error || e?.message || e));
@@ -114,15 +116,12 @@ export default function LocationScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>家人端定位</Text>
 
-      {/* 按鈕 */}
       <TouchableOpacity style={styles.btn} onPress={fetchLatest} disabled={loading || elderId == null}>
         <Text style={styles.btnText}>{loading ? '更新中…' : '重新整理'}</Text>
       </TouchableOpacity>
 
-      {/* 加載中提示 */}
       {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
 
-      {/* 地圖顯示區域 */}
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
@@ -130,8 +129,8 @@ export default function LocationScreen() {
           provider={PROVIDER_GOOGLE}
           region={region}  // 使用動態更新的 region
         >
-          {/* 顯示 Marker */}
-          {latest && (
+          {/* 確保 Marker 顯示在正確位置 */}
+          {latest && latest.lat && latest.lon && (
             <Marker
               coordinate={{ latitude: latest.lat, longitude: latest.lon }}
               title="長者位置"
@@ -141,7 +140,6 @@ export default function LocationScreen() {
         </MapView>
       </View>
 
-      {/* 顯示底部的地址和座標 */}
       {latest && (
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>緯度：{latest.lat}</Text>
@@ -189,9 +187,6 @@ const styles = StyleSheet.create({
     width: width - 40,
     height: height * 0.7,
   },
-  infoText: {
-    color: '#000',
-    fontSize: 16,
-    marginBottom: 4,
-  },
+  infoContainer: { marginTop: 20 },  
+  infoText: { color: '#000', fontSize: 16, marginBottom: 10 }, 
 });

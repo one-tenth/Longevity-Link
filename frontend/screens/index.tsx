@@ -1,3 +1,4 @@
+//index.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -31,7 +32,7 @@ const HomeScreen: React.FC = () => {
       if (!token) return;
 
       try {
-        const res = await fetch('http://192.108.1.106:8000/account/me/', {
+        const res = await fetch('http://172.20.10.3:8000/account/me/', {
 
           headers: {
             Authorization: `Bearer ${token}`,
