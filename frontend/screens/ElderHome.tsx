@@ -533,10 +533,6 @@ export default function ElderHome() {
   const avatarSrc = getAvatarSource(userInfo?.avatar);
   const initial = userInfo?.Name?.[0] ?? '人';
 
-  console.log('[ElderHome] userInfo:', userInfo);
-  console.log('[ElderHome] userInfo.avatar:', userInfo?.avatar);
-  console.log('[ElderHome] avatarSrc:', avatarSrc);
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
@@ -550,7 +546,7 @@ export default function ElderHome() {
               source={avatarSrc}
               style={styles.userIcon}
               defaultSource={getAvatarSource('grandpa.png')}
-              onError={(e) => console.log('[ElderHome] 頭像載入失敗:', userInfo?.avatar, e.nativeEvent.error)}
+              onError={e => console.log('[ElderHome] 頭像載入失敗:', userInfo?.avatar, e.nativeEvent.error)}
             />
           ) : (
             <View style={[styles.userIcon, styles.avatarFallback]}>
@@ -563,14 +559,14 @@ export default function ElderHome() {
         </View>
       </View>
 
-      {/* 下半內容（panel、ScrollView、卡片等） */}
+      {/* 下半內容（panel、ScrollView、卡片等）維持原樣 */}
       <View style={styles.panel}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 140 }}
           style={{ flex: 1 }}
         >
-          {/* 回診資料卡片 */}
+          {/* 回診資料卡片（可點擊進列表 + 顯示總筆數） */}
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.rowCard, styles.cardShadow, { backgroundColor: COLORS.red }]}
@@ -583,6 +579,7 @@ export default function ElderHome() {
                 <Text style={styles.countText}>共 {visitCount} 筆</Text>
               </View>
             </View>
+
             <View style={[styles.noteBox, { backgroundColor: COLORS.white }]}>
               {loading ? (
                 <Text style={[styles.notePlaceholder, { color: COLORS.textMid }]}>載入中…</Text>
@@ -617,7 +614,12 @@ export default function ElderHome() {
             disabled={!preview}
             onPress={() => {
               if (previewIndex >= 0) {
-                openMedModal(previewIndex);
+                setShowMedModal(true);
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    flatRef.current?.scrollToIndex({ index: previewIndex, animated: false });
+                  });
+                });
               }
             }}
             style={[
@@ -630,12 +632,14 @@ export default function ElderHome() {
               <Text style={[styles.rowTitle, { color: COLORS.white }]}>吃藥提醒</Text>
               <MaterialIcons name="medication" size={30} color={COLORS.black} />
             </View>
+
             <View style={[styles.noteBox, { backgroundColor: '#E9F4E4' }]}>
               {preview ? (
                 <>
                   <Text style={styles.notePlaceholder}>
                     {preview.period} {preview.time || ''}
                   </Text>
+
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
                     {preview.meds.slice(0, 3).map((m: string, i: number) => (
                       <View key={i} style={styles.miniPill}>
@@ -705,13 +709,13 @@ export default function ElderHome() {
         </View>
       </View>
 
-      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={closeMedModal}>
-        <TouchableWithoutFeedback onPress={closeMedModal}>
+      <Modal visible={showMedModal} transparent animationType="fade" onRequestClose={() => setShowMedModal(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowMedModal(false)}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
         <View style={styles.modalCenter} pointerEvents="box-none">
           <View style={styles.modalCardWrap}>
-            <TouchableOpacity style={styles.closeBtn} onPress={closeMedModal} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
               <Feather name="x" size={22} color={COLORS.black} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -778,7 +782,7 @@ export default function ElderHome() {
                       <Text style={{ fontSize: 16, color: COLORS.textMid }}>此時段沒有藥物</Text>
                     )}
                   </ScrollView>
-                  <TouchableOpacity style={styles.okBtn} onPress={closeMedModal} activeOpacity={0.9}>
+                  <TouchableOpacity style={styles.okBtn} onPress={() => setShowMedModal(false)} activeOpacity={0.9}>
                     <Text style={styles.okBtnText}>知道了</Text>
                   </TouchableOpacity>
                 </View>
@@ -802,10 +806,10 @@ export default function ElderHome() {
   );
 }
 
-const IMAGE_SIZE = 64;
+const IMAGE_SIZE = 80;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.white },
+  container: { flex: 1, backgroundColor: COLORS.black },
   topArea: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.black },
   userCard: {
     backgroundColor: COLORS.black,
@@ -821,10 +825,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, borderRadius: IMAGE_SIZE / 2, borderWidth: 2, borderColor: '#F2F2F2', marginRight: 12, justifyContent: 'center', alignItems: 'center' },
-  avatarFallback: { backgroundColor: '#EAF6EA' },
-  avatarText: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
-  userName: { color: COLORS.white, fontSize: 22, fontWeight: '900' },
+  userIcon: { width: IMAGE_SIZE, height: IMAGE_SIZE, borderRadius: IMAGE_SIZE / 2, marginRight: 12, backgroundColor: '#EEE', alignItems: 'center', justifyContent: 'center' },
+  avatarFallback: { backgroundColor: '#BBB', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 36, color: COLORS.white, fontWeight: '900' },
+  userName: { color: COLORS.white, fontSize: 35, fontWeight: '900' },
   panel: {
     flex: 1,
     backgroundColor: COLORS.white,
