@@ -114,7 +114,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'J1040immy',   # ← 登入用的密碼
+        'PASSWORD': 'Ab950630',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }

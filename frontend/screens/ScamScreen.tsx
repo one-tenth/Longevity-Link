@@ -2,9 +2,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
 import axios from 'axios';
-
-
-const API_BASE = 'http://172.20.10.2:8000'; 
+const API_BASE = 'http://172.20.10.7:8000'; // ⚠️換成實際 IPv
 
 export default function ScamScreen() {
   const [phone, setPhone] = useState('');
@@ -21,7 +19,7 @@ export default function ScamScreen() {
         Phone: phone,
         Category: category,
       });
-      Alert.alert('成功', `新增成功`);
+      Alert.alert('成功', `Scam 新增成功，ID=${res.data.ScamId}`);
       setPhone('');
       setCategory('詐騙');
     } catch (err: any) {

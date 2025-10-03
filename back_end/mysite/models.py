@@ -222,6 +222,16 @@ class CallRecord(models.Model):
     PhoneTime = models.CharField(max_length=20)  
     IsScam = models.BooleanField(default=False)
 
+    def to_dict(self):
+        return {
+            'CallId': self.CallId,
+            'UserId': self.UserId_id,  # 外鍵 id
+            'PhoneName': self.PhoneName,
+            'Phone': self.Phone,
+            'PhoneTime': self.PhoneTime,
+            'IsScam': self.IsScam,
+        }
+
     class Meta:
         verbose_name = "Call record"
         verbose_name_plural = "Call record"

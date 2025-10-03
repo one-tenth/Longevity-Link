@@ -1256,23 +1256,23 @@ def hospital_delete(request, pk):
     return Response({"message": "已刪除"}, status=200)
 
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from .models import CallRecord
-from django.db import IntegrityError
-from .serializers import CallRecordSerializer
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from rest_framework import status
+# from .models import CallRecord
+# from django.db import IntegrityError
+# from .serializers import CallRecordSerializer
 
-# 新增通話紀錄
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_call_record(request):
-    serializer = CallRecordSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# # 新增通話紀錄
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_call_record(request):
+#     serializer = CallRecordSerializer(data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -1341,6 +1341,20 @@ def map_type(t: str) -> str:
 
 
 # --------- 上傳通話（長者端或家人代上傳） ---------
+
+# def convert_to_taiwan_time(ts_str):
+#     try:
+#         # 解析時間戳
+#         dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
+#         # 設置為 UTC 時間
+#         dt = timezone('UTC').localize(dt)
+#         # 轉換為台灣時間（UTC+8）
+#         dt = dt.astimezone(timezone('Asia/Taipei'))
+#         return dt.strftime("%Y-%m-%d %H:%M:%S")
+#     except Exception as e:
+#         print(f"Error converting time: {e}")
+#         return None  # 返回 None 代表時間轉換失敗
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_call_logs(request):
@@ -1406,7 +1420,7 @@ def upload_call_logs(request):
 
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
-    cap = 100 if first_upload else 500
+    cap = 100 if first_upload else 100
     cleaned = cleaned[:cap]
 
     phones = list({d[PHONE_FIELD] for d in cleaned})
@@ -1440,29 +1454,17 @@ def upload_call_logs(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_elder_calls(request, elder_id: int):
+@permission_classes([IsAuthenticated])  # 確保用戶已經認證
+def get_call_records(request, elder_id):
     try:
-        elder = User.objects.get(pk=elder_id)  # elder_id 就是 UserId
-    except User.DoesNotExist:
-        return Response({"error": "elder not found"}, status=404)
-
-    calls = CallRecord.objects.filter(UserId=elder).order_by("-PhoneTime")[:50]
-
-    data = [
-        {
-            "CallId": c.CallId,
-            "Phone": c.Phone,
-            "PhoneName": getattr(c, "PhoneName", None),
-            "PhoneTime": str(c.PhoneTime),
-            "Duration": getattr(c, "Duration", 0),
-            "Type": getattr(c, "Type", "UNKNOWN"),
-            "IsScam": getattr(c, "IsScam", False),
-            "UserId": elder.UserID,  # 保留 UserId 方便前端 debug
-        }
-        for c in calls
-    ]
-    return Response(data)
+        # 使用 UserId_id 查詢通話紀錄
+        records = CallRecord.objects.filter(UserId_id=elder_id).order_by('-PhoneTime')[:100]
+        data = [record.to_dict() for record in records]  # 使用 to_dict() 方法來序列化資料
+        return JsonResponse(data, safe=False)  # 返回 JSON 格式的資料
+    
+    except Exception as e:
+        # 如果有錯誤，返回 500 錯誤及錯誤訊息
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 # 新增詐騙資料表
@@ -1524,6 +1526,41 @@ def scam_check_bulk(request):
 
     matches = {phone: category for phone, category in rows}
     return Response({"matches": matches}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # 如果需要驗證，改為 IsAuthenticated
+def scam_check(request):
+    phone_number = request.GET.get('phone')
+    
+    if not phone_number:
+        return Response({"error": "缺少電話號碼"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 格式化並標準化電話號碼
+    phone_number = normalize_phone(phone_number)
+
+    # 取得電話的最新詐騙記錄
+    latest_category_subq = Subquery(
+        Scam.objects
+            .filter(Phone__Phone=OuterRef('Phone'))
+            .order_by('-ScamId')  # 按照 ScamId 來找最新的
+            .values('Category')[:1]
+    )
+
+    # 查詢電話號碼是否為詐騙
+    rows = (CallRecord.objects
+            .filter(Phone=phone_number)
+            .annotate(latest_category=latest_category_subq)
+            .filter(latest_category__isnull=False)
+            .values('Phone', 'latest_category'))
+
+    # 如果該電話號碼在 Scam 表中有詐騙記錄，返回結果
+    if rows:
+        phone = rows[0]['Phone']
+        category = rows[0]['latest_category']
+        return Response({"phone": phone, "category": category}, status=status.HTTP_200_OK)
+    
+    # 如果找不到該電話的詐騙記錄，返回未找到
+    return Response({"phone": phone_number, "category": "未檢出詐騙"}, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -1703,7 +1740,7 @@ def _google_reverse(lat, lng, lang):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def reverse_geocode(request):
     lat = request.GET.get("lat")
     lng = request.GET.get("lng")

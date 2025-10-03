@@ -137,7 +137,7 @@ export default function ElderMedRemind() {
 
        // 發送請求到後端，帶上 access token
        const response = await axios.post(
-         'http://172.20.10.2:8000/start_medication/',
+         'http://172.20.10.7:8000/start_medication/',
          requestData,
          {
            headers: {

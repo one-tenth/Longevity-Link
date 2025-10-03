@@ -16,8 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { RootStackParamList } from '../App';
 
-
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://172.20.10.7:8000';
 
 
 type HospitalRecord = {

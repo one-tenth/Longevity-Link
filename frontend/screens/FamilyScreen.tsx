@@ -38,7 +38,7 @@ const COLORS = {
 
 const R = 22;
 
-const API_BASE = 'http://172.20.10.2:8000';
+const API_BASE = 'http://172.20.10.7:8000';
 
 const outerShadow = {
   elevation: 4,

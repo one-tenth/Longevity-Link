@@ -18,10 +18,10 @@ console.log('[initNotification] module loaded');
 // =========================
 // 基本設定
 // =========================
-const BASE = 'http://172.20.10.2:8000';
+const BASE = 'http://172.20.10.7:8000';
 
 // ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '15:57';
+const VISIT_NOTIFY_TIME = '10:45';
 
 // =========================
 // 時段：中英文對照（新增）
@@ -105,6 +105,7 @@ export async function setupNotificationChannel() {
     name: '回診提醒',
     importance: AndroidImportance.HIGH,
   });
+
 }
 
 /**（可選）Android 13+ 申請通知權限 */
