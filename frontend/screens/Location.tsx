@@ -15,10 +15,22 @@ import { useRoute } from '@react-navigation/native';
 import { reverseGeocode, formatTs } from '../utils/locationUtils';
 import Config from 'react-native-config';
 
+
 // 獲取 Google Maps API 金鑰
 const GOOGLE_MAPS_API_KEY = Config.GOOGLE_MAPS_API_KEY;
 
-const BASE_URL = 'http://192.168.1.106:8000';  // 你的後端 API
+type LatestLocationResp = {
+  ok: boolean;
+  user: number;
+  lat: number;
+  lon: number;
+  ts: string;
+};
+
+const BASE_URL = 'http://192.168.31.126:8000';   
+
+
+
 
 export default function LocationScreen() {
   const route = useRoute<any>();

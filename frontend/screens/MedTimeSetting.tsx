@@ -36,8 +36,8 @@ const outerShadow = {
 } as const;
 
 
+const BASE = 'http://192.168.31.126:8000';
 
-const BASE = 'http://192.108.1.106:8000';
 
 
 export default function TimeSettingInput() {

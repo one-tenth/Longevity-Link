@@ -93,7 +93,8 @@ export default function CreateFamily() {
       const token = await AsyncStorage.getItem('access');
       if (!token) return;
       try {
-        const res = await fetch('http://192.168.1.106:8000/account/me/', {
+        const res = await fetch('http://192.168.31.126:8000/account/me/', {
+
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -126,9 +127,9 @@ export default function CreateFamily() {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setFamilyCode(code);
     try {
-      const response = await fetch('http://192.168.1.106:8000/api/family/create/', {
 
-      
+      const response = await fetch('http://192.168.31.126:8000/api/family/create/', {
+    
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

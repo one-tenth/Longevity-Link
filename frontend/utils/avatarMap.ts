@@ -8,10 +8,11 @@ export const avatarMap: Record<string, any> = {
   "girl.png": require("../img/childhome/girl.png"),
 };
 
-/** 回傳對應的頭貼圖片來源 */
+/** 回傳對應的頭貼圖片來源（支援網址與本地檔名） */
 export function getAvatarSource(avatar?: string) {
-  if (!avatar) return avatarMap["woman.png"];
-  return avatarMap[avatar] || avatarMap["woman.png"];
+  if (!avatar) return avatarMap["grandpa.png"];
+  if (avatar.startsWith("http")) return { uri: avatar };
+  return avatarMap[avatar] || avatarMap["grandpa.png"];
 }
 
 /** 可用頭貼清單（排除 default.png） */

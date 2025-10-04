@@ -25,8 +25,8 @@ const COLORS = {
 };
 
 // ✅ 統一 API Base（自行修改成你的 IP / 網域）
-const API_BASE = 'http://192.108.1.106:8000';
 
+const API_BASE = 'http://192.168.31.126:8000';
 const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 
