@@ -1634,7 +1634,7 @@ from .serializers import LocationUploadSerializer, LocationLatestSerializer
 User = get_user_model()
 
 class UploadLocationThrottle(UserRateThrottle):
-    rate = '3/min'  #可調整次數
+    rate = '3/min'  #限制上傳頻率，可調整次數
 
 def _same_family(u1, u2) -> bool:
     return (
@@ -1678,7 +1678,7 @@ def get_latest_location(request, user_id: int):
            .filter(UserID=target)
            .order_by('-Timestamp')
            .only('Latitude', 'Longitude', 'Timestamp')
-           .first())
+           .first()) #取第一筆資料
     if not rec:
         return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1707,7 +1707,7 @@ def get_family_locations(request, family_id: int):
               )
               .filter(last_time__isnull=False)
               .values('UserID', 'Name', 'Phone', 'last_lat', 'last_lon', 'last_time'))
-
+    #將查詢結果轉成 JSON 格式
     results = [{
         'user': e['UserID'],
         'name': e['Name'] or e['Phone'],
@@ -1739,7 +1739,7 @@ def _google_reverse(lat, lng, lang):
 
     if j.get("status") == "OK" and j.get("results"):
         first = j["results"][0]
-        return first.get("formatted_address")
+        return first.get("formatted_address")  # 取第一筆地址
 
     return None
 
@@ -1753,4 +1753,4 @@ def reverse_geocode(request):
     if not (lat and lng):
         return Response({"error": "lat/lng required"}, status=400)
     addr = _google_reverse(str(lat), str(lng), lang)
-    return Response({"address": addr})
+    return Response({"address": addr})  # 取第一筆地址

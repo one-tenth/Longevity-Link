@@ -29,7 +29,7 @@ export default function LocationScreen() {
   const [address, setAddress] = useState<string>('尚未取得地址');
 
   const [region, setRegion] = useState<Region>({
-    latitude: 25.033964,  // 預設位置：東京
+    latitude: 25.033964,  // 預設位置
     longitude: 121.564468,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,

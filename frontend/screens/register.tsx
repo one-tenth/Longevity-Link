@@ -52,7 +52,7 @@ interface RegisterData {
   avatar?: string;
 }
 
-const API_BASE = 'http://192.108.1.106:8000';
+const API_BASE = 'http://192.168.1.106:8000';
 
 
 

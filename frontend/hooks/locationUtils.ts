@@ -90,15 +90,14 @@ export function watchPosition(
   return () => Geolocation.clearWatch(id);
 }
 
+
 // 反查地址
-export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+export async function reverseGeocode(lat: number, lng: number, lang: string = 'zh-TW'): Promise<string> {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'CareMate/1.0 (contact@saveshare506@gmail.com)' },
-    });
+    const url = `http://192.168.1.106/api/reverse_geocode/?lat=${lat}&lng=${lng}&lang=${lang}`;
+    const res = await fetch(url);
     const data = await res.json();
-    return data.display_name || '無法取得地址';
+    return data.address || '無法取得地址';
   } catch (error) {
     console.warn('reverseGeocode error', error);
     return '無法取得地址';
