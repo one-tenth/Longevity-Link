@@ -27,7 +27,7 @@ const CreateFamilyScreen: React.FC = () => {
 
       try {
 
-        const res = await fetch('http://192.168.31.126:8000/account/me/', {
+        const res = await fetch('http://192.168.0.91:8000/account/me/', {
 
        
           headers: {
@@ -71,7 +71,7 @@ const CreateFamilyScreen: React.FC = () => {
       const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
       setFcode(generatedCode); // 更新畫面代碼
 
-      const response = await fetch('http://192.168.31.126:8000/api/family/create/', {
+      const response = await fetch('http://192.168.0.91:8000/api/family/create/', {
 
 
         method: 'POST',

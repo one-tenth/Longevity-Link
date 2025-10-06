@@ -112,9 +112,9 @@ SIMPLE_JWT = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'caremate',      # ← 剛剛在 Workbench 建的資料庫
+        'NAME': 'caremate_db',      # ← 剛剛在 Workbench 建的資料庫
         'USER': 'root',             # ← 登入 MySQL 的使用者
-        'PASSWORD': 'chei0515',   # ← 登入用的密碼
+        'PASSWORD': 'eric264859',   # ← 登入用的密碼
         'HOST': 'localhost',
         'PORT': '3306',
     }

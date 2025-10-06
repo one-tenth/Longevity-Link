@@ -8,6 +8,7 @@ import {
   StatusBar,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -46,7 +47,7 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-const BASE_URL = 'http://192.168.31.126:8000';
+const BASE_URL = 'http://192.168.0.91:8000';
 
 type PeriodKey = 'morning' | 'evening';
 

@@ -23,7 +23,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://192.168.31.126:8000';
+const BASE = 'http://192.168.0.91:8000';
 
 const COLORS = {
   white: '#FFFFFF',
