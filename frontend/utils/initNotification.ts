@@ -1,3 +1,4 @@
+// utils/initNotification.ts
 import notifee, {
   AndroidImportance,
   TimestampTrigger,
@@ -9,7 +10,7 @@ import notifee, {
 } from '@notifee/react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, AppState } from 'react-native';
 import { navigationRef } from '../App'; // 若已抽出 navigationRef.ts，改成 '../navigationRef'
 
 console.log('[initNotification] module loaded');
@@ -17,15 +18,13 @@ console.log('[initNotification] module loaded');
 // =========================
 // 基本設定
 // =========================
+const BASE = 'http://192.168.0.24:8000';
 
-const BASE = 'http://192.168.0.91:8000';
-
-
-// ★★★ 指定回診通知時間（24 小時制，例：'08:00', '07:30'）★★★
-const VISIT_NOTIFY_TIME = '18:15';
+// ★★★ 指定回診通知時間（固定每天 08:00）★★★
+const VISIT_NOTIFY_TIME = '08:00';
 
 // =========================
-// 時段：中英文對照（新增）
+// 時段：中英文對照
 // =========================
 const PERIOD_LABELS: Record<string, string> = {
   morning: '早上',
@@ -72,17 +71,14 @@ function createTriggerTime(timeStr: string): Date | null {
 }
 
 // =========================
-// 工具：錯誤分類（修正版）
+// 工具：錯誤分類
 // =========================
-
 function isAuthError(err: any): boolean {
   return err?.response?.status === 401;
 }
-
 function isForbidden(err: any): boolean {
   return err?.response?.status === 403;
 }
-
 function isNotFoundError(err: any): boolean {
   const status = err?.response?.status;
   const code = err?.response?.data?.code || err?.response?.data?.detail?.code;
@@ -105,7 +101,6 @@ export async function setupNotificationChannel() {
     name: '回診提醒',
     importance: AndroidImportance.HIGH,
   });
-
 }
 
 /**（可選）Android 13+ 申請通知權限 */
@@ -259,9 +254,7 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
     // ---- 若今天且已過指定時間 → 立即補發一次，並不再排程過去時間 ----
     const isToday =
       next.ymd ===
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
-        now.getDate()
-      ).padStart(2, '0')}`;
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (isToday && next.atNotify.getTime() <= now.getTime()) {
       const shownKey = `visit:shown:${next.visitId}:${next.ymd}`;
@@ -290,7 +283,7 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
             doctor: next.doctor,
             num: next.num,
             visitId: next.visitId,
-            avatar: avatar || 'default.png', // 傳遞頭像路徑
+            avatar: avatar || 'default.png',
           },
         });
         await AsyncStorage.setItem(shownKey, '1');
@@ -332,7 +325,7 @@ export async function initVisitNotifications(): Promise<'scheduled' | 'skipped' 
           doctor: next.doctor,
           num: next.num,
           visitId: next.visitId,
-          avatar: avatar || 'default.png', // 傳遞頭像路徑
+          avatar: avatar || 'default.png',
         },
       },
       trigger
@@ -392,9 +385,7 @@ export async function initMedicationNotifications(): Promise<
 
   try {
     // 1) /me：確認 token 與基本身分
-
-    let userId: string | number | undefined; // ⭐ 新增
-
+    let userId: string | number | undefined;
     let avatar: string | null = null;
 
     try {
@@ -405,11 +396,8 @@ export async function initMedicationNotifications(): Promise<
       console.log('[initNotification] /me status:', meRes.status);
       console.log('✅ 使用者資訊:', meRes.data);
 
-      // 依後端返回的字段（可能是 UserID、id 或 userId）來獲取 userId
       userId = meRes?.data?.UserID ?? meRes?.data?.id ?? meRes?.data?.userId;
-
-      avatar = meRes.data?.avatar ?? null; // 獲取頭像路徑
-
+      avatar = meRes.data?.avatar ?? null;
     } catch (err: any) {
       if (isAuthError(err)) {
         console.log('[initNotification] 401 → token 無效或過期，清除並要求重新登入');
@@ -428,7 +416,7 @@ export async function initMedicationNotifications(): Promise<
     }
 
     // 2) 取得提醒排程
-    let schedule: Record<string, { time?: string; meds?: string[] }> = {};
+    let schedule: Record<string, { time?: string; meds?: string[]; medIds?: (string | number)[] }> = {};
     try {
       const res = await axios.get(`${BASE}/api/get-med-reminders/`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -463,9 +451,7 @@ export async function initMedicationNotifications(): Promise<
 
     // 3) 內容檢查
     const anyTimeSet = Object.values(schedule).some((d: any) => !!d?.time);
-    const anyMedsSet = Object.values(schedule).some(
-      (d: any) => Array.isArray(d?.meds) && d.meds.length > 0
-    );
+    const anyMedsSet = Object.values(schedule).some((d: any) => Array.isArray(d?.meds) && d.meds.length > 0);
 
     if (!anyTimeSet && !anyMedsSet) {
       Alert.alert('提醒尚未完成', '尚未設定用藥時間與藥物，請先完成設定。');
@@ -491,7 +477,7 @@ export async function initMedicationNotifications(): Promise<
     let medsExist = false;
 
     for (const [period, data] of Object.entries(schedule)) {
-      const { time, meds, medIds } = (data || {}) as { time?: string; meds?: string[] };
+      const { time, meds, medIds } = (data || {}) as { time?: string; meds?: string[]; medIds?: (string | number)[] };
       if (!time || !Array.isArray(meds) || meds.length === 0) continue;
 
       const triggerTime = createTriggerTime(time);
@@ -510,7 +496,6 @@ export async function initMedicationNotifications(): Promise<
 
       console.log(`🔔 預排：${period} → ${time} (${triggerTime})`);
 
-      // **關鍵步驟：這裡將 userId 和 medIds 加入通知的 data 中**
       await notifee.createTriggerNotification(
         {
           title: `💊 ${getPeriodLabel(period)} 吃藥提醒`,
@@ -520,17 +505,15 @@ export async function initMedicationNotifications(): Promise<
             smallIcon: 'ic_launcher',
             pressAction: { id: 'default' },
           },
-          // 保持資料以「英文鍵」傳遞，畫面端再轉中文
           data: {
             __type: 'med',
             period,
             meds: meds.join(','),
-            medIds: Array.isArray(medIds) ? medIds.join(',') : '',  // 確保 medIds 以逗號分隔的字串形式傳遞
-            userId: userId != null ? String(userId) : '',  // 將 userId 傳遞進來
+            medIds: Array.isArray(medIds) ? medIds.join(',') : '',
+            userId: userId != null ? String(userId) : '',
             time,
-            avatar: avatar || 'default.png'
+            avatar: avatar || 'default.png',
           },
-
         },
         trigger
       );
@@ -571,7 +554,6 @@ export async function initMedicationNotifications(): Promise<
   }
 }
 
-
 // =========================
 // 便利方法：一次初始化全部排程
 // =========================
@@ -582,6 +564,40 @@ export async function initAllNotifications() {
   const visit = await initVisitNotifications();
   console.log('[initNotification] initVisitNotifications =>', visit);
   return { med, visit };
+}
+
+// =========================
+// App 回到前景時，重新檢查回診提醒（含即時補發邏輯）
+// =========================
+let _visitActiveWatcherStarted = false;
+let _visitActiveSub: { remove: () => void } | null = null;
+
+/**
+ * 啟動一次性前景監聽器：
+ * - App 啟動先跑一次 initVisitNotifications()
+ * - 之後每次回到前景若「今天且已過 08:00、且尚未發過」，就會即時顯示一次
+ */
+export async function startVisitActiveWatcher() {
+  if (_visitActiveWatcherStarted) return;
+  _visitActiveWatcherStarted = true;
+
+  // 先建立頻道並跑一次（涵蓋「今天已過時間 → 即時補發」）
+  await setupNotificationChannel();
+  await initVisitNotifications();
+
+  // 回到前景再跑
+  _visitActiveSub = AppState.addEventListener('change', async (state) => {
+    if (state === 'active') {
+      await initVisitNotifications();
+    }
+  });
+}
+
+/**（可選）需要時可手動關閉監聽 */
+export function stopVisitActiveWatcher() {
+  _visitActiveSub?.remove?.();
+  _visitActiveSub = null;
+  _visitActiveWatcherStarted = false;
 }
 
 // =========================
@@ -600,7 +616,7 @@ notifee.onForegroundEvent(async ({ type, detail }) => {
         period,
         meds: meds ? String(meds).split(',') : undefined,
         time,
-        avatar, // 傳遞頭像路徑到畫面
+        avatar,
       });
       return;
     }
@@ -608,7 +624,7 @@ notifee.onForegroundEvent(async ({ type, detail }) => {
     // 回診 → 回診列表頁（可依需求改為詳情頁）
     if (data?.__type === 'visit' || data?.type === 'visit') {
       const { avatar } = data;
-      navigationRef.current?.navigate('ElderHospitalList', { avatar }); // 傳遞頭像路徑
+      navigationRef.current?.navigate('ElderHospitalList', { avatar });
       return;
     }
   }
@@ -620,25 +636,21 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
     const data = detail.notification.data as any;
 
     if (data?.__type === 'med' || data?.type === 'med') {
+      const { period, meds, time, userId, avatar } = data;
 
-      const { period, meds, time, userId,avatar } = data;
-
-      // 打印資料確認
       console.log('Sending to ElderMedRemind:', {
         period,
         meds: meds ? String(meds).split(',') : undefined,
         time,
-        userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
+        userId: userId ? Number(userId) : undefined,
       });
-
 
       await AsyncStorage.multiSet([
         ['notificationPeriod', period || ''],
         ['notificationMeds', meds || ''],
         ['notificationTime', time || ''],
-        ['notificationUserId', userId ? String(userId) : ''], // 儲存 userId
-        ['notificationAvatar', avatar || ''], // 儲存頭像路徑
-
+        ['notificationUserId', userId ? String(userId) : ''],
+        ['notificationAvatar', avatar || ''],
       ]);
 
       setTimeout(() => {
@@ -646,15 +658,14 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
           period,
           meds: meds ? String(meds).split(',') : undefined,
           time,
-          userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
+          userId: userId ? Number(userId) : undefined,
         });
         navigationRef.current?.navigate('ElderMedRemind', {
           period,
           meds: meds ? String(meds).split(',') : undefined,
           time,
-          userId: userId ? Number(userId) : undefined, // 確保 userId 是數字
-          avatar, // 傳遞頭像路徑
-
+          userId: userId ? Number(userId) : undefined,
+          avatar,
         });
       }, 800);
       return;
@@ -663,7 +674,7 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (data?.__type === 'visit' || data?.type === 'visit') {
       const { avatar } = data;
       setTimeout(() => {
-        navigationRef.current?.navigate('ElderHospitalList', { avatar }); // 傳遞頭像路徑
+        navigationRef.current?.navigate('ElderHospitalList', { avatar });
       }, 800);
       return;
     }

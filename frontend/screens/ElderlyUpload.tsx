@@ -25,7 +25,7 @@ const COLORS = {
 };
 
 // ✅ 統一 API Base（自行修改成你的 IP / 網域）
-const API_BASE = 'http://192.168.0.91:8000';
+const API_BASE = 'http://192.168.0.24:8000';
 const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 const ENDPOINT_ME    = `${API_BASE}/api/account/me/`; // 取得目前使用者資訊
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
 
 // // ✅ 統一 API Base（自行修改成你的 IP / 網域）
 
-// const API_BASE = 'http://192.168.0.91:8000';
+// const API_BASE = 'http://192.168.0.24:8000';
 // const ENDPOINT_BLOOD = `${API_BASE}/api/ocrblood/`;
 // const ENDPOINT_MED   = `${API_BASE}/api/med/analyze/`;
 

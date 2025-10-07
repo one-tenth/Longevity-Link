@@ -3,7 +3,7 @@ import axios from 'axios';
 
 
 
-const API_BASE = 'http://192.168.0.91:8000/api/account';
+const API_BASE = 'http://192.168.0.24:8000/api/account';
 
 
 
