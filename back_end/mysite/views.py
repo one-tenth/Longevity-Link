@@ -1,3 +1,4 @@
+from zoneinfo import ZoneInfo
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -23,6 +24,66 @@ from rest_framework.response import Response
 from ultralytics import YOLO
 from openai import OpenAI
 from .models import HealthCare
+
+from datetime import datetime
+from django.utils import timezone
+from zoneinfo import ZoneInfo
+
+def parse_to_utc_minute(value) -> datetime:
+    """
+    接受：
+      - epoch（秒或毫秒）
+      - ISO（可含時區；'Z' 也可）
+      - 無時區字串：視為 Asia/Taipei
+      - datetime 物件
+    回傳：UTC aware datetime，且「秒/微秒 = 0」（分鐘精度）
+    """
+    tw = ZoneInfo('Asia/Taipei')
+    dt = None
+
+    # datetime 直接處理
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(timezone.utc)
+
+    # epoch（數字或數字字串）
+    elif isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
+        n = int(value)
+        if n > 10_000_000_000:  # 毫秒
+            dt = timezone.datetime.fromtimestamp(n / 1000.0, tz=timezone.utc)
+        else:                   # 秒
+            dt = timezone.datetime.fromtimestamp(n, tz=timezone.utc)
+
+    # 字串
+    elif isinstance(value, str):
+        s = value.strip().replace('Z', '+00:00')
+        # 優先 ISO
+        try:
+            dt_iso = datetime.fromisoformat(s)
+            dt = dt_iso.astimezone(timezone.utc) if dt_iso.tzinfo else dt_iso.replace(tzinfo=tw).astimezone(timezone.utc)
+        except Exception:
+            # 常見無時區格式 → 當台灣時間
+            for f in ['%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y/%m/%d %H:%M:%S','%Y/%m/%d %H:%M','%Y-%m-%dT%H:%M:%S','%Y-%m-%d']:
+                try:
+                    naive = datetime.strptime(s, f)
+                    dt = naive.replace(tzinfo=tw).astimezone(timezone.utc)
+                    break
+                except Exception:
+                    pass
+
+    if dt is None:
+        dt = timezone.now()
+
+    return dt.astimezone(timezone.utc).replace(second=0, microsecond=0)  # 分鐘精度
+
+def dt_key_minute(dt: datetime) -> str:
+    """
+    產生「分鐘精度」鍵值（UTC），用於去重：
+    'YYYY-MM-DDTHH:MM'
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M')
 
 User = get_user_model()
 client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
@@ -1294,49 +1355,80 @@ from mysite.models import User, CallRecord, Scam
 
 # --------- 共用工具 ---------
 def normalize_phone(p: str) -> str:
-    """去除非數字；+886 開頭轉成 0 開頭"""
     s = re.sub(r'\D', '', p or '')
-    if s.startswith('886') and len(s) >= 11:
+    if s.startswith('886'):
         s = '0' + s[3:]
-    return s
+    # 去掉多個前導 0（保留一個）
+    s = re.sub(r'^0+', '0', s) if s.startswith('0') else s
+    return s  # 若要過濾過短號碼，可加: return s if len(s) >= 9 else ''
 
-def to_dt_str(obj) -> str:
-    """把 datetime 或 ISO/一般字串，轉成 'YYYY-MM-DD HH:MM:SS'；失敗回空字串"""
-    if obj is None:
-        return ''
+# ✅ 時間：輸入多種格式 → 回傳「UTC aware datetime（秒/微秒清 0，分鐘精度）」給 DateTimeField 用
+def to_dt(obj) -> datetime:
+    """
+    支援：
+      - epoch（秒或毫秒）
+      - ISO（含或不含時區）
+      - 一般字串：'YYYY-MM-DD HH:MM(:SS)'、'YYYY/MM/DD HH:MM'、'YYYY-MM-DDTHH:MM:SS'
+      - datetime 物件
+    規則：
+      - 無時區字串一律視為 Asia/Taipei
+      - 最終回 UTC、秒/微秒=0（分鐘精度）
+    """
+    tw = ZoneInfo('Asia/Taipei')
+    dt = None
+
+    # datetime 直接處理
     if isinstance(obj, datetime):
-        return obj.strftime('%Y-%m-%d %H:%M:%S')
-    s = str(obj).strip()
-    # 毫秒/秒 timestamp
-    if re.fullmatch(r'\d{10,13}', s):
-        n = int(s)
-        if n > 10_000_000_000:  # 毫秒
-            d = datetime.fromtimestamp(n / 1000)
-        else:                   # 秒
-            d = datetime.fromtimestamp(n)
-        return d.strftime('%Y-%m-%d %H:%M:%S')
-    # 其他可解析格式（含 ISO）
-    dt = parse_datetime(s.replace('Z', ''))
-    if dt:
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
-    # 最後嘗試簡單替換
-    s2 = s.replace('T', ' ').split('.')[0]
-    try:
-        d = datetime.fromisoformat(s2)
-        return d.strftime('%Y-%m-%d %H:%M:%S')
-    except Exception:
-        return ''
+        dt = obj.astimezone(timezone.utc) if obj.tzinfo else obj.replace(tzinfo=timezone.utc)
 
-def map_type(t: str) -> str:
-    if not t:
+    # epoch（數字或數字字串）
+    elif isinstance(obj, (int, float)) or (isinstance(obj, str) and obj.isdigit()):
+        n = int(obj)
+        if n > 10_000_000_000:  # 毫秒
+            dt = timezone.datetime.fromtimestamp(n / 1000.0, tz=timezone.utc)
+        else:                   # 秒
+            dt = timezone.datetime.fromtimestamp(n, tz=timezone.utc)
+
+    # 字串：先試 fromisoformat，再試常見格式（無時區→台灣）
+    elif isinstance(obj, str):
+        s = obj.strip().replace('Z', '+00:00')
+        try:
+            dt_iso = datetime.fromisoformat(s)
+            dt = dt_iso.astimezone(timezone.utc) if dt_iso.tzinfo else dt_iso.replace(tzinfo=tw).astimezone(timezone.utc)
+        except Exception:
+            for f in ['%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y/%m/%d %H:%M:%S','%Y/%m/%d %H:%M','%Y-%m-%dT%H:%M:%S','%Y-%m-%d']:
+                try:
+                    naive = datetime.strptime(s, f)
+                    dt = naive.replace(tzinfo=tw).astimezone(timezone.utc)
+                    break
+                except Exception:
+                    pass
+
+    if dt is None:
+        dt = timezone.now()
+
+    return dt.astimezone(timezone.utc).replace(second=0, microsecond=0)  # 分鐘精度
+
+# ⚠️ 若你某些舊程式仍「一定要字串」，用這個包一層（注意：這是 UTC 文本，不適合直接存 DB）
+def to_dt_str(obj) -> str:
+    return to_dt(obj).strftime('%Y-%m-%d %H:%M:%S')
+
+# ✅ 類型：補齊 4/6/7，並接受英文字面或數字
+def map_type(t) -> str:
+    if t is None:
         return 'UNKNOWN'
-    s = str(t).upper()
-    if s in ('INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'):
+    s = str(t).strip().upper()
+    # 英文字面
+    if s in ('INCOMING', 'OUTGOING', 'MISSED', 'REJECTED', 'BLOCKED', 'VOICEMAIL', 'ANSWERED_EXTERNALLY'):
         return s
+    # 數字映射（Android CallLog.Calls.TYPE）
     if s == '1': return 'INCOMING'
     if s == '2': return 'OUTGOING'
     if s == '3': return 'MISSED'
-    if s in ('4', '5'): return 'REJECTED'
+    if s == '4': return 'VOICEMAIL'            # 你原本把 4 當 REJECTED，這裡修正
+    if s == '5': return 'REJECTED'
+    if s == '6': return 'BLOCKED'
+    if s == '7': return 'ANSWERED_EXTERNALLY'
     return 'UNKNOWN'
 
 
@@ -1364,7 +1456,7 @@ def upload_call_logs(request):
     if elder_id:
         try:
             target_user = User.objects.get(pk=int(elder_id))
-            # TODO: 檢查 request.user 是否有權限代該使用者上傳（同家庭等）
+            # TODO: 檢查 request.user 是否具備代理 elder_id 的權限（同家庭…）
         except (User.DoesNotExist, ValueError):
             return Response({"error": "elder not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1372,98 +1464,85 @@ def upload_call_logs(request):
     if not isinstance(records, list) or not records:
         return Response({"error": "no records"}, status=status.HTTP_400_BAD_REQUEST)
 
-    model_fields = {f.name for f in CallRecord._meta.get_fields() if hasattr(f, "attname")}
-    def pick(cands):
-        for c in cands:
-            if c in model_fields:
-                return c
-        return None
-
-    PHONE_FIELD  = pick(["Phone", "phone"])
-    TIME_FIELD   = pick(["PhoneTime", "phone_time", "time"])
-    USER_FIELD   = pick(["UserId", "user", "user_id"])
-    DURATION_FIELD = pick(["Duration", "duration", "CallDuration", "DurationSec"])
-    TYPE_FIELD     = pick(["Type", "type", "CallType", "Direction"])
-    NAME_FIELD     = pick(["PhoneName", "phone_name", "Name", "ContactName"])
-    EXTRA_FIELD    = pick(["Extra", "extra", "Meta", "Payload"])
-
-    if not all([PHONE_FIELD, TIME_FIELD, USER_FIELD]):
-        return Response({"error": "model required fields not found"}, status=500)
-
+    # —— 將輸入整理為模型可存的 payload（含時間轉 UTC、分鐘精度；type→status）——
     cleaned = []
     for r in records:
-        phone = normalize_phone(r.get("phone") or '')
-        ts_str = to_dt_str(r.get("timestamp"))
-        if not phone or not ts_str:
+        phone = normalize_phone(r.get("phone") or r.get("Phone") or '')
+        if not phone:
             continue
+
+        raw_time = r.get("timestamp") or r.get("PhoneTime") or r.get("time")
+        try:
+            dt_utc_min = parse_to_utc_minute(raw_time)
+        except Exception:
+            continue
+
         payload = {
-            USER_FIELD: target_user,
-            PHONE_FIELD: phone,
-            TIME_FIELD: ts_str,
+            "UserId": target_user,
+            "Phone": phone,
+            "PhoneTime": dt_utc_min,  # DateTimeField 需要 datetime，不是字串
+            "status": map_type(r.get("type") or r.get("status")),
+            "duration_sec": int(r.get("duration") or r.get("duration_sec") or 0) if str(r.get("duration") or r.get("duration_sec") or '').isdigit() else 0,
+            "PhoneName": (r.get("name") or r.get("PhoneName") or '').strip() or '未知來電',
+            # 你若有 Extra 欄位再加
         }
-        if DURATION_FIELD is not None:
-            try:
-                payload[DURATION_FIELD] = int(r.get("duration") or 0)
-            except Exception:
-                payload[DURATION_FIELD] = 0
-        if TYPE_FIELD is not None:
-            payload[TYPE_FIELD] = map_type(r.get("type"))
-        if NAME_FIELD is not None:
-            name = (r.get("name") or '').strip() or '未知來電'
-            payload[NAME_FIELD] = name[:255]
-        if EXTRA_FIELD is not None and r.get("extra") is not None:
-            payload[EXTRA_FIELD] = r.get("extra")
         cleaned.append(payload)
 
     if not cleaned:
         return Response({"saved": 0}, status=status.HTTP_200_OK)
 
-    first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
-    cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
+    # —— 限制數量（首次上傳與否目前同 100，可自行調整）——
+    first_upload = not CallRecord.objects.filter(UserId=target_user).exists()
+    cleaned.sort(key=lambda d: d["PhoneTime"], reverse=True)
     cap = 100 if first_upload else 100
     cleaned = cleaned[:cap]
 
-    phones = list({d[PHONE_FIELD] for d in cleaned})
-    times  = list({d[TIME_FIELD]  for d in cleaned})
-    time_min, time_max = min(times), max(times)
+    # —— 去重：同 user + phone + PhoneTime(分鐘) 視為已存在 —— 
+    phones = list({d["Phone"] for d in cleaned})
 
+    # 取時間範圍查舊資料（UTC）
+    time_min = min(d["PhoneTime"] for d in cleaned)
+    time_max = max(d["PhoneTime"] for d in cleaned)
+
+    # 為了用分鐘精度比對，把 DB 拿回來後也轉成分鐘 key
     exist_keys = set()
-    for row in CallRecord.objects.filter(
-        **{USER_FIELD: target_user},
-        **{f"{PHONE_FIELD}__in": phones},
-        **{f"{TIME_FIELD}__range": (time_min, time_max)}
-    ).values(PHONE_FIELD, TIME_FIELD):
-        exist_keys.add((row[PHONE_FIELD], to_dt_str(row[TIME_FIELD])))
+    existing = (CallRecord.objects
+                .filter(UserId=target_user, Phone__in=phones, PhoneTime__range=(time_min, time_max))
+                .values('Phone', 'PhoneTime'))
+    for row in existing:
+        exist_keys.add((row['Phone'], dt_key_minute(row['PhoneTime'])))
 
+    # 篩出要新增的
     to_create = []
     for d in cleaned:
-        key = (d[PHONE_FIELD], d[TIME_FIELD])
+        key = (d["Phone"], dt_key_minute(d["PhoneTime"]))
         if key in exist_keys:
             continue
         to_create.append(CallRecord(**d))
 
     if not to_create:
-        return Response({"inserted": 0, "skipped": len(cleaned)}, status=200)
+        return Response({"inserted": 0, "skipped": len(cleaned)}, status=status.HTTP_200_OK)
 
     try:
         with transaction.atomic():
-            CallRecord.objects.bulk_create(to_create)
-        return Response({"inserted": len(to_create), "skipped": len(cleaned) - len(to_create)}, status=201)
+            CallRecord.objects.bulk_create(to_create, ignore_conflicts=True)
+        return Response({"inserted": len(to_create), "skipped": len(cleaned) - len(to_create)}, status=status.HTTP_201_CREATED)
     except Exception as e:
-        return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=500)
+        return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ====== API：查詢（沿用你的 to_dict 輸出）======
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])  # 確保用戶已經認證
 def get_call_records(request, elder_id):
     try:
-        # 使用 UserId_id 查詢通話紀錄
-        records = CallRecord.objects.filter(UserId_id=elder_id).order_by('-PhoneTime')[:100]
-        data = [record.to_dict() for record in records]  # 使用 to_dict() 方法來序列化資料
-        return JsonResponse(data, safe=False)  # 返回 JSON 格式的資料
-    
+        # TODO: 檢查 request.user 是否有權查看 elder_id 的資料
+        records = (CallRecord.objects
+                   .filter(UserId_id=elder_id)
+                   .order_by('-PhoneTime')[:100])
+        data = [record.to_dict() for record in records]
+        return JsonResponse(data, safe=False)
     except Exception as e:
-        # 如果有錯誤，返回 500 錯誤及錯誤訊息
         return JsonResponse({'error': str(e)}, status=500)
 
 
