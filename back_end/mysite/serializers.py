@@ -109,21 +109,52 @@ class HosSerializer(serializers.ModelSerializer):
         }
 
 
-
+from zoneinfo import ZoneInfo
 class CallRecordSerializer(serializers.ModelSerializer):
-    ScamCategory = serializers.SerializerMethodField()  # 新增欄位
+    ScamCategory = serializers.SerializerMethodField()   # ✅ 保留你原本的欄位與邏輯
+    PhoneTime_tw = serializers.SerializerMethodField()   # ✅ 新增：台灣時區 ISO
+    PhoneTime_hm_tw = serializers.SerializerMethodField()# ✅ 新增：台灣時區 HH:MM
+    # （若你想只讀，下面兩個也可加 read_only=True；預設輸出用就好）
+    # status 與 duration_sec 直接用 Model 欄位（你已加在 Model）
+    # 若不想讓前端修改，可在 View/Serializer 另一支「Create/Update」控制
 
     class Meta:
         model = CallRecord
-        fields = ['CallId', 'UserId', 'PhoneName', 'Phone', 'PhoneTime', 'IsScam', 'ScamCategory']
+        # ✅ 保留原本 fields，僅「加上」新的欄位，不移除、不改名
+        fields = [
+            'CallId',
+            'UserId',
+            'PhoneName',
+            'Phone',
+            'PhoneTime',        # DB 內的 UTC（DateTimeField）
+            'PhoneTime_tw',     # 轉 Asia/Taipei 的 ISO
+            'PhoneTime_hm_tw',  # 轉 Asia/Taipei 的 HH:MM
+            'status',           # 新欄位：通話狀態
+            'duration_sec',     # 新欄位：通話秒數
+            'IsScam',
+            'ScamCategory',
+        ]
+        read_only_fields = ['ScamCategory', 'PhoneTime_tw', 'PhoneTime_hm_tw']
 
     def get_ScamCategory(self, obj):
-        # 根據電話號碼查 Scam 表
+        # ✅ 保留你的 Scam 查詢邏輯
         try:
             scam = Scam.objects.get(Phone=obj.Phone)
             return scam.Category
         except Scam.DoesNotExist:
             return None
+
+    def get_PhoneTime_tw(self, obj):
+        # ✅ 將 DB 的 UTC PhoneTime 轉為台灣時區 ISO
+        if not obj.PhoneTime:
+            return None
+        return obj.PhoneTime.astimezone(ZoneInfo('Asia/Taipei')).isoformat()
+
+    def get_PhoneTime_hm_tw(self, obj):
+        # ✅ 只輸出到「幾點幾分」（台灣時區）
+        if not obj.PhoneTime:
+            return None
+        return obj.PhoneTime.astimezone(ZoneInfo('Asia/Taipei')).strftime('%H:%M')
         
 class LocaRecordSerializer(serializers.ModelSerializer):
     class Meta:
@@ -174,3 +205,87 @@ class LocationLatestSerializer(serializers.ModelSerializer):
 
     def get_lat(self, obj): return float(obj.Latitude)
     def get_lon(self, obj): return float(obj.Longitude)
+
+
+
+#24小時內
+class LocationHistorySerializer(serializers.ModelSerializer):
+    lat = serializers.SerializerMethodField()
+    lon = serializers.SerializerMethodField()
+    timestamp = serializers.DateTimeField(source='Timestamp')
+
+    class Meta:
+        model = LocaRecord  # 歷史定位資料
+        fields = ['lat', 'lon', 'timestamp']
+
+    def get_lat(self, obj):
+        return float(obj.Latitude)
+
+    def get_lon(self, obj):
+        return float(obj.Longitude)
+    
+
+    
+
+
+from rest_framework import serializers
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from zoneinfo import ZoneInfo
+from datetime import datetime
+from .models import CallRecord
+TYPE_MAP = {
+    '1': 'INCOMING', '2': 'OUTGOING', '3': 'MISSED', '4': 'VOICEMAIL',
+    '5': 'REJECTED', '6': 'BLOCKED', '7': 'ANSWERED_EXTERNALLY',
+}
+
+class CallRecordCreateSerializer(serializers.ModelSerializer):
+    # 允許傳 Android 的 type（1~7），或直接傳 status 也行
+    type = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = CallRecord
+        fields = ['PhoneName', 'Phone', 'PhoneTime', 'status', 'duration_sec', 'IsScam', 'type']
+
+    def validate(self, attrs):
+        # 1) type → status（有傳 type 就覆蓋）
+        t = attrs.pop('type', None)
+        if t is not None:
+            attrs['status'] = TYPE_MAP.get(str(t), 'UNKNOWN')
+
+        # 2) PhoneTime：接受 ISO(+08:00)/epoch(秒或毫秒)/無時區字串(視為台灣時間)
+        raw = attrs.get('PhoneTime')
+        dt = None
+        if isinstance(raw, (int, float)) or (isinstance(raw, str) and raw.isdigit()):
+            n = int(raw)
+            if n > 10_000_000_000:  # ms
+                dt = timezone.datetime.fromtimestamp(n / 1000.0, tz=timezone.utc)
+            else:
+                dt = timezone.datetime.fromtimestamp(n, tz=timezone.utc)
+        elif isinstance(raw, str):
+            dt = parse_datetime(raw)  # 若含時區會回 aware
+            if dt is None:
+                tw = ZoneInfo('Asia/Taipei')
+                for f in ['%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y/%m/%d %H:%M:%S','%Y/%m/%d %H:%M','%Y-%m-%dT%H:%M:%S','%Y-%m-%d']:
+                    try:
+                        naive = datetime.strptime(raw, f)
+                        dt = naive.replace(tzinfo=tw).astimezone(timezone.utc)
+                        break
+                    except Exception:
+                        pass
+        else:
+            dt = timezone.now()
+
+        if dt is None:
+            raise serializers.ValidationError({'PhoneTime': '無法解析時間格式'})
+
+        # 3) 存 UTC，且「只到分鐘」：清秒/微秒
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone=timezone.utc)
+        attrs['PhoneTime'] = dt.astimezone(timezone.utc).replace(second=0, microsecond=0)
+
+        # 4) duration_sec 非負
+        d = attrs.get('duration_sec') or 0
+        if d < 0:
+            attrs['duration_sec'] = 0
+        return attrs

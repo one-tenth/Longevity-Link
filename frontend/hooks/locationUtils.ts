@@ -1,7 +1,7 @@
 import { Platform, PermissionsAndroid } from 'react-native';
 import Geolocation, { GeoPosition, GeoError } from 'react-native-geolocation-service';
 
-// 型別
+// 定義定位參數選項的型別
 export interface LocationOptions {
   enableHighAccuracy?: boolean;
   timeout?: number;          // 超時(ms)
@@ -13,12 +13,13 @@ export interface LocationOptions {
   forceRequestLocation?: boolean;  
 }
 
+// 經緯度型別
 export interface LatLng {
   latitude: number;
   longitude: number;
 }
 
-// 預設選項
+// 預設選項，強制所有欄位必填
 const defaultOptions: Required<
   Pick<
     LocationOptions,
@@ -55,7 +56,7 @@ export async function requestLocationPermission(requireBackground = false): Prom
         { title: '背景定位權限', message: '長照通 需要在背景持續定位', buttonPositive: '允許', buttonNegative: '拒絕' }
       )) === PermissionsAndroid.RESULTS.GRANTED;
   }
-
+  // 所有必要權限都允許才回傳 true
   return (
     fine === PermissionsAndroid.RESULTS.GRANTED &&
     coarse === PermissionsAndroid.RESULTS.GRANTED &&
@@ -83,24 +84,35 @@ export function watchPosition(
   options: LocationOptions = {}
 ): () => void {
   const id = Geolocation.watchPosition(
-    (pos: GeoPosition) => onUpdate({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+    (pos: GeoPosition) => onUpdate({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }), // 更新位置
     onError,
     { ...defaultOptions, ...options }
   );
   return () => Geolocation.clearWatch(id);
 }
 
+
 // 反查地址
-export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+export async function reverseGeocode(lat: number, lng: number, lang: string = 'zh-TW'): Promise<string> {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'CareMate/1.0 (contact@saveshare506@gmail.com)' },
-    });
+
+    
+    // API
+    const url = `http://192.168.1.106:8000/api/reverse_geocode/?lat=${lat}&lng=${lng}`;
+    const res = await fetch(url);
     const data = await res.json();
-    return data.display_name || '無法取得地址';
+
+    if (data.address) {
+    console.log("地址是", data.address);
+    return data.address;
+  } else {
+    console.warn("沒有拿到 address 欄位");
+    return "無法取得地址";
+  }
+
   } catch (error) {
     console.warn('reverseGeocode error', error);
     return '無法取得地址';
   }
 }
+

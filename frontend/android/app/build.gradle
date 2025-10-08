@@ -95,7 +95,7 @@ android {
 
 dependencies {
     implementation("com.facebook.react:react-android")
-    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.google.android.gms:play-services-auth:21.3.0'
 
     //定位
     

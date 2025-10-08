@@ -1,7 +1,14 @@
 // screens/HealthStatus.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, StatusBar, Pressable, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  Pressable,
+  ActivityIndicator,
+  Animated,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
@@ -41,7 +48,7 @@ const outerShadow = {
 } as const;
 
 
-const BASE = 'http://192.168.1.106:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 
 type Period = 'morning' | 'evening';
@@ -70,14 +77,13 @@ export default function HealthStatus() {
   const navigation = useNavigation<NavProp>();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
-
   const [steps, setSteps] = useState<number | null>(null);
   const [bp, setBp] = useState<BpResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [bpLoading, setBpLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fadeAnim] = useState(new Animated.Value(0));
 
-  // ✅ 目前顯示的時段（預設依時間自動判斷）
   const initialPeriod: Period = useMemo(() => {
     const hr = new Date().getHours();
     return hr < 12 ? 'morning' : 'evening';
@@ -100,7 +106,6 @@ export default function HealthStatus() {
       const member = JSON.parse(selected);
       const dateStr = formatDateYYYYMMDD(date);
 
-      // 讀步數（可選）
       try {
         const stepRes = await axios.get(`${BASE}/api/fitdata/by-date/`, {
           params: { date: dateStr, user_id: member.UserID },
@@ -111,7 +116,6 @@ export default function HealthStatus() {
         setSteps(null);
       }
 
-      // 讀血壓（早/晚兩筆）
       setBpLoading(true);
       try {
         const bpRes = await axios.get<BpResponse>(`${BASE}/api/healthcare/by-date/`, {
@@ -135,12 +139,13 @@ export default function HealthStatus() {
 
   useEffect(() => {
     fetchAll(selectedDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [selectedDate, fadeAnim]);
 
-  const weekday = selectedDate.toLocaleDateString('zh-TW', { weekday: 'short' });
-
-  // 目前所選時段的顯示資料
   const currentItem: BpItem = bp ? bp[period] : null;
   const currentValue = currentItem
     ? `${currentItem.systolic ?? '-'} / ${currentItem.diastolic ?? '-'}`
@@ -150,7 +155,7 @@ export default function HealthStatus() {
     : '—';
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Animated.View style={{ flex: 1, backgroundColor: COLORS.white, opacity: fadeAnim }}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       {/* Header */}
@@ -159,34 +164,31 @@ export default function HealthStatus() {
           onPress={() => navigation.navigate('ChildHome' as never)}
           style={styles.backFab}
         >
-          <FontAwesome name="arrow-left" size={20} color={COLORS.white} />
+          <FontAwesome name="arrow-left" size={20} color={COLORS.black} />
         </TouchableOpacity>
-
         <View style={styles.headerCenter}>
           <MaterialCommunityIcons
             name="heart-pulse"
             size={24}
-            color={COLORS.black}
+            color={COLORS.green}
             style={{ marginRight: 8 }}
           />
           <Text style={styles.headerTitle}>健康狀態</Text>
         </View>
       </View>
 
-      {/* 日期卡片 */}
+      {/* Date Card */}
       <Pressable
         onPress={() => setShowPicker(true)}
-        android_ripple={{ color: '#00000010' }}
-        style={({ pressed }) => [styles.dateCard, outerShadow, pressed && { transform: [{ scale: 0.995 }] }]}
+        android_ripple={{ color: '#00000020' }}
+        style={({ pressed }) => [styles.dateCard, outerShadow, pressed && styles.pressedCard]}
       >
         <View style={styles.dateIconWrap}>
           <FontAwesome name="calendar" size={20} color={COLORS.black} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.dateMain}>
-            {formatDateYYYYMMDD(selectedDate)}（{weekday}）
-          </Text>
-          <Text style={styles.dateSub}>點我更改日期</Text>
+          <Text style={styles.dateMain}>{formatDateYYYYMMDD(selectedDate)}</Text>
+          <Text style={styles.dateSub}>點擊更改日期</Text>
         </View>
       </Pressable>
 
@@ -194,18 +196,18 @@ export default function HealthStatus() {
         <DateTimePicker
           value={selectedDate}
           mode="date"
-          display="default"
+          display="spinner"
           onChange={(event, date) => {
             setShowPicker(false);
             if (date) {
               setSelectedDate(date);
-              fetchAll(date); // 換日即重查
+              fetchAll(date);
             }
           }}
         />
       )}
 
-      {/* 早/晚 切換 Pills */}
+      {/* Period Pills */}
       <View style={styles.pillsRow}>
         <PeriodPill
           label="早上"
@@ -221,7 +223,7 @@ export default function HealthStatus() {
         />
       </View>
 
-      {/* 單一卡片：內容依時段切換 */}
+      {/* Blood Pressure Card */}
       <FeatureCard
         bg={COLORS.white}
         title={`血壓（${period === 'morning' ? '早上' : '晚上'}）`}
@@ -230,15 +232,15 @@ export default function HealthStatus() {
             ? `收縮/舒張：${currentValue} · 脈搏：${currentPulse} bpm`
             : '查無此時段紀錄'
         }
-        right={<MaterialIcons name="monitor-heart" size={28} color={COLORS.black} />}
+        right={<MaterialIcons name="monitor-heart" size={28} color={COLORS.green} />}
         onPress={() => {}}
         darkText
         withShadow
       >
         {bpLoading ? (
-          <View style={{ paddingVertical: 8, alignItems: 'center' }}>
-            <ActivityIndicator />
-            <Text style={{ marginTop: 6, color: COLORS.textMid }}>載入中…</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={COLORS.green} />
+            <Text style={styles.loadingText}>載入中…</Text>
           </View>
         ) : (
           <View style={mini.row}>
@@ -249,31 +251,29 @@ export default function HealthStatus() {
         )}
       </FeatureCard>
 
-      {/* 步數卡（保留） */}
+      {/* Steps Card */}
       <FeatureCard
         bg={COLORS.white}
         title="步數詳細"
         subtitle={steps !== null ? `${steps} 步` : '查無紀錄'}
-        right={<MaterialCommunityIcons name="walk" size={28} color={COLORS.black} />}
+        right={<MaterialCommunityIcons name="walk" size={28} color={COLORS.green} />}
         onPress={() => {}}
         darkText
         withShadow
       />
 
-      {/* 全頁錯誤提示（可選） */}
-      {error ? (
-        <View style={{ marginTop: 12, alignItems: 'center' }}>
-          <Text style={{ color: 'crimson' }}>{error}</Text>
+      {/* Error Message */}
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
-      ) : null}
-    </View>
+      )}
+    </Animated.View>
   );
 }
 
-/* ====== 子元件 ====== */
-function PeriodPill({
-  label, active, onPress, icon,
-}: { label: string; active: boolean; onPress: () => void; icon?: React.ReactNode }) {
+/* ====== Subcomponents ====== */
+function PeriodPill({ label, active, onPress, icon }: { label: string; active: boolean; onPress: () => void; icon?: React.ReactNode }) {
   return (
     <Pressable
       onPress={onPress}
@@ -283,7 +283,7 @@ function PeriodPill({
         active ? pill.active : pill.inactive,
       ]}
     >
-      {icon ? <View style={{ marginRight: 6 }}>{icon}</View> : null}
+      {icon && <View style={pill.icon}>{icon}</View>}
       <Text style={[pill.text, active ? pill.textActive : pill.textInactive]}>{label}</Text>
     </Pressable>
   );
@@ -294,17 +294,30 @@ function MiniBox({ title, value, suffix }: { title: string; value: string; suffi
     <View style={mini.box}>
       <Text style={mini.title}>{title}</Text>
       <Text style={mini.value}>
-        {value}{suffix ? <Text style={mini.suffix}> {suffix}</Text> : null}
+        {value}{suffix && <Text style={mini.suffix}> {suffix}</Text>}
       </Text>
     </View>
   );
 }
 
 function FeatureCard({
-  bg, title, subtitle, right, onPress, darkText = false, withShadow = false, children,
+  bg,
+  title,
+  subtitle,
+  right,
+  onPress,
+  darkText = false,
+  withShadow = false,
+  children,
 }: {
-  bg: string; title: string; subtitle?: string; right?: React.ReactNode; onPress: () => void;
-  darkText?: boolean; withShadow?: boolean; children?: React.ReactNode;
+  bg: string;
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  onPress: () => void;
+  darkText?: boolean;
+  withShadow?: boolean;
+  children?: React.ReactNode;
 }) {
   return (
     <Pressable
@@ -314,15 +327,15 @@ function FeatureCard({
         feature.card,
         { backgroundColor: bg },
         withShadow && outerShadow,
-        pressed && { transform: [{ scale: 0.995 }] },
+        pressed && styles.pressedCard,
       ]}
     >
-      <View style={{ flex: 1 }}>
+      <View style={feature.content}>
         <Text style={[feature.title, { color: darkText ? COLORS.textDark : COLORS.white }]}>{title}</Text>
-        {!!subtitle && <Text style={[feature.sub, { color: darkText ? COLORS.textMid : COLORS.white }]}>{subtitle}</Text>}
+        {subtitle && <Text style={[feature.sub, { color: darkText ? COLORS.textMid : COLORS.white }]}>{subtitle}</Text>}
         {children}
       </View>
-      {right}
+      {right && <View style={feature.right}>{right}</View>}
     </Pressable>
   );
 }
@@ -332,9 +345,11 @@ const styles = StyleSheet.create({
   header: {
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 12,
     height: 56,
     justifyContent: 'center',
+    backgroundColor: COLORS.grayBox,
+    borderRadius: 12,
   },
   backFab: {
     position: 'absolute',
@@ -343,44 +358,79 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: COLORS.black,
+    backgroundColor: COLORS.grayBox,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerCenter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: COLORS.black },
-
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.textDark,
+  },
   dateCard: {
     marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: COLORS.white,
+    marginBottom: 16,
+    backgroundColor: COLORS.cream,
     borderRadius: 14,
-    padding: 14,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   dateIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: COLORS.grayBox,
-    alignItems: 'center', justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.green,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dateMain: { fontSize: 18, fontWeight: '900', color: COLORS.textDark },
-  dateSub: { fontSize: 12, fontWeight: '700', color: COLORS.textMid, marginTop: 2 },
-
+  dateMain: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textDark,
+  },
+  dateSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.textMid,
+  },
   pillsRow: {
     marginHorizontal: 16,
-    marginTop: 6,
+    marginTop: 12,
+    marginBottom: 16,
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
+  },
+  pressedCard: {
+    transform: [{ scale: 0.99 }],
+  },
+  loadingContainer: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 6,
+    color: COLORS.textMid,
+    fontSize: 14,
+  },
+  errorContainer: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    padding: 12,
+    backgroundColor: '#FFF0F0',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#D32F2F',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
@@ -388,33 +438,61 @@ const pill = StyleSheet.create({
   base: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 999,
   },
   inactive: {
     backgroundColor: COLORS.pillBg,
   },
   active: {
-    backgroundColor: COLORS.pillActive,
+    backgroundColor: COLORS.green,
   },
-  text: { fontSize: 14, fontWeight: '800' },
-  textInactive: { color: COLORS.pillText },
-  textActive: { color: COLORS.pillTextActive },
+  icon: {
+    marginRight: 8,
+  },
+  text: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  textInactive: {
+    color: COLORS.pillText,
+  },
+  textActive: {
+    color: COLORS.pillTextActive,
+  },
 });
 
 const mini = StyleSheet.create({
-  row: { marginTop: 12, flexDirection: 'row', gap: 10 },
+  row: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
   box: {
     flex: 1,
     backgroundColor: COLORS.grayBox,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 10,
     alignItems: 'center',
   },
-  title: { fontSize: 12, fontWeight: '700', color: COLORS.textMid },
-  value: { fontSize: 18, fontWeight: '900', color: COLORS.black, textAlign: 'center' },
-  suffix: { fontSize: 12, fontWeight: '700', color: COLORS.black },
+  title: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMid,
+    textTransform: 'uppercase',
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    textAlign: 'center',
+  },
+  suffix: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
 });
 
 const feature = StyleSheet.create({
@@ -422,11 +500,24 @@ const feature = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: R,
-    padding: 18,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
-  title: { fontSize: 18, fontWeight: '900' },
-  sub: { marginTop: 2, fontSize: 14 },
+  content: {
+    flex: 1,
+  },
+  right: {
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  sub: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });

@@ -6,9 +6,18 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Geolocation from 'react-native-geolocation-service';
 import BackgroundFetch from 'react-native-background-fetch';
 
-import { requestLocationPermissions, reverseGeocode, formatTs } from '../utils/locationUtils';
+
+import {
+  requestLocationPermissions,
+  getCurrentCoords,
+  watchCoords,
+  Coords,
+  formatTs,
+  reverseGeocode,
+} from '../utils/locationUtils';
 
 const BASE_URL = 'http://192.168.1.106:8000';
+
 
 const COLORS = {
   white: '#FFFFFF',
@@ -131,7 +140,7 @@ export default function ElderLocation({ navigation }: any) {
         error => {
           console.warn('持續定位錯誤:', error);
         },
-        { enableHighAccuracy: true, distanceFilter: 3 } // 每當移動一定距離就更新
+        { enableHighAccuracy: true, distanceFilter: 50 } // 每當移動一定距離就更新
       );
     })();
 
