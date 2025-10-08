@@ -127,7 +127,7 @@ export default function LocationScreen() {
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          region={region}  // 使用動態更新的 region
+          initialRegion={region} // 使用動態更新的 region
         >
           {/* 確保 Marker 顯示在正確位置 */}
           {latest && latest.lat && latest.lon && (

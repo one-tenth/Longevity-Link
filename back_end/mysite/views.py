@@ -1735,7 +1735,8 @@ def _google_reverse(lat, lng, lang):
     )
     j = r.json()
     print('Google Geocode API 回傳 status:', j.get("status"))  # 可看API錯誤訊息
-    
+    print('實際查詢 lat/lng:', lat, lng)
+
 
     if j.get("status") == "OK" and j.get("results"):
         first = j["results"][0]
@@ -1754,3 +1755,49 @@ def reverse_geocode(request):
         return Response({"error": "lat/lng required"}, status=400)
     addr = _google_reverse(str(lat), str(lng), lang)
     return Response({"address": addr})  # 取第一筆地址
+
+
+'''
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.utils.timezone import now, timedelta
+from .serializers import LocationHistorySerializer  
+
+
+#過去24小時內定位資料
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def location_history(request, elder_id):
+    try:
+        hours = int(request.query_params.get('hours', 24))
+        time_threshold = now() - timedelta(hours=hours)
+
+        # 驗證使用者存在 & 是長者 & 同家庭
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = request.user
+
+        try:
+            elder = User.objects.get(pk=elder_id)
+        except User.DoesNotExist:
+            return Response({'error': '使用者不存在'}, status=404)
+
+        if not getattr(elder, 'is_elder', False):
+            return Response({'error': '不是長者帳號'}, status=400)
+
+        if not _same_family(user, elder):
+            return Response({'error': '無權存取'}, status=403)
+
+        # 查詢歷史資料
+        queryset = LocaRecord.objects.filter(
+            UserID=elder,
+            Timestamp__gte=time_threshold
+        ).order_by('Timestamp')
+
+        serializer = LocationHistorySerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+'''
