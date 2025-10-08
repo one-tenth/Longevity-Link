@@ -279,7 +279,8 @@ export default function CallLogScreen() {
         </Text>
 
         <Text style={styles.detail}>
-          {`名稱：${displayName(item.PhoneName)} · 類型：${type} · 時間：${twTime} · 時長：${durationText}`}
+          {`名稱：${displayName(item.PhoneName)} · 類型：${type} 
+時間：${twTime} · 時長：${durationText}`}
         </Text>
       </View>
     );
