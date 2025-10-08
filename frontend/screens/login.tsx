@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'; 
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -45,6 +46,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     try {
+
       const response = await fetch('http://192.168.1.106:8000/api/account/login/', {
 
         method: 'POST',
@@ -128,39 +130,52 @@ export default function LoginScreen() {
           <Text style={styles.footerText}>長照通</Text>
         </View>
 
-        <View style={styles.inputGroup}>
-          <View style={styles.inputBox}>
-            <Text style={styles.inputLabelInline}>帳號</Text>
-            <TextInput
-              style={styles.input}
-              value={Phone}
-              onChangeText={setPhone}
-              placeholder="請輸入手機號碼"
-              keyboardType="phone-pad"
-            />
+
+        {/* 用 ScrollView 讓帳號、密碼、註冊區域可滾動 */}
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {/* 帳號欄位 */}
+          <View style={styles.inputGroup}>
+            <View style={styles.inputBox}>
+              <Text style={styles.inputLabelInline}>帳號</Text>
+              <TextInput
+                style={styles.input}
+                value={Phone}
+                onChangeText={setPhone}
+                placeholder="請輸入手機號碼"
+                keyboardType="phone-pad"
+              />
+            </View>
+
           </View>
-        </View>
 
-        <View style={styles.inputGroup}>
-          <View style={styles.inputBox}>
-            <Text style={styles.inputLabelInline}>密碼</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="請輸入密碼"
-              secureTextEntry
-            />
+
+          {/* 密碼欄位 */}
+          <View style={styles.inputGroup}>
+            <View style={styles.inputBox}>
+              <Text style={styles.inputLabelInline}>密碼</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="請輸入密碼"
+                secureTextEntry
+              />
+            </View>
+
           </View>
-        </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>登入</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen',{ mode: 'register' })}>
-          <Text style={styles.registerText}>沒有帳號？註冊</Text>
-        </TouchableOpacity>
+          {/* 登入按鈕 */}
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <Text style={styles.buttonText}>登入</Text>
+          </TouchableOpacity>
+
+          {/* 註冊連結 */}
+          <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen', { mode: 'register' })}>
+            <Text style={styles.registerText}>沒有帳號？註冊</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
       </View>
     </>
   );
@@ -171,9 +186,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 24,
+    justifyContent: 'center', // 置中容器內容
+    paddingHorizontal: 40,
     paddingTop: 40,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    width: '100%',
+    alignItems: 'center', // 讓內容集中
+    
   },
   headerContainer: {
     alignItems: 'center',
@@ -192,24 +213,24 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   inputGroup: {
-    width: '100%',
     marginBottom: 16,
   },
   inputBox: {
     flexDirection: 'row',
-    height: 80,
+    height: 60,
     alignItems: 'center',
     backgroundColor: '#F2F2F2',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    width: '100%', // 確保佔滿寬度
   },
   inputLabelInline: {
     color: '#333',
     fontWeight: '900',
     fontSize: 20,
     marginRight: 10,
-    width: 50,
+    width: 70,
   },
   input: {
     flex: 1,
@@ -222,6 +243,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 60,
     borderRadius: 10,
     marginTop: 20,
+    width: '80%', // 設定寬度為 80%
+    alignItems: 'center',
   },
   buttonText: {
     color: '#FFF',
@@ -234,5 +257,6 @@ const styles = StyleSheet.create({
     color: '#00288c',
     fontSize: 14,
     textDecorationLine: 'underline',
+    marginBottom: 10,
   },
 });

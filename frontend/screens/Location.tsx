@@ -14,9 +14,21 @@ import axios from 'axios';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import { reverseGeocode, formatTs } from '../utils/locationUtils';
+import Config from 'react-native-config';
 
-// 你的後端 API
-const BASE_URL = 'http://192.168.1.106:8000';
+
+
+type LatestLocationResp = {
+  ok: boolean;
+  user: number;
+  lat: number;
+  lon: number;
+  ts: string;
+};
+
+const BASE_URL = 'http://192.168.1.106:8000';   
+
+
 
 type HistPoint = { lat: number; lon: number; ts: string };
 
@@ -112,7 +124,7 @@ export default function LocationScreen() {
       
       // 地圖移動到最新點
       mapRef.current?.animateToRegion(
-        { latitude: lat, longitude: lon, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+        { latitude: lat, longitude: lon, latitudeDelta: 0.05, longitudeDelta: 0.05 },
         500
       );
 
@@ -278,7 +290,7 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
     borderRadius: 12,
-    minHeight: height * 0.6,
+    minHeight: height * 0.5,
   },
   infoContainer: { marginTop: 20 },
   infoText: { color: '#000', fontSize: 16, marginBottom: 10 },

@@ -257,7 +257,9 @@ export default function RegisterScreen() {
             <TouchableOpacity
               style={[styles.btn, { backgroundColor: '#A0C334', marginTop: 10 }]}
               // @ts-ignore
-              onPress={() => navigation.navigate('LoginScreen')}
+
+              onPress={() => navigation.navigate('login')}
+
             >
               <Text style={styles.btnText}>返回主頁</Text>
             </TouchableOpacity>
