@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // 設置 API 基本 URL
-const API_BASE = 'http://192.168.0.91:8000'; // 請根據你的伺服器地址進行更改
+const API_BASE = 'http://192.168.0.24:8000'; // 請根據你的伺服器地址進行更改
 
 // 儲存 access 和 refresh token 到 AsyncStorage
 export const storeTokens = async (access: string, refreshToken: string) => {

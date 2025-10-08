@@ -48,7 +48,7 @@ const outerShadow = {
 } as const;
 
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 
 type Period = 'morning' | 'evening';

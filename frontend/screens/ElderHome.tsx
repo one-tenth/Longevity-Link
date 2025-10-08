@@ -90,7 +90,7 @@ function toZhPeriod(key?: string): string {
 }
 
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
@@ -427,70 +427,79 @@ export default function ElderHome() {
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  const handleSyncCalls = async ({ silent = false }: { silent?: boolean } = {}) => {
-    try {
-      const ok = await askCallLogPermission();
-      if (!ok) return;
+  const handleSyncCalls = async ({ silent = false, forceFull = false }: { silent?: boolean; forceFull?: boolean } = {}) => {
+  try {
+    const ok = await askCallLogPermission();
+    if (!ok) return;
 
-      setSyncing(true);
+    setSyncing(true);
 
-      const access = await AsyncStorage.getItem('access');
-      if (!access) {
-        setSyncing(false);
-        if (!silent) Alert.alert('尚未登入', '請先登入後再試。');
-        return;
-      }
-
-      const raw = await CallLogs.loadAll();
-      const lastTsStr = await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY);
-      const lastTs = Number(lastTsStr || 0);
-      const isFirstSync = !lastTs || Number.isNaN(lastTs) || lastTs === 0;
-
-      const mapped = raw
-        .map((r: any) => {
-          const tsNum = Number(r.timestamp || 0);
-          return {
-            phone: r.phoneNumber ?? '',
-            name: r.name ?? '',
-            type: mapType(r.type),
-            timestamp: new Date(tsNum).toISOString(),
-            duration: Number(r.duration || 0),
-            _ts: tsNum,
-            extra: { rawType: r.type },
-          };
-        })
-        .filter(x => !!x.phone && x._ts > 0)
-        .sort((a, b) => b._ts - a._ts);
-
-      const items = isFirstSync
-        ? mapped.slice(0, 100)
-        : mapped.filter(x => x._ts > lastTs).slice(0, 500);
-
-      if (items.length === 0) {
-        setSyncing(false);
-        if (!silent) Alert.alert('沒有新紀錄', '已經是最新狀態。');
-        await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
-        return;
-      }
-
-      await axios.post(
-        `${BASE}/api/call/upload/`,
-        { records: items.map(({ _ts, ...rest }) => rest) },
-        { headers: { Authorization: `Bearer ${access}` }, timeout: 10000 }
-      );
-
-      const maxTs = Math.max(...items.map(x => x._ts));
-      await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTs));
-      await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
-
+    const access = await AsyncStorage.getItem('access');
+    if (!access) {
       setSyncing(false);
-      if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
-    } catch (e: any) {
-      setSyncing(false);
-      const msg = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'unknown');
-      if (!silent) Alert.alert('上傳失敗', msg);
+      if (!silent) Alert.alert('尚未登入', '請先登入後再試。');
+      return;
     }
-  };
+
+    const raw = await CallLogs.loadAll();
+
+    // ---- 統一：全部用「毫秒」來處理 ----
+    const toMs = (n: number) => (n > 1e12 ? n : n * 1000); // 10位數=秒、13位數=毫秒
+    const lastTsRaw = Number((await AsyncStorage.getItem(LAST_UPLOAD_TS_KEY)) || 0);
+    const lastTsMs = lastTsRaw ? (lastTsRaw < 1e12 ? lastTsRaw * 1000 : lastTsRaw) : 0; // 舊資料若是秒，這裡自動轉毫秒
+    const isFirstSync = !lastTsMs || Number.isNaN(lastTsMs) || lastTsMs === 0;
+
+    const mapped = (raw || [])
+      .map((r: any) => {
+        const _tsMs = toMs(Number(r.timestamp || 0));
+        return {
+          phone: r.phoneNumber ?? '',
+          name: r.name ?? '',
+          type: mapType(r.type),
+          timestamp: new Date(_tsMs).toISOString(), // 後端吃 ISO → 你後端會轉 UTC
+          duration: Number(r.duration || 0),
+          _tsMs,                                     // 比對一律用毫秒
+          extra: { rawType: r.type },
+        };
+      })
+      .filter(x => !!x.phone && x._tsMs > 0)
+      .sort((a, b) => b._tsMs - a._tsMs);
+
+    // 若 forceFull=true 就先全量傳前 N 筆，方便排錯
+    let items = forceFull
+      ? mapped.slice(0, 100)
+      : (isFirstSync ? mapped.slice(0, 100) : mapped.filter(x => x._tsMs > lastTsMs).slice(0, 500));
+
+    if (items.length === 0) {
+      setSyncing(false);
+      if (!silent) Alert.alert('沒有新紀錄', '已經是最新狀態。');
+      await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
+      return;
+    }
+
+    await axios.post(
+      `${BASE}/api/call/upload/`,
+      { records: items.map(({ _tsMs, ...rest }) => rest) },  // 把內部用的 _tsMs 拿掉
+      { headers: { Authorization: `Bearer ${access}` }, timeout: 15000 }
+    );
+
+    const maxTsMs = Math.max(...items.map(x => x._tsMs));
+    await AsyncStorage.setItem(LAST_UPLOAD_TS_KEY, String(maxTsMs));    // 之後一律存毫秒
+    await AsyncStorage.setItem(LAST_SYNC_AT_KEY, String(Date.now()));
+
+    setSyncing(false);
+    if (!silent) Alert.alert('上傳完成', `成功上傳 ${items.length} 筆`);
+  } catch (e: any) {
+    setSyncing(false);
+    const msg = e?.response
+      ? `[${e.response.status}] ${JSON.stringify(e.response.data)}`
+      : e?.request
+        ? `No response (network) - ${String(e.message || '')}`
+        : String(e?.message || e);
+    if (!silent) Alert.alert('上傳失敗', msg);
+  }
+};
+
 
   const autoSyncIfNeeded = useCallback(async (reason: string) => {
     try {
@@ -695,6 +704,19 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+  style={[styles.rowCard, styles.cardShadow, { backgroundColor: '#222' }]}
+  activeOpacity={0.9}
+  onPress={() => handleSyncCalls({ silent: false })}
+>
+  <View style={styles.rowTop}>
+    <Text style={[styles.rowTitle, { color: '#fff' }]}>同步通話紀錄（手動）</Text>
+    <Feather name="upload" size={22} color="#fff" />
+  </View>
+  <Text style={{ color: '#eee', marginTop: 8 }}>
+    會立刻讀取手機通話紀錄並上傳。{syncing ? '（進行中…）' : ''}
+  </Text>
+</TouchableOpacity>
         </ScrollView>
 
         <View pointerEvents="box-none" style={styles.fabWrap}>

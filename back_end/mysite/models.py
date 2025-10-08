@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 import uuid
 from django.utils import timezone
 from django.conf import settings
-
+from zoneinfo import ZoneInfo
 
 import random
 import string
@@ -216,25 +216,54 @@ class MedTimeSetting(models.Model):
 
 class CallRecord(models.Model):
     CallId = models.AutoField(primary_key=True)
-    UserId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserId')
-    PhoneName = models.CharField(max_length=50)  
-    Phone = models.CharField(max_length=20)      
-    PhoneTime = models.CharField(max_length=20)  
-    IsScam = models.BooleanField(default=False)
+    UserId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='UserId', related_name='call_records')
 
-    def to_dict(self):
-        return {
-            'CallId': self.CallId,
-            'UserId': self.UserId_id,  # 外鍵 id
-            'PhoneName': self.PhoneName,
-            'Phone': self.Phone,
-            'PhoneTime': self.PhoneTime,
-            'IsScam': self.IsScam,
-        }
+    PhoneName = models.CharField(max_length=50, blank=True, default='')
+    Phone = models.CharField(max_length=20)
+
+    # ✅ 改為 DateTimeField（DB 存 UTC；顯示再轉台灣）
+    PhoneTime = models.DateTimeField(db_column='PhoneTime')
+
+    CALL_STATUS_CHOICES = [
+        ('INCOMING', '來電(已接)'),
+        ('OUTGOING', '去電'),
+        ('MISSED', '未接來電'),
+        ('REJECTED', '已拒接'),
+        ('BLOCKED', '已封鎖'),
+        ('VOICEMAIL', '語音信箱'),
+        ('ANSWERED_EXTERNALLY', '其他裝置接聽'),
+        ('UNKNOWN', '未知'),
+    ]
+    status = models.CharField(max_length=32, choices=CALL_STATUS_CHOICES, default='UNKNOWN')
+
+    duration_sec = models.PositiveIntegerField(default=0)
+    IsScam = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "Call record"
         verbose_name_plural = "Call record"
+        ordering = ['-PhoneTime']
+        indexes = [
+            models.Index(fields=['UserId', 'PhoneTime']),
+            models.Index(fields=['Phone']),
+            models.Index(fields=['status']),
+        ]
+
+    def to_dict(self):
+        tz = ZoneInfo('Asia/Taipei')
+        return {
+            'CallId': self.CallId,
+            'UserId': self.UserId_id,
+            'PhoneName': self.PhoneName,
+            'Phone': self.Phone,
+            # 一律回 ISO，前端才好 parse
+            'PhoneTime': self.PhoneTime.isoformat(),                       # UTC ISO
+            'PhoneTime_tw': self.PhoneTime.astimezone(tz).isoformat(),     # 台灣 ISO
+            # ✅ 把通話類型與秒數回出去（前端就會顯示正確）
+            'status': self.status,
+            'duration_sec': self.duration_sec,
+            'IsScam': self.IsScam,
+        }
 
 class Scam(models.Model):
     ScamId = models.AutoField(primary_key=True)
