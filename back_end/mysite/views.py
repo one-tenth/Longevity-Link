@@ -1415,16 +1415,25 @@ def to_dt(obj) -> datetime:
 def dt_key_minute(d: datetime) -> str:
     return d.astimezone(py_tz.utc).strftime('%Y-%m-%d %H:%M')
 
-def map_type(t: str) -> str:
-    if not t:
+def map_type(t) -> str:
+    """容錯數字/字串；回傳標準型別字串"""
+    if t is None:
         return 'UNKNOWN'
-    s = str(t).upper()
-    if s in ('INCOMING', 'OUTGOING', 'MISSED', 'REJECTED'):
+    s = str(t).strip().upper()
+    if s in ('UNKNOW',):  # 有些資料表預設寫錯字
+        s = 'UNKNOWN'
+    # 英文字面
+    allow = {'INCOMING','OUTGOING','MISSED','REJECTED','BLOCKED','VOICEMAIL','ANSWERED_EXTERNALLY','UNKNOWN'}
+    if s in allow:
         return s
+    # 數字映射（Android CallLog.Calls.TYPE）
     if s == '1': return 'INCOMING'
     if s == '2': return 'OUTGOING'
     if s == '3': return 'MISSED'
-    if s in ('4', '5'): return 'REJECTED'
+    if s == '4': return 'VOICEMAIL'            # 4 是語音信箱
+    if s == '5': return 'REJECTED'
+    if s == '6': return 'BLOCKED'
+    if s == '7': return 'ANSWERED_EXTERNALLY'
     return 'UNKNOWN'
 
 
@@ -1452,7 +1461,7 @@ def upload_call_logs(request):
     if elder_id:
         try:
             target_user = User.objects.get(pk=int(elder_id))
-            # TODO: 檢查 request.user 是否有權限代該使用者上傳（同家庭等）
+            # TODO: 驗證 request.user 是否可代該 elder 上傳
         except (User.DoesNotExist, ValueError):
             return Response({"error": "elder not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1460,52 +1469,78 @@ def upload_call_logs(request):
     if not isinstance(records, list) or not records:
         return Response({"error": "no records"}, status=status.HTTP_400_BAD_REQUEST)
 
+    # 讀模型欄位，用動態對應避免命名差異
     model_fields = {f.name for f in CallRecord._meta.get_fields() if hasattr(f, "attname")}
-    def pick(cands):
+    def pick_field(cands):
         for c in cands:
             if c in model_fields:
                 return c
         return None
 
-    PHONE_FIELD  = pick(["Phone", "phone"])
-    TIME_FIELD   = pick(["PhoneTime", "phone_time", "time"])
-    USER_FIELD   = pick(["UserId", "user", "user_id"])
-    DURATION_FIELD = pick(["Duration", "duration", "CallDuration", "DurationSec"])
-    TYPE_FIELD     = pick(["Type", "type", "CallType", "Direction"])
-    NAME_FIELD     = pick(["PhoneName", "phone_name", "Name", "ContactName"])
-    EXTRA_FIELD    = pick(["Extra", "extra", "Meta", "Payload"])
+    PHONE_FIELD    = pick_field(["Phone", "phone"])
+    TIME_FIELD     = pick_field(["PhoneTime", "phone_time", "time", "Timestamp"])
+    USER_FIELD     = pick_field(["UserId", "user", "user_id"])
+    DURATION_FIELD = pick_field(["duration_sec","DurationSec","Duration","duration","CallDuration","Seconds","Secs"])
+    TYPE_FIELD     = pick_field(["status","Status","Type","type","CallType","Direction"])  # 支援 status/Type
+    NAME_FIELD     = pick_field(["PhoneName","phone_name","Name","ContactName"])
+    EXTRA_FIELD    = pick_field(["Extra","extra","Meta","Payload"])
 
     if not all([PHONE_FIELD, TIME_FIELD, USER_FIELD]):
         return Response({"error": "model required fields not found"}, status=500)
 
     cleaned = []
     for r in records:
-        phone = normalize_phone(r.get("phone") or '')
-        ts_str = to_dt(r.get("timestamp"))
+        # ---- 取電話 ----
+        phone = normalize_phone(r.get("phone") or r.get("Phone") or '')
+        # ---- 取時間 ----
+        ts_str = to_dt(r.get("timestamp") or r.get("PhoneTime") or r.get("time"))
+
         if not phone or not ts_str:
+            # 這筆丟掉，但仍打 log 幫忙追
+            print("[upload_call_logs] skip record, phone/ts missing:", r)
             continue
+
+        # ---- 型別：盡可能撈到 ----
+        raw_type = (
+            r.get("type") or r.get("status") or r.get("Type") or
+            r.get("CallType") or r.get("Direction") or
+            r.get("rawType") or (r.get("extra") or {}).get("rawType")
+        )
+        final_type = map_type(raw_type)
+
+        # ---- 時長 ----
+        raw_dur = (
+            r.get("duration_sec") or r.get("DurationSec") or r.get("Duration") or
+            r.get("duration") or r.get("CallDuration") or r.get("Seconds") or r.get("Secs")
+        )
+        try:
+            dur_sec = int(raw_dur or 0)
+        except Exception:
+            dur_sec = 0
+
+        # ---- 名稱 ----
+        name = (r.get("name") or r.get("PhoneName") or '').strip() or '未知來電'
+
+        # 重要：在後端 log 一下，確認拿到什麼
+        print(f"[upload_call_logs] recv phone={phone} ts={ts_str} raw_type={raw_type} -> {final_type} dur={dur_sec} name={name}")
+
         payload = {
             USER_FIELD: target_user,
             PHONE_FIELD: phone,
             TIME_FIELD: ts_str,
         }
-        if DURATION_FIELD is not None:
-            try:
-                payload[DURATION_FIELD] = int(r.get("duration") or 0)
-            except Exception:
-                payload[DURATION_FIELD] = 0
-        if TYPE_FIELD is not None:
-            payload[TYPE_FIELD] = map_type(r.get("type"))
-        if NAME_FIELD is not None:
-            name = (r.get("name") or '').strip() or '未知來電'
-            payload[NAME_FIELD] = name[:255]
-        if EXTRA_FIELD is not None and r.get("extra") is not None:
+        if TYPE_FIELD:     payload[TYPE_FIELD] = final_type
+        if DURATION_FIELD: payload[DURATION_FIELD] = dur_sec
+        if NAME_FIELD:     payload[NAME_FIELD] = name[:255]
+        if EXTRA_FIELD and (r.get("extra") is not None):
             payload[EXTRA_FIELD] = r.get("extra")
+
         cleaned.append(payload)
 
     if not cleaned:
-        return Response({"saved": 0}, status=status.HTTP_200_OK)
+        return Response({"saved": 0}, status=200)
 
+    # ---- 限制 + 去重（同 user+phone+time 視為同筆）----
     first_upload = not CallRecord.objects.filter(**{USER_FIELD: target_user}).exists()
     cleaned.sort(key=lambda d: d[TIME_FIELD], reverse=True)
     cap = 100 if first_upload else 100
@@ -1516,11 +1551,12 @@ def upload_call_logs(request):
     time_min, time_max = min(times), max(times)
 
     exist_keys = set()
-    for row in CallRecord.objects.filter(
-        **{USER_FIELD: target_user},
-        **{f"{PHONE_FIELD}__in": phones},
-        **{f"{TIME_FIELD}__range": (time_min, time_max)}
-    ).values(PHONE_FIELD, TIME_FIELD):
+    qs = (CallRecord.objects
+          .filter(**{USER_FIELD: target_user},
+                  **{f"{PHONE_FIELD}__in": phones},
+                  **{f"{TIME_FIELD}__range": (time_min, time_max)})
+          .values(PHONE_FIELD, TIME_FIELD))
+    for row in qs:
         exist_keys.add((row[PHONE_FIELD], to_dt(row[TIME_FIELD])))
 
     to_create = []

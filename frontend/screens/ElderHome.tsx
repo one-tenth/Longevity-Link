@@ -704,7 +704,7 @@ export default function ElderHome() {
               </View>
             </TouchableOpacity>
           </View>
-          {/* <TouchableOpacity
+          <TouchableOpacity
   style={[styles.rowCard, styles.cardShadow, { backgroundColor: '#222' }]}
   activeOpacity={0.9}
   onPress={() => handleSyncCalls({ silent: false })}
@@ -716,7 +716,7 @@ export default function ElderHome() {
   <Text style={{ color: '#eee', marginTop: 8 }}>
     會立刻讀取手機通話紀錄並上傳。{syncing ? '（進行中…）' : ''}
   </Text>
-</TouchableOpacity> */}
+</TouchableOpacity>
         </ScrollView>
 
         <View pointerEvents="box-none" style={styles.fabWrap}>

@@ -7,8 +7,11 @@ import axios from 'axios';
 
 const API_BASE = 'http://192.168.0.24:8000';
 
-// ===== 型別 =====
+/* ===========================
+   型別（加入 index signature 讓多欄位容錯不報錯）
+   =========================== */
 type ServerCall = {
+  [key: string]: any; // <— 允許用動態鍵取值（例如 Duration / duration_sec 等）
   CallId: number;
   UserId: number;
   PhoneName: string;
@@ -21,7 +24,20 @@ type ServerCall = {
   IsScam: boolean;
 };
 
+/* ===========================
+   小工具
+   =========================== */
 const safeStr = (v: any) => (v == null ? '' : String(v).trim());
+
+// 取第一個存在且不為空的欄位
+function pick<T = any>(obj: Record<string, any>, ...names: string[]): T | undefined {
+  for (const n of names) {
+    if (n in obj && obj[n] !== undefined && obj[n] !== null && String(obj[n]) !== '') {
+      return obj[n] as T;
+    }
+  }
+  return undefined;
+}
 
 // 正規化電話號碼（+886 -> 0，去非數字）
 const normalizePhone = (p: string) =>
@@ -36,7 +52,7 @@ const displayPhoneOrUnknown = (p?: string, n?: string) => {
   return phone || displayName(n);
 };
 
-// 把 status / Type 正規化成標準字串
+// 把 type 正規化成標準字串
 function normalizeType(input?: string | number) {
   const s = safeStr(input).toUpperCase();
   if (!s) return 'UNKNOWN';
@@ -136,7 +152,9 @@ function formatTW(input?: string | number) {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
-// ====== Auth helpers ======
+/* ===========================
+   Auth helpers
+   =========================== */
 async function refreshAccessToken() {
   try {
     const refresh = await AsyncStorage.getItem('refresh');
@@ -179,6 +197,9 @@ async function authPost<T = any>(url: string, data: any) {
   }
 }
 
+/* ===========================
+   主要畫面
+   =========================== */
 export default function CallLogScreen() {
   const navigation = useNavigation();
   const [elderId, setElderId] = useState<number | null>(null);
@@ -229,19 +250,26 @@ export default function CallLogScreen() {
     if (serverLogs.length > 0) fetchScamData();
   }, [serverLogs]);
 
-  // 單筆項目
+  // 單筆項目（整合類型/時長多欄位容錯）
   const renderServerItem = ({ item }: { item: ServerCall }) => {
     const phoneNorm = normalizePhone(item.Phone || '');
     const category = scamMap[phoneNorm];
     const hit = !!category;
 
-    // 類型：優先 status；沒有就用 Type（數字/字面）
-    const type = typeLabel(item.status ?? item.Type);
+    // 類型：容錯多種欄位（status / Type / CallType / Direction / call_type / type_text …）
+    const rawType = pick(item,
+      'status', 'Type', 'CallType', 'Direction', 'call_type', 'type', 'type_text'
+    );
+    const type = typeLabel(rawType);
+
+    // 時長秒數：容錯多種欄位（duration_sec / DurationSec / Duration / duration / CallDuration / Seconds / Secs …）
+    const rawDur = Number(pick(item,
+      'duration_sec', 'DurationSec', 'Duration', 'duration', 'CallDuration', 'Seconds', 'Secs', 'secs'
+    ) || 0);
+    const durationText = fmtDuration(rawDur);
 
     // 時間（台灣，含秒）："YYYY-MM-DD HH:MM:SS"
     const twTime = formatTW(item.PhoneTime_tw || item.PhoneTime);
-
-    const durationText = fmtDuration(item.duration_sec);
 
     return (
       <View style={[styles.item, hit && styles.itemScam]}>
@@ -280,7 +308,9 @@ export default function CallLogScreen() {
   );
 }
 
-// ===== Styles =====
+/* ===========================
+   Styles
+   =========================== */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   header: {
