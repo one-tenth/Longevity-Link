@@ -176,7 +176,7 @@ class LocationLatestSerializer(serializers.ModelSerializer):
     def get_lon(self, obj): return float(obj.Longitude)
 
 
-'''
+
 #24小時內
 class LocationHistorySerializer(serializers.ModelSerializer):
     lat = serializers.SerializerMethodField()
@@ -193,4 +193,3 @@ class LocationHistorySerializer(serializers.ModelSerializer):
     def get_lon(self, obj):
         return float(obj.Longitude)
 
-'''

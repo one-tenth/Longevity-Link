@@ -1680,7 +1680,7 @@ def get_latest_location(request, user_id: int):
            .only('Latitude', 'Longitude', 'Timestamp')
            .first()) #取第一筆資料
     if not rec:
-        return Response({'error': '找不到定位資料'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': '尚未最新定位'}, status=status.HTTP_404_NOT_FOUND)
 
     out = LocationLatestSerializer(rec).data
     return Response({'ok': True, 'user': target.pk, **out}, status=status.HTTP_200_OK)
@@ -1757,7 +1757,6 @@ def reverse_geocode(request):
     return Response({"address": addr})  # 取第一筆地址
 
 
-'''
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -1800,4 +1799,3 @@ def location_history(request, elder_id):
 
     except Exception as e:
         return Response({'error': str(e)}, status=400)
-'''

@@ -98,7 +98,7 @@ export async function reverseGeocode(lat: number, lng: number, lang: string = 'z
 
     
     // API
-    const url = `http://192.168.1.106/api/reverse_geocode/?lat=${lat}&lng=${lng}`;
+    const url = `http://192.168.1.106:8000/api/reverse_geocode/?lat=${lat}&lng=${lng}`;
     const res = await fetch(url);
     const data = await res.json();
 

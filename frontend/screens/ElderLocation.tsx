@@ -131,7 +131,7 @@ export default function ElderLocation({ navigation }: any) {
         error => {
           console.warn('持續定位錯誤:', error);
         },
-        { enableHighAccuracy: true, distanceFilter: 3 } // 每當移動一定距離就更新
+        { enableHighAccuracy: true, distanceFilter: 50 } // 每當移動一定距離就更新
       );
     })();
 

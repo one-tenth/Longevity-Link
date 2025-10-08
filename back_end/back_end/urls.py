@@ -61,6 +61,6 @@ urlpatterns = [
     path("api/reverse_geocode/", views.reverse_geocode, name="reverse-geocode"),
     path('api/call/upload/', views.upload_call_logs),
     path('api/callrecords/<int:elder_id>/', views.get_call_records, name='get_call_records'),
-    # path('api/location/history/<int:elder_id>/', views.location_history,name='location_history'),
+    path('api/location/history/<int:elder_id>/', views.location_history,name='location_history'),
     # path('api/call/list/', views.list_call_logs, name='list_call_logs'),
 ]
