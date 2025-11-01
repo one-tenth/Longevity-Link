@@ -26,7 +26,7 @@ type LatestLocationResp = {
   ts: string;
 };
 
-const BASE_URL = 'http://192.168.1.106:8000';   
+const BASE_URL = 'http://172.20.10.7:8000';   
 
 
 

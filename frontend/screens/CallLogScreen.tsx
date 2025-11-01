@@ -5,22 +5,22 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.24:8000';
+const API_BASE = 'http://172.20.10.7:8000';
 
 /* ===========================
    型別（加入 index signature 讓多欄位容錯不報錯）
    =========================== */
 type ServerCall = {
-  [key: string]: any; // <— 允許用動態鍵取值（例如 Duration / duration_sec 等）
+  [key: string]: any;
   CallId: number;
   UserId: number;
   PhoneName: string;
   Phone: string;
-  PhoneTime: string;         // 後端 UTC 或 ISO
-  PhoneTime_tw?: string;     // 若後端有回台灣時間就用它
-  status?: string;           // 新版欄位
-  Type?: string | number;    // 舊版/可能數字（相容）
-  duration_sec?: number;     // 秒數
+  PhoneTime: string;
+  PhoneTime_tw?: string;
+  status?: string;
+  Type?: string | number;
+  duration_sec?: number;
   IsScam: boolean;
 };
 
@@ -66,7 +66,13 @@ function normalizeType(input?: string | number) {
   if (s === '7') return 'ANSWERED_EXTERNALLY';
   // 字面
   const allow = new Set([
-    'INCOMING','OUTGOING','MISSED','REJECTED','BLOCKED','VOICEMAIL','ANSWERED_EXTERNALLY'
+    'INCOMING',
+    'OUTGOING',
+    'MISSED',
+    'REJECTED',
+    'BLOCKED',
+    'VOICEMAIL',
+    'ANSWERED_EXTERNALLY',
   ]);
   return allow.has(s) ? s : 'UNKNOWN';
 }
@@ -74,14 +80,22 @@ function normalizeType(input?: string | number) {
 // 類型中文
 function typeLabel(input?: string | number) {
   switch (normalizeType(input)) {
-    case 'INCOMING': return '來電';
-    case 'OUTGOING': return '撥出';
-    case 'MISSED': return '未接';
-    case 'REJECTED': return '已拒接';
-    case 'BLOCKED': return '已封鎖';
-    case 'VOICEMAIL': return '語音信箱';
-    case 'ANSWERED_EXTERNALLY': return '其他裝置接聽';
-    default: return '未知';
+    case 'INCOMING':
+      return '來電';
+    case 'OUTGOING':
+      return '撥出';
+    case 'MISSED':
+      return '未接';
+    case 'REJECTED':
+      return '已拒接';
+    case 'BLOCKED':
+      return '已封鎖';
+    case 'VOICEMAIL':
+      return '語音信箱';
+    case 'ANSWERED_EXTERNALLY':
+      return '其他裝置接聽';
+    default:
+      return '未知';
   }
 }
 
@@ -118,7 +132,7 @@ function parseAnyDateToUTCms(input?: string | number): number | null {
 
   // 嘗試常見非 ISO：YYYY-MM-DD HH:MM[:SS] 或 YYYY/MM/DD ...
   const m = s.match(
-    /(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:\D+(\d{1,2}))?(?::?(\d{1,2}))?(?::?(\d{1,2}))?/
+    /(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:\D+(\d{1,2}))?(?::?(\d{1,2}))?(?::?(\d{1,2}))?/,
   );
   if (m) {
     const Y = Number(m[1]),
@@ -198,6 +212,53 @@ async function authPost<T = any>(url: string, data: any) {
 }
 
 /* ===========================
+   這裡多加一段：分析「新號碼」＆「短時間密集來電」
+   =========================== */
+
+// 回傳兩個 set：newNumbers / burstNumbers
+function analyzeCallPatterns(logs: ServerCall[]) {
+  // 1. 先照時間新→舊排（保險一點）
+  const sorted = [...logs].sort((a, b) => {
+    const ta = parseAnyDateToUTCms(a.PhoneTime_tw || a.PhoneTime) ?? 0;
+    const tb = parseAnyDateToUTCms(b.PhoneTime_tw || b.PhoneTime) ?? 0;
+    return tb - ta; // 新的在前面
+  });
+
+  // 2. phone → 時間陣列
+  const phoneTimes: Record<string, number[]> = {};
+  for (const item of sorted) {
+    const pn = normalizePhone(item.Phone || '');
+    const t = parseAnyDateToUTCms(item.PhoneTime_tw || item.PhoneTime);
+    if (!pn || t == null) continue;
+    if (!phoneTimes[pn]) phoneTimes[pn] = [];
+    phoneTimes[pn].push(t);
+  }
+
+  const newNumbers: Record<string, boolean> = {};
+  const burstNumbers: Record<string, boolean> = {};
+  const BURST_WINDOW_MS = 10 * 60 * 1000; // 10 分鐘
+
+  for (const [phone, times] of Object.entries(phoneTimes)) {
+    // 新號碼：只出現一次
+    if (times.length === 1) {
+      newNumbers[phone] = true;
+    }
+
+    // 短時間密集：同一支號碼的任兩通差距 < 10 分鐘
+    // times 已經是新→舊，所以要兩兩比
+    for (let i = 0; i < times.length - 1; i++) {
+      const diff = Math.abs(times[i] - times[i + 1]);
+      if (diff <= BURST_WINDOW_MS) {
+        burstNumbers[phone] = true;
+        break;
+      }
+    }
+  }
+
+  return { newNumbers, burstNumbers };
+}
+
+/* ===========================
    主要畫面
    =========================== */
 export default function CallLogScreen() {
@@ -208,10 +269,14 @@ export default function CallLogScreen() {
   const [serverLogs, setServerLogs] = useState<ServerCall[]>([]);
   const [loadingServer, setLoadingServer] = useState(false);
 
+  // 新增：本地偵測到的風險
+  const [newNumberSet, setNewNumberSet] = useState<Record<string, boolean>>({});
+  const [burstNumberSet, setBurstNumberSet] = useState<Record<string, boolean>>({});
+
   async function loadSelectedElder() {
     const [eid, ename] = await Promise.all([
       AsyncStorage.getItem('elder_id'),
-      AsyncStorage.getItem('elder_name')
+      AsyncStorage.getItem('elder_name'),
     ]);
     setElderId(eid ? Number(eid) : null);
     setElderName(ename || '');
@@ -223,7 +288,13 @@ export default function CallLogScreen() {
     setLoadingServer(true);
     try {
       const res = await authGet<ServerCall[]>(`${API_BASE}/api/callrecords/${elderId}/`);
-      setServerLogs(res.data ?? []);
+      const logs = res.data ?? [];
+      setServerLogs(logs);
+
+      // 這裡一拿到資料就分析「新號碼」跟「密集來電」
+      const { newNumbers, burstNumbers } = analyzeCallPatterns(logs);
+      setNewNumberSet(newNumbers);
+      setBurstNumberSet(burstNumbers);
     } catch (error) {
       console.error('[loadServerLogs] error:', error);
     } finally {
@@ -231,10 +302,15 @@ export default function CallLogScreen() {
     }
   }
 
-  useEffect(() => { loadSelectedElder(); }, []);
-  useEffect(() => { if (elderId) loadServerLogs(); }, [elderId]);
+  useEffect(() => {
+    loadSelectedElder();
+  }, []);
 
-  // 取詐騙標註
+  useEffect(() => {
+    if (elderId) loadServerLogs();
+  }, [elderId]);
+
+  // 取詐騙標註（你原本就有的）
   useEffect(() => {
     async function fetchScamData() {
       const phones = serverLogs.map((log) => normalizePhone(log.Phone));
@@ -254,28 +330,54 @@ export default function CallLogScreen() {
   const renderServerItem = ({ item }: { item: ServerCall }) => {
     const phoneNorm = normalizePhone(item.Phone || '');
     const category = scamMap[phoneNorm];
-    const hit = !!category;
+    const hitScamDB = !!category;
 
-    // 類型：容錯多種欄位（status / Type / CallType / Direction / call_type / type_text …）
-    const rawType = pick(item,
-      'status', 'Type', 'CallType', 'Direction', 'call_type', 'type', 'type_text'
+    // 本地偵測到的兩種異常
+    const isNewNumber = !!newNumberSet[phoneNorm];
+    const isBurst = !!burstNumberSet[phoneNorm];
+
+    // 類型：容錯多種欄位
+    const rawType = pick(
+      item,
+      'status',
+      'Type',
+      'CallType',
+      'Direction',
+      'call_type',
+      'type',
+      'type_text',
     );
     const type = typeLabel(rawType);
 
-    // 時長秒數：容錯多種欄位（duration_sec / DurationSec / Duration / duration / CallDuration / Seconds / Secs …）
-    const rawDur = Number(pick(item,
-      'duration_sec', 'DurationSec', 'Duration', 'duration', 'CallDuration', 'Seconds', 'Secs', 'secs'
-    ) || 0);
+    // 時長秒數：容錯多種欄位
+    const rawDur = Number(
+      pick(
+        item,
+        'duration_sec',
+        'DurationSec',
+        'Duration',
+        'duration',
+        'CallDuration',
+        'Seconds',
+        'Secs',
+        'secs',
+      ) || 0,
+    );
     const durationText = fmtDuration(rawDur);
 
-    // 時間（台灣，含秒）："YYYY-MM-DD HH:MM:SS"
+    // 時間（台灣，含秒）
     const twTime = formatTW(item.PhoneTime_tw || item.PhoneTime);
 
+    // 只要有任何一種風險，就讓卡片突出
+    const risky = hitScamDB || isNewNumber || isBurst;
+
     return (
-      <View style={[styles.item, hit && styles.itemScam]}>
-        <Text style={[styles.phone, hit && { color: '#B71C1C' }]}>
+      <View style={[styles.item, risky && styles.itemScam]}>
+        <Text style={[styles.phone, risky && { color: '#B71C1C' }]}>
           {displayPhoneOrUnknown(item.Phone, item.PhoneName)}
-          {hit && <Text style={styles.scamTag}> {category}</Text>}
+          {hitScamDB && <Text style={styles.scamTag}> {category}</Text>}
+          {isNewNumber && <Text style={styles.infoTag}> 新號碼</Text>}
+          {isBurst && <Text style={styles.warnTag}> 短時間連續來電</Text>}
         </Text>
 
         <Text style={styles.detail}>
@@ -315,22 +417,56 @@ export default function CallLogScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   header: {
-    padding: 12, borderBottomWidth: 1, borderBottomColor: '#EEE',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 64 },
   backText: { color: '#111', fontSize: 16, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#111' },
   item: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
   itemScam: {
-    borderWidth: 1.5, borderColor: '#E53935', backgroundColor: '#FFF4F4',
-    borderRadius: 10, marginHorizontal: 12, marginVertical: 6,
+    borderWidth: 1.5,
+    borderColor: '#E53935',
+    backgroundColor: '#FFF4F4',
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginVertical: 6,
   },
   phone: { fontSize: 18, fontWeight: 'bold', color: '#222' },
   detail: { fontSize: 15, color: '#555', marginTop: 4, lineHeight: 22 },
   empty: { textAlign: 'center', color: '#888', marginTop: 30 },
   scamTag: {
-    fontSize: 12, paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 6, marginLeft: 6, backgroundColor: '#FDECEC', color: '#C62828', fontWeight: 'bold',
+    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+    backgroundColor: '#FDECEC',
+    color: '#C62828',
+    fontWeight: 'bold',
+  },
+  infoTag: {
+    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 4,
+    backgroundColor: '#E3F2FD',
+    color: '#1565C0',
+    fontWeight: 'bold',
+  },
+  warnTag: {
+    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 4,
+    backgroundColor: '#FFF3E0',
+    color: '#E65100',
+    fontWeight: 'bold',
   },
 });
