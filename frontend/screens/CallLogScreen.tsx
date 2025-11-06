@@ -5,7 +5,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://172.20.10.7:8000';
+const API_BASE = 'http://192.168.0.24:8000';
 
 type ServerCall = {
   [key: string]: any;

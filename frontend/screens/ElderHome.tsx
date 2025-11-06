@@ -90,7 +90,7 @@ function toZhPeriod(key?: string): string {
 }
 
 
-const BASE = 'http://172.20.10.7:8000';
+const BASE = 'http://192.168.0.24:8000';
 
 
 const LAST_UPLOAD_TS_KEY = 'calllog:last_upload_ts';
