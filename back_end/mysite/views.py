@@ -403,6 +403,24 @@ def normalize_freq(text: str | None) -> str:
     return "未知"
 
 
+import base64  # (CHANGED) 需要 new import
+import json
+import uuid
+import openai
+from django.contrib.auth.models import User
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from google.cloud import vision
+from mysite.models import Med  # (請確認您的 models.py 位置)
+# from .utils import normalize_freq # (請確認您的 utils.py 位置)
+
+# (假設 GOOGLE_VISION_CREDENTIALS 和 openai key 已在 settings.py 中設定)
+# from django.conf import settings
+# GOOGLE_VISION_CREDENTIALS = settings.GOOGLE_VISION_CREDENTIALS
+# openai.api_key = settings.OPENAI_API_KEY
+
+
 class OcrAnalyzeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -415,9 +433,15 @@ class OcrAnalyzeView(APIView):
             return Response({"error": "沒有收到圖片"}, status=400)
 
         try:
+            # (CHANGED) 為了重複使用，先將圖片內容讀入記憶體
+            image_content = image_file.read()
+            # (CHANGED) 取得圖片的 MIME type，例如 'image/jpeg'
+            image_content_type = image_file.content_type
+            
             # 1) Google Vision OCR
             client = vision.ImageAnnotatorClient.from_service_account_info(GOOGLE_VISION_CREDENTIALS)
-            image = vision.Image(content=image_file.read())
+            # (CHANGED) 使用 image_content 變數
+            image = vision.Image(content=image_content) 
             response = client.text_detection(image=image)
             annotations = response.text_annotations
 
@@ -427,8 +451,12 @@ class OcrAnalyzeView(APIView):
             ocr_text = (annotations[0].description or "").strip()
             print("🔍 OCR 結果：", ocr_text)
 
-            # 2) 丟 GPT 解析
-            gpt_result = self.analyze_with_gpt(ocr_text)
+            # 2) (CHANGED) 丟 GPT 解析 (同時傳入 OCR 文字 和 原始圖片)
+            gpt_result = self.analyze_with_gpt(
+                ocr_text, 
+                image_content, 
+                image_content_type
+            )
             print("🔍 GPT 原始結果：", gpt_result)
 
             try:
@@ -436,7 +464,7 @@ class OcrAnalyzeView(APIView):
             except json.JSONDecodeError:
                 return Response({"error": "GPT 回傳非有效 JSON", "raw": gpt_result}, status=400)
 
-            # 3) 目標使用者（可傳 user_id，否則用登入者）
+            # 3) 目標使用者
             user_id = request.POST.get("user_id")
             if user_id:
                 try:
@@ -482,7 +510,7 @@ class OcrAnalyzeView(APIView):
                     "message": f"✅ 成功寫入 {created} 筆藥單資料",
                     "created_count": created,
                     "prescription_id": str(prescription_id),
-                    "parsed": parsed,  # 方便前端比對
+                    "parsed": parsed,
                 },
                 status=200,
             )
@@ -491,23 +519,33 @@ class OcrAnalyzeView(APIView):
             print("❌ 例外錯誤：", e)
             return Response({"error": str(e)}, status=500)
 
-    def analyze_with_gpt(self, ocr_text: str) -> str:
-        prompt = f"""
-            你是一個嚴謹的藥單 OCR 與結構化助手。請從藥袋/收據的 OCR 文字中抽取結構化資訊，並【只輸出純 JSON】。
-            請注意：對於藥物的服藥次數，若有 `xNxD` 格式，請根據 `N`（每天的服藥次數）與 `D`（服藥天數）計算 `TotalDosage`（總服藥次數）。例如：`x4x3` 代表一天四次、服用三天，則 `TotalDosage` 是 4 * 3 = 12 次。
+    # (CHANGED) 更新 helper 方法的參數
+    def analyze_with_gpt(self, ocr_text: str, image_content: bytes, image_content_type: str) -> str:
+        
+        # (CHANGED) 將圖片二進位內容轉換為 Base64
+        base64_image = base64.b64encode(image_content).decode('utf-8')
+        image_url = f"data:{image_content_type};base64,{base64_image}"
 
-            ### OCR 內容
+        # (CHANGED) 更新 Prompt，告知 GPT 同時使用圖片和文字
+        prompt_text = f"""
+            你是一個嚴謹的藥單 OCR 與結構化助手。請【同時參考】以下的 OCR 辨識文字和【原始圖片】，從中抽取結構化資訊，並【只輸出純 JSON】。
+            
+            原始圖片是主要的參考資料，OCR 文字是輔助。請優先以圖片中的視覺資訊為準，再用 OCR 文字來輔助辨識。
+
+            請注意：對於藥物的服藥次數，若有 `xNxD` 格式，請根據 `N`（每天的服藥次數）與 `D`（服藥天數）计算 `TotalDosage`（總服藥次數）。例如：`x4x3` 代表一天四次、服用三天，則 `TotalDosage` 是 4 * 3 = 12 次。
+
+            ### OCR 輔助內容
             {ocr_text}
 
             ### 輸出 JSON Schema
             {{
-            "diseaseNames": string[],   
+            "diseaseNames": string[],  
             "medications": [
                 {{
-                "medicationName": string,                         
-                "administrationRoute": "內服"|"外用"|"其他",       
+                "medicationName": string,                      
+                "administrationRoute": "內服"|"外用"|"其他",     
                 "dosageFrequency": "一天一次"|"一天兩次"|"一天三次"|"一天四次"|"睡前"|"必要時"|"未知",
-                "effect": string,                                  
+                "effect": string,                               
                 "sideEffect": string,
                 "TotalDosage": integer,  # 計算總服藥次數
                 }}
@@ -527,10 +565,26 @@ class OcrAnalyzeView(APIView):
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
-            response_format={"type": "json_object"},  
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": "你是超級專業且嚴謹的藥劑師，會把藥單 OCR 結構化輸出。"},
-                {"role": "user", "content": prompt},
+                # (CHANGED) 傳送多模態訊息 (text + image)
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt_text
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url,
+                                "detail": "high" # (Optional) 告知模型使用高解析度
+                            }
+                        }
+                    ]
+                }
             ],
             temperature=0.1,
         )
