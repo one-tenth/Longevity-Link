@@ -862,6 +862,44 @@ def get_med_reminders_by_userid(request):
         'bedtime': {'time': str(time_setting.Bedtime)     if time_setting.Bedtime     else None, 'meds': schedule['bedtime']},
     }
     return Response(result)
+#藥單細項
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from .models import Med
+from .serializers import MedDetailSerializer 
+class MedDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, med_id):
+        try:
+            # 1. 透過 MedId 找到那筆藥物資料
+            # 假設 MedId 是 Primary Key。如果不是，請用 'MedId=med_id'
+            med = Med.objects.get(pk=med_id) 
+
+            # 2. (重要) 安全性檢查：
+            # 確保請求這筆資料的使用者，就是這筆藥單的擁有者
+            # if med.UserID != request.user:
+            #     return Response(
+            #         {"error": "Permission denied"},
+            #         status=status.HTTP_403_FORBIDDEN
+            #     )
+
+            # 3. 序列化並回傳
+            serializer = MedDetailSerializer(med)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Med.DoesNotExist:
+            return Response(
+                {"error": "Medication not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 #----------------------------------------------------------------
 #健康
 # views.py

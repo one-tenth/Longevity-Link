@@ -42,6 +42,7 @@ import ScamScreen from './screens/ScamScreen';
 import Location from './screens/Location';
 import ElderLocation from './screens/ElderLocation';
 import ElderHospitalList from './screens/ElderHospitalList';
+import MedDetail from './screens/MedDetail';
 // ---- Stack params ----
 export type RootStackParamList = {
   AddHospitalRecord: undefined;
@@ -54,6 +55,7 @@ export type RootStackParamList = {
   Medicine: undefined;
   MedInfo: undefined;
   MedInfo_1: { prescriptionId: string };
+  MedDetail: undefined;
   MedRemind: undefined;
   MedTimeSetting: undefined;
   Setting: undefined;
@@ -203,6 +205,7 @@ const App: React.FC = () => {
           component={MedInfo_1}
           initialParams={{ prescriptionId: '' }}
         />
+        <Stack.Screen name="MedDetail" component={MedDetail} />
         <Stack.Screen name="MedRemind" component={MedRemind} />
         <Stack.Screen name="MedTimeSetting" component={MedTimeSetting} />
         <Stack.Screen name="Setting" component={Setting} />
