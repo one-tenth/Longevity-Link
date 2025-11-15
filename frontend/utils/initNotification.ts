@@ -18,7 +18,7 @@ console.log('[initNotification] module loaded');
 // =========================
 // 基本設定
 // =========================
-const BASE = 'http://192.168.0.24:8000';
+const BASE = 'http://192.168.1.150:8000';
 
 // ★★★ 指定回診通知時間（固定每天 08:00）★★★
 const VISIT_NOTIFY_TIME = '08:00';

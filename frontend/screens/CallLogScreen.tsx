@@ -5,7 +5,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.24:8000';
+const API_BASE = 'http://192.168.1.150:8000';
 
 type ServerCall = {
   [key: string]: any;
@@ -24,7 +24,19 @@ type ServerCall = {
 const safeStr = (v: any) => (v == null ? '' : String(v).trim());
 const normalizePhone = (p: string) =>
   (p || '').replace(/\D/g, '').replace(/^886(?=\d{9,})/, '0');
-const displayName = (n?: string) => (n && n.trim().length > 0 ? n.trim() : '未知來電');
+
+// 👇 新增：判斷這個名字是不是「真的聯絡人」
+const isRealContactName = (n?: string) => {
+  const s = safeStr(n);
+  if (!s) return false;
+  // 這裡列出後端可能給的 placeholder 名稱
+  const placeholders = ['未知來電', 'unknown', 'Unknown', 'UNKNOWN', '未儲存', '未儲存來電'];
+  return !placeholders.includes(s);
+};
+
+const displayName = (n?: string) =>
+  isRealContactName(n) ? safeStr(n) : '未知來電';
+
 const displayPhoneOrUnknown = (p?: string, n?: string) => {
   const phone = safeStr(p);
   return phone || displayName(n);
@@ -134,28 +146,21 @@ async function authGet<T = any>(url: string) {
 }
 
 /* ---------- 分析：新號碼 / 短時間連續 ---------- */
-/**
- * 規則：
- * 1. 有聯絡人名稱 → 直接跳過，不標任何一種風險
- * 2. 新號碼 = 這支號碼在這批 logs 裡只出現一次 && 沒有任何一筆有 PhoneName
- * 3. 短時間連續 = 同一號碼兩通通話時間差 <= 10 分鐘（也只針對沒名字的）
- */
 function analyzeCallPatterns(logs: ServerCall[]) {
-  // 時間新→舊
   const sorted = [...logs].sort((a, b) => {
     const ta = parseAnyDateToUTCms(a.PhoneTime_tw || a.PhoneTime) ?? 0;
     const tb = parseAnyDateToUTCms(b.PhoneTime_tw || b.PhoneTime) ?? 0;
     return tb - ta;
   });
 
-  // 收集每支號碼的時間 & 是否有名字
   const phoneInfo: Record<string, { times: number[]; hasName: boolean }> = {};
 
   for (const item of sorted) {
     const pn = normalizePhone(item.Phone || '');
     const t = parseAnyDateToUTCms(item.PhoneTime_tw || item.PhoneTime);
     if (!pn || t == null) continue;
-    const hasNameHere = !!(item.PhoneName && item.PhoneName.trim().length > 0);
+
+    const hasNameHere = isRealContactName(item.PhoneName); // 👈 改用新判斷
 
     if (!phoneInfo[pn]) {
       phoneInfo[pn] = { times: [], hasName: false };
@@ -173,17 +178,12 @@ function analyzeCallPatterns(logs: ServerCall[]) {
   for (const [phone, info] of Object.entries(phoneInfo)) {
     const { times, hasName } = info;
 
-    // ✅ 有名字就不用看了
-    if (hasName) {
-      continue;
-    }
+    if (hasName) continue;
 
-    // ✅ 新號碼：只出現一次 & 沒有名字（上面已經確保沒名字）
     if (times.length === 1) {
       newNumbers[phone] = true;
     }
 
-    // 🔁 短時間連續：只做在沒名字的號碼上
     for (let i = 0; i < times.length - 1; i++) {
       if (Math.abs(times[i] - times[i + 1]) <= BURST_WINDOW_MS) {
         burstNumbers[phone] = true;
@@ -234,10 +234,11 @@ export default function CallLogScreen() {
   useEffect(() => { loadSelectedElder(); }, []);
   useEffect(() => { if (elderId) loadServerLogs(); }, [elderId]);
 
-  // 查 scam 資料表
   useEffect(() => {
     async function fetchScamData() {
-      const phones = serverLogs.map((log) => normalizePhone(log.Phone));
+      const phones = Array.from(
+        new Set(serverLogs.map((log) => normalizePhone(log.Phone || '')).filter(Boolean))
+      );
       if (!phones.length) return;
       try {
         const res = await axios.post(`${API_BASE}/api/scam/check_bulk/`, { phones });
@@ -254,9 +255,9 @@ export default function CallLogScreen() {
     const category = scamMap[phoneNorm];
     const hitScamDB = !!category;
 
-    // 這兩個 set 現在只會裝「沒名字」的號碼
-    const isNewNumber = !!newNumberSet[phoneNorm];
-    const isBurst = !!burstNumberSet[phoneNorm];
+    const hasName = isRealContactName(item.PhoneName); // 👈 同樣用新判斷
+    const isNewNumber = !hasName && !!newNumberSet[phoneNorm];
+    const isBurst = !hasName && !!burstNumberSet[phoneNorm];
 
     const type = typeLabel(
       pick(item, 'status', 'Type', 'CallType', 'Direction', 'call_type', 'type_text')
@@ -264,13 +265,13 @@ export default function CallLogScreen() {
     const durationText = fmtDuration(Number(pick(item, 'duration_sec', 'Duration') || 0));
     const twTime = formatTW(item.PhoneTime_tw || item.PhoneTime);
 
-    // 顏色優先順序：scam(紅) > 新號碼/短時間(黃) > 其他(白)
     let itemStyle = styles.item;
     let phoneStyle = styles.phone;
     if (hitScamDB) {
       itemStyle = [styles.item, styles.itemScam];
       phoneStyle = [styles.phone, { color: '#B71C1C' }];
-    } else if (isNewNumber || isBurst) {
+    } else if (!hasName) {
+      // ⭐ 只要不是「真正的聯絡人名稱」 → 黃色
       itemStyle = [styles.item, styles.itemWarn];
       phoneStyle = [styles.phone, { color: '#E65100' }];
     }
@@ -304,7 +305,11 @@ export default function CallLogScreen() {
 
       <FlatList
         data={serverLogs}
-        keyExtractor={(item) => String(item.CallId ?? Math.random())}
+        keyExtractor={(item) => {
+          const t = parseAnyDateToUTCms(item.PhoneTime_tw || item.PhoneTime) ?? 0;
+          const id = item.CallId ?? `${normalizePhone(item.Phone || '')}-${t}`;
+          return String(id);
+        }}
         renderItem={renderServerItem}
         refreshing={loadingServer}
         onRefresh={loadServerLogs}
