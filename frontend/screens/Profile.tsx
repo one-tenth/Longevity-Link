@@ -83,6 +83,7 @@ export default function ProfileScreen() {
 
       try {
 
+
         const res = await fetch('http://192.168.0.91:8000/account/me/', {
 
 

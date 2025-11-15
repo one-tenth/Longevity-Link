@@ -23,6 +23,7 @@ import { setupNotificationChannel, ensureNotificationPermission, initVisitNotifi
 
 const BASE = 'http://192.168.0.91:8000';
 
+
 // ===== Types =====
 type HospitalRecord = {
   HosId?: number;

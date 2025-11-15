@@ -32,6 +32,7 @@ const HomeScreen: React.FC = () => {
       if (!token) return;
 
       try {
+
         const res = await fetch('http://192.168.0.91:8000/account/me/', {
 
           headers: {
