@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 
-const API_BASE = 'http://192.168.1.150:8000/api/account';
+const API_BASE = 'http://192.168.0.91:8000/api/account';
 
 export interface RegisterData { Phone: string; Name: string; Gender: 'M' | 'F'; Borndate: string; password: string; }
 export interface LoginData { Phone: string; password: string; }

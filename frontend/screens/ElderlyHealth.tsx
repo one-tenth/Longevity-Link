@@ -47,8 +47,8 @@ const outerShadow = {
   shadowOffset: { width: 0, height: 3 },
 } as const;
 
-const BASE_URL = 'http://192.168.1.150:8000';
 
+const BASE_URL = 'http://192.168.0.91:8000';
 type PeriodKey = 'morning' | 'evening';
 
 type BpRecord = {

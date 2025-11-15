@@ -6,8 +6,8 @@ import axios from 'axios';
 
 
 
-const API_BASE = 'http://192.168.1.150:8000'; 
 
+const API_BASE = 'http://192.168.0.91:8000'; 
 
 export default function ScamScreen() {
   const [phone, setPhone] = useState('');

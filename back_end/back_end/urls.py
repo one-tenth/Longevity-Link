@@ -33,6 +33,9 @@ urlpatterns = [
     path('api/healthcare/by-date/', views.HealthCareByDateAPI.as_view()),
     path("api/med/analyze/", views.OcrAnalyzeView.as_view()),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),
+    #藥單細項---------
+    path('api/med/detail/<int:med_id>/', views.MedDetailView.as_view(), name='med-detail'),
+    #----------------
     path('api/meds/<uuid:prescription_id>/', views.get_med_by_prescription),
     path('start_medication/', views.start_medication),
     path('api/delete-prescription/<uuid:prescription_id>/', views.DeletePrescriptionView.as_view()),

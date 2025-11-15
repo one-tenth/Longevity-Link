@@ -21,7 +21,8 @@ import { RootStackParamList } from '../App';
 import { setupNotificationChannel, ensureNotificationPermission, initVisitNotifications } from '../utils/initNotification';
 
 
-const BASE = 'http://192.168.1.150:8000';
+const BASE = 'http://192.168.0.91:8000';
+
 
 // ===== Types =====
 type HospitalRecord = {
