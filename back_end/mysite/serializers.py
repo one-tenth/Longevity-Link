@@ -289,3 +289,20 @@ class CallRecordCreateSerializer(serializers.ModelSerializer):
         if d < 0:
             attrs['duration_sec'] = 0
         return attrs
+    
+#------------------------------------------------
+#藥物細項
+from rest_framework import serializers
+from .models import Med
+class MedDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Med
+        fields = [
+            'MedId', 
+            'Disease', 
+            'MedName', 
+            'AdministrationRoute', 
+            'DosageFrequency', 
+            'Effect', 
+            'SideEffect'
+        ]

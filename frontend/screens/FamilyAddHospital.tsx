@@ -1,4 +1,4 @@
-// FamilyAddHospital.tsx — polished UI rev
+// FamilyAddHospital.tsx — polished UI + History (place/doctor)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -23,7 +23,8 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootStackParamList } from '../App';
 
-const BASE = 'http://192.168.0.24:8000';
+
+const BASE = 'http://192.168.0.91:8000';
 
 const COLORS = {
   white: '#FFFFFF',
@@ -54,6 +55,90 @@ async function authPost<T>(url: string, data: any) {
   });
 }
 
+/** ---- 簡易歷史清單 hook（使用 AsyncStorage）---- */
+const MAX_HISTORY = 8;
+
+function useHistoryList(storageKey: string) {
+  const [items, setItems] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(storageKey);
+        setItems(raw ? JSON.parse(raw) : []);
+      } catch {
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [storageKey]);
+
+  const save = async (value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    const next = [v, ...items.filter((x) => x !== v)].slice(0, MAX_HISTORY);
+    setItems(next);
+    await AsyncStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  const remove = async (value: string) => {
+    const next = items.filter((x) => x !== value);
+    setItems(next);
+    await AsyncStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  return { items, loading, save, remove };
+}
+
+/** ---- 建議清單 Chips ---- */
+function SuggestChips({
+  data,
+  onPick,
+  filterText = '',
+  label = '常用清單',
+}: {
+  data: string[];
+  onPick: (v: string) => void;
+  filterText?: string;
+  label?: string;
+}) {
+  const filtered = useMemo(() => {
+    const t = (filterText || '').trim().toLowerCase();
+    return t ? data.filter((x) => x.toLowerCase().includes(t)) : data;
+  }, [data, filterText]);
+
+  if (!filtered.length) return null;
+
+  return (
+    <View style={{ marginTop: 6, marginBottom: 12 }}>
+      <Text style={{ color: COLORS.textMid, marginBottom: 8, fontSize: 12 }}>{label}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {filtered.map((it) => (
+          <Pressable
+            key={it}
+            onPress={() => onPick(it)}
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 999,
+              backgroundColor: COLORS.grayBox,
+              borderWidth: 1,
+              borderColor: '#e8e8e8',
+              marginRight: 8,
+              marginBottom: 8,
+            }}
+            android_ripple={{ color: '#00000010', borderless: false }}
+          >
+            <Text style={{ color: COLORS.textDark, fontWeight: '600' }}>{it}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function FamilyAddHospital() {
   const route = useRoute<any>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'FamilyAddHospital'>>();
@@ -68,10 +153,14 @@ export default function FamilyAddHospital() {
   const [num, setNum] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 歷史清單（只做 地點 / 醫師）
+  const placeHist = useHistoryList('@hist:clinicPlace');
+  const doctorHist = useHistoryList('@hist:doctor');
+
   // UI animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const saveScale = useRef(new Animated.Value(1)).current;
-  const progress = useRef(new Animated.Value(0)).current; // header progress bar when loading
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     (async () => {
@@ -123,6 +212,12 @@ export default function FamilyAddHospital() {
         Num: Number(num) || 0,
       });
 
+      // ✅ 寫入歷史（成功才紀錄）
+      await Promise.all([
+        placeHist.save(clinicPlace),
+        doctorHist.save(doctor),
+      ]);
+
       Alert.alert('成功', '儲存成功');
       navigation.goBack();
     } catch (e: any) {
@@ -143,7 +238,7 @@ export default function FamilyAddHospital() {
     return `${hh}:${mm}`;
   }, [clinicDate]);
 
-  // Field focus states for nicer outline
+  // Field focus states
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const isFocused = (k: string) => focusKey === k;
 
@@ -163,7 +258,6 @@ export default function FamilyAddHospital() {
         </Pressable>
         <Text style={styles.headerTitle}>新增回診</Text>
         <View style={{ width: 40 }} />
-        {/* Loading progress bar */}
       </View>
       {loading && (
         <View style={styles.progressWrap}>
@@ -183,7 +277,7 @@ export default function FamilyAddHospital() {
           onPress={() => setShowDate(true)}
           style={[styles.inputCard, shadow, isFocused('date') && styles.inputCardFocused]}
         >
-          <View style={styles.iconWrap}> 
+          <View style={styles.iconWrap}>
             <FontAwesome5 name="calendar-alt" size={18} color={COLORS.textDark} />
           </View>
           <Text style={styles.inputText}>{dateLabel}</Text>
@@ -193,7 +287,7 @@ export default function FamilyAddHospital() {
           onPress={() => setShowTime(true)}
           style={[styles.inputCard, shadow, isFocused('time') && styles.inputCardFocused]}
         >
-          <View style={styles.iconWrap}> 
+          <View style={styles.iconWrap}>
             <MaterialCommunityIcons name="clock-time-four" size={20} color={COLORS.textDark} />
           </View>
           <Text style={styles.inputText}>{timeLabel}</Text>
@@ -201,7 +295,9 @@ export default function FamilyAddHospital() {
 
         <Text style={[styles.sectionTitle, { marginTop: SPACING }]}>就診資訊</Text>
 
-        <View style={[styles.inputCard, shadow, isFocused('place') && styles.inputCardFocused]}
+        {/* 地點 */}
+        <View
+          style={[styles.inputCard, shadow, isFocused('place') && styles.inputCardFocused]}
           onTouchStart={() => setFocusKey('place')}
           onTouchEnd={() => setFocusKey(null)}
         >
@@ -220,8 +316,16 @@ export default function FamilyAddHospital() {
             returnKeyType="next"
           />
         </View>
+        <SuggestChips
+          data={placeHist.items}
+          filterText={clinicPlace}
+          label="常用地點"
+          onPick={(v) => setClinicPlace(v)}
+        />
 
-        <View style={[styles.inputCard, shadow, isFocused('doctor') && styles.inputCardFocused]}
+        {/* 醫師 */}
+        <View
+          style={[styles.inputCard, shadow, isFocused('doctor') && styles.inputCardFocused]}
           onTouchStart={() => setFocusKey('doctor')}
           onTouchEnd={() => setFocusKey(null)}
         >
@@ -240,8 +344,16 @@ export default function FamilyAddHospital() {
             returnKeyType="next"
           />
         </View>
+        <SuggestChips
+          data={doctorHist.items}
+          filterText={doctor}
+          label="常用醫師"
+          onPick={(v) => setDoctor(v)}
+        />
 
-        <View style={[styles.inputCard, shadow, isFocused('num') && styles.inputCardFocused]}
+        {/* 號碼（維持原本欄位，不做歷史） */}
+        <View
+          style={[styles.inputCard, shadow, isFocused('num') && styles.inputCardFocused]}
           onTouchStart={() => setFocusKey('num')}
           onTouchEnd={() => setFocusKey(null)}
         >
