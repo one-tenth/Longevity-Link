@@ -129,11 +129,8 @@ export default function CreateFamily() {
     setFamilyCode(code);
     try {
 
-<<<<<<< HEAD
-      const response = await fetch('http://192.168.1.150:8000/api/family/create/', {
-=======
+
       const response = await fetch('http://192.168.0.91:8000/api/family/create/', {
->>>>>>> dev
     
         method: 'POST',
         headers: {
