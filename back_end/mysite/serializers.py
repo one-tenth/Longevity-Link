@@ -51,6 +51,10 @@ class FitDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = FitData
         fields = ['steps', 'timestamp']
+class FitDataSerializer1(serializers.ModelSerializer):
+    class Meta:
+        model = FitData
+        fields = ['date', 'steps']
 
 
 class MedSerializer(serializers.ModelSerializer):

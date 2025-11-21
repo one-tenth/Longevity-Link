@@ -94,7 +94,7 @@ export type RootStackParamList = {
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'https://caremate.ntub.edu.tw';
 const UPLOAD_EVERY_MS = 60 * 1000; // 每分鐘上傳通話紀錄
 
 // 通話紀錄上傳

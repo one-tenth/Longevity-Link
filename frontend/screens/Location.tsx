@@ -27,7 +27,7 @@ type LatestLocationResp = {
 };
 
 
-const BASE_URL = 'http://192.168.0.91:8000';   
+const BASE_URL = 'https://caremate.ntub.edu.tw';   
 
 
 

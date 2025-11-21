@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — Family Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root {
+    --bg: #05080a;
+    --surface: #0f1419;
+    --border: rgba(255, 255, 255, 0.1);
+    --text: #e8f0e8;
+    --brand: #4ade80;
+    --danger: #ef4444;
+    --accent: #38bdf8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; }
+
+  /* Login Overlay */
+  #login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(5, 8, 10, 0.95); z-index: 999; 
+    display: flex; justify-content: center; align-items: center;
+    transition: opacity 0.5s;
+  }
+  .login-box {
+    background: var(--surface); border: 1px solid var(--border); padding: 40px;
+    border-radius: 24px; width: 100%; max-width: 400px; text-align: center;
+  }
+  .login-input {
+    width: 100%; padding: 12px; margin-bottom: 16px; background: #000;
+    border: 1px solid var(--border); color: #fff; border-radius: 8px;
+  }
+  .btn-login {
+    width: 100%; padding: 12px; background: var(--brand); color: #000; font-weight: bold;
+    border: none; border-radius: 8px; cursor: pointer;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 300px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px; display: flex; flex-direction: column; gap: 20px;
+  }
+  .family-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  
+  .member-card {
+    padding: 15px; border: 1px solid var(--border); border-radius: 10px;
+    cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.02);
+  }
+  .member-card:hover { background: rgba(255,255,255,0.1); }
+  .member-card.active { border-color: var(--brand); background: rgba(74, 222, 128, 0.1); }
+  
+  /* Main Content */
+  .main-view { flex: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+  
+  .info-box {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center;
+  }
+  h1 { margin: 0; color: var(--brand); font-size: 24px; }
+  
+  /* Chart Container */
+  .chart-container {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px; border-radius: 20px; height: 450px; position: relative;
+    display: flex; flex-direction: column;
+  }
+
+  /* 日期選擇器樣式 */
+  .date-controls {
+    display: flex; gap: 10px; align-items: center; margin-bottom: 15px;
+    background: rgba(255,255,255,0.05); padding: 10px; border-radius: 12px;
+  }
+  .date-input {
+    background: #000; border: 1px solid var(--border); color: #fff;
+    padding: 8px; border-radius: 6px; font-family: 'Inter';
+    color-scheme: dark;
+  }
+  .btn-search {
+    background: var(--accent); color: #000; border: none; padding: 8px 16px;
+    border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;
+  }
+  .btn-search:hover { opacity: 0.8; }
+
+  .debug-window {
+    padding: 15px; background: #000; 
+    border: 1px solid #333; border-radius: 10px; 
+    font-family: monospace; font-size: 12px; color: #ccc;
+    height: 150px; overflow-y: auto;
+  }
+  .log-line { margin-bottom: 5px; border-bottom: 1px solid #222; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>CareMate Login</h2>
+      <input type="text" id="phoneInput" class="login-input" placeholder="手機號碼" value="0912345678">
+      <input type="password" id="pwdInput" class="login-input" placeholder="密碼" value="password123">
+      <button class="btn-login" onclick="handleLogin()">登入</button>
+      <p id="loginMsg" style="color:var(--danger); font-size:12px; margin-top:10px;"></p>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h3>照護對象列表</h3> <div id="familyList" class="family-list">
+      <div style="text-align:center; color:#666;">(等待載入...)</div>
+    </div>
+    <button onclick="logout()" style="padding:10px; background:#333; color:#fff; border:none; border-radius:5px; cursor:pointer;">登出</button>
+  </div>
+
+  <div class="main-view">
+    <div class="info-box">
+      <div>
+        <h1 id="currentName">請選擇一位長者</h1>
+        <p style="color:#888; margin-top:5px;">ID: <span id="currentID">--</span></p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:12px; color:#888;">該時段最新步數</div>
+        <div style="font-size:32px; font-weight:bold; color:#fff;" id="totalSteps">--</div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      
+      <div class="date-controls">
+        <span style="font-size:12px; color:#888;">查詢區間：</span>
+        <input type="date" id="startDate" class="date-input">
+        <span style="color:#888;">to</span>
+        <input type="date" id="endDate" class="date-input">
+        <button class="btn-search" onclick="handleDateSearch()">查詢</button>
+      </div>
+
+      <div style="flex:1; position:relative;">
+        <canvas id="stepsChart"></canvas>
+      </div>
+    </div>
+
+    <div class="debug-window" id="debugLog">
+      <div style="color:#4ade80;">[SYSTEM] Ready. Waiting for actions...</div>
+    </div>
+  </div>
+
+  <script>
+    // ================= CONFIG =================
+    const API_BASE = "http://192.168.0.91:8000"; 
+    
+    const URL_LOGIN = `${API_BASE}/api/account/login/`;
+    const URL_MEMBERS = `${API_BASE}/family/members/`;
+    // 步數 API 路徑模板
+    const URL_STEPS_TEMPLATE = `${API_BASE}/member/ID_PLACEHOLDER/steps/`; 
+
+    let currentToken = localStorage.getItem('access_token');
+    let stepsChartInstance = null;
+    let currentSelectedMemberId = null;
+
+    // --- 初始化 ---
+    if(currentToken) {
+      hideLoginBox();
+      log(`偵測到 Token，嘗試載入...`);
+      fetchFamilyMembers();
+    }
+
+    function hideLoginBox() {
+        const overlay = document.getElementById('login-overlay');
+        if(overlay) {
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.classList.add('hidden'), 500);
+        }
+    }
+
+    // --- 1. 登入 ---
+    async function handleLogin() {
+      const phone = document.getElementById('phoneInput').value;
+      const password = document.getElementById('pwdInput').value;
+      const msgEl = document.getElementById('loginMsg');
+      
+      log(`正在登入... ${phone}`);
+      msgEl.innerText = "登入中...";
+
+      try {
+        const res = await fetch(URL_LOGIN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Phone: phone, password: password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          currentToken = data.token.access;
+          localStorage.setItem('access_token', currentToken);
+          hideLoginBox();
+          fetchFamilyMembers();
+        } else {
+          msgEl.innerText = data.message || "登入失敗";
+        }
+      } catch (err) {
+        log(`登入錯誤: ${err}`);
+        msgEl.innerText = "連線失敗";
+      }
+    }
+
+    // --- 2. 抓取家人列表 ---
+    async function fetchFamilyMembers() {
+      try {
+        const res = await fetch(URL_MEMBERS, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (res.status === 401) { logout(); return; }
+
+        const members = await res.json();
+        log(`所有家庭成員: ${members.length} 人`);
+        
+        // ⭐ 篩選：只顯示 RelatedID == 1 的成員 (老人)
+        const seniors = members.filter(m => m.RelatedID === 1);
+        log(`篩選後長者: ${seniors.length} 人`);
+
+        if(seniors.length === 0) {
+            document.getElementById('familyList').innerHTML = '<div style="text-align:center; color:#888;">此帳號下無長者資料</div>';
+            return;
+        }
+
+        renderList(seniors);
+        
+        // 自動選擇第一位長者
+        selectMember(seniors[0], document.querySelector('.member-card')); // 注意：此時 DOM 可能還沒生成，稍後修正
+
+      } catch (err) {
+        log(`列表失敗: ${err}`);
+      }
+    }
+
+    function renderList(members) {
+      const listEl = document.getElementById('familyList');
+      listEl.innerHTML = ''; 
+
+      members.forEach((member, index) => {
+        const div = document.createElement('div');
+        div.className = 'member-card';
+        const name = member.Name || member.username || "未知";
+        // 顯示名字和電話
+        div.innerHTML = `<strong>${name}</strong><br><small style="color:#888">${member.Phone}</small>`;
+        
+        // 綁定點擊事件
+        div.onclick = () => selectMember(member, div);
+        
+        listEl.appendChild(div);
+
+        // 如果是第一個，自動觸發點擊 (模擬)
+        if(index === 0) {
+            // 稍微延遲一下讓 DOM 確保生成
+            setTimeout(() => selectMember(member, div), 100);
+        }
+      });
+    }
+
+    // --- 3. 選擇成員 (核心邏輯) ---
+    async function selectMember(member, element) {
+      log(`選擇: ${member.Name} (ID: ${member.UserID})`);
+      
+      // 存起來給搜尋按鈕用
+      currentSelectedMemberId = member.UserID;
+
+      // UI Highlight
+      document.querySelectorAll('.member-card').forEach(e => e.classList.remove('active'));
+      if(element) element.classList.add('active');
+
+      // Update Info
+      document.getElementById('currentName').innerText = member.Name || "無名氏";
+      document.getElementById('currentID').innerText = member.UserID;
+
+      // 計算預設日期 (今天 & 7天前)
+      const today = new Date();
+      const endDateStr = today.toISOString().split('T')[0];
+      
+      const pastDate = new Date();
+      pastDate.setDate(today.getDate() - 6);
+      const startDateStr = pastDate.toISOString().split('T')[0];
+
+      // 填入輸入框
+      document.getElementById('startDate').value = startDateStr;
+      document.getElementById('endDate').value = endDateStr;
+
+      // 呼叫 API
+      await fetchRealSteps(member.UserID, startDateStr, endDateStr);
+    }
+
+    // --- 4. 處理日期搜尋按鈕 ---
+    function handleDateSearch() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+
+        if(!currentSelectedMemberId) {
+            alert("請先從左側選擇一位長者！");
+            return;
+        }
+        if(!start || !end) {
+            alert("請選擇開始與結束日期");
+            return;
+        }
+
+        log(`查詢日期範圍: ${start} ~ ${end}`);
+        fetchRealSteps(currentSelectedMemberId, start, end);
+    }
+
+    // --- 5. 真實 API 串接函式 ---
+    async function fetchRealSteps(userId, startDate, endDate) {
+        // 組合網址
+        const url = URL_STEPS_TEMPLATE.replace('ID_PLACEHOLDER', userId) + `?start_date=${startDate}&end_date=${endDate}`;
+        
+        log(`請求 API: ${url}`);
+
+        try {
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: { 
+                    'Authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!res.ok) {
+                if(res.status === 404) throw new Error("找不到資料");
+                if(res.status === 403) throw new Error("無權查看");
+                throw new Error(`API Error: ${res.status}`);
+            }
+
+            const responseData = await res.json();
+            log(`取得資料: ${responseData.data.length} 筆`);
+            
+            // 繪圖
+            processAndRenderChart(responseData.data);
+
+        } catch (err) {
+            log(`步數獲取失敗: ${err.message}`);
+            document.getElementById('totalSteps').innerText = "--";
+            // 清空圖表
+            if(stepsChartInstance) stepsChartInstance.destroy();
+        }
+    }
+
+    // --- 6. 處理數據並繪圖 ---
+    function processAndRenderChart(apiData) {
+        const ctx = document.getElementById('stepsChart').getContext('2d');
+
+        // 如果是空資料的處理
+        if(!apiData || apiData.length === 0) {
+             log("這段時間沒有步數資料");
+             document.getElementById('totalSteps').innerText = "0";
+             if (stepsChartInstance) stepsChartInstance.destroy();
+             return;
+        }
+
+        const labels = apiData.map(item => item.date);
+        const values = apiData.map(item => item.steps);
+        
+        // 顯示最後一天的步數
+        const latestStep = values[values.length - 1];
+        document.getElementById('totalSteps').innerText = latestStep.toLocaleString();
+
+        // 如果舊圖表存在，先銷毀
+        if (stepsChartInstance) {
+            stepsChartInstance.destroy();
+        }
+
+        // 建立新圖表
+        stepsChartInstance = new Chart(ctx, {
+            type: 'bar', 
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '步數',
+                    data: values,
+                    backgroundColor: '#4ade80',
+                    borderRadius: 5,
+                    barThickness: 'flex',
+                    maxBarThickness: 50
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }, 
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        displayColors: false,
+                        callbacks: {
+                            title: (context) => `日期: ${context[0].label}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: '#888' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#888' }
+                    }
+                }
+            }
+        });
+        log("圖表更新完成");
+    }
+
+    // ⭐ 修改後的登出功能
+    function logout() {
+        // 1. 清除 Token
+        localStorage.removeItem('access_token');
+        // 2. 跳轉回首頁 (假設首頁是 index.html，請根據你的檔名修改)
+        window.location.href = "home.html"; 
+    }
+
+    function log(msg) {
+        const box = document.getElementById('debugLog');
+        const p = document.createElement('div');
+        p.className = 'log-line';
+        p.innerText = `> ${msg}`;
+        box.prepend(p);
+    }
+  </script>
+
+</body>
+</html>

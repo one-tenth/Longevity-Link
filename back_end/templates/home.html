@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — 智慧照護新未來</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080a;
+    --panel: rgba(20, 30, 35, 0.6);
+    --text: #e8f0e8;
+    --muted: #94a3b8;
+    --brand: #4ade80;       
+    --brand-glow: #4ade80;
+    --accent: #bef264;
+    --danger: #ef4444; /* 警示紅 */
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(74, 222, 128, 0.5);
+    --card-glow: rgba(74, 222, 128, 0.15);
+  }
+
+  * { box-sizing: border-box; }
+  
+  html { scroll-behavior: smooth; }
+  
+  body {
+    margin: 0;
+    color: var(--text);
+    background-color: var(--bg);
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* --- 背景特效 --- */
+  #canvas-bg {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; opacity: 0.6;
+  }
+
+  .noise-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* --- 導航列 --- */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(16px);
+    background: rgba(5, 8, 10, 0.7);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav__inner {
+    max-width: 1200px; margin: 0 auto; padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px; }
+  .brand__logo {
+    width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--brand), var(--accent));
+    color: #000; font-weight: 900;
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
+  }
+  .nav__links a {
+    color: var(--muted); margin-left: 24px; text-decoration: none; font-size: 14px; font-weight: 500; transition: .3s;
+  }
+  .nav__links a:hover { color: var(--brand); text-shadow: 0 0 10px var(--brand-glow); }
+
+  /* --- Hero Section --- */
+  .hero {
+    max-width: 1200px; margin: 80px auto 60px; padding: 0 24px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+    align-items: center;
+    perspective: 1000px;
+  }
+
+  @media (max-width: 960px) { 
+    .hero { grid-template-columns: 1fr; text-align: center; margin-top: 40px; } 
+    .hero__left { display: flex; flex-direction: column; align-items: center; }
+    .cta { justify-content: center; }
+    .hero__meta { justify-content: center; }
+  }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
+    color: var(--brand); background: rgba(74, 222, 128, 0.1);
+    padding: 8px 16px; border-radius: 100px; border: 1px solid rgba(74, 222, 128, 0.2);
+    margin-bottom: 24px;
+    box-shadow: 0 0 15px rgba(74, 222, 128, 0.1);
+  }
+
+  .hero h1 {
+    margin: 0 0 24px;
+    font-size: clamp(40px, 6vw, 64px);
+    line-height: 1.1;
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    background: linear-gradient(to right, #fff, #a8bdb0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--brand), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    margin: 0 0 32px; color: var(--muted); font-size: 18px; max-width: 540px;
+  }
+
+  .cta { display: flex; gap: 16px; }
+  .btn {
+    position: relative; overflow: hidden;
+    padding: 14px 32px; border-radius: 12px; font-weight: 700; text-decoration: none;
+    transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn--primary {
+    background: var(--brand); color: #05080a;
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+  }
+  .btn--primary:hover {
+    background: #fff; box-shadow: 0 0 40px rgba(255,255,255,0.4); transform: translateY(-2px);
+  }
+  .btn--ghost {
+    background: rgba(255,255,255,0.03); color: #fff; border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+  .btn--ghost:hover {
+    background: rgba(255,255,255,0.1); border-color: #fff;
+  }
+
+  .hero__meta {
+    margin-top: 32px; display: flex; gap: 24px; font-size: 13px; color: var(--muted);
+  }
+  .hero__meta div { display: flex; align-items: center; gap: 8px; }
+  .hero__meta span { color: var(--brand); }
+
+  /* --- 3D Phone --- */
+  .phone-container {
+    position: relative; width: 100%; max-width: 360px; margin: 0 auto;
+    transform-style: preserve-3d; transform: rotateY(-15deg) rotateX(5deg); transition: transform 0.1s ease-out;
+  }
+  .phone {
+    position: relative; aspect-ratio: 9/19.5; border-radius: 40px;
+    background: #111; border: 8px solid #222;
+    box-shadow: 0 0 0 2px #333, 0 50px 100px rgba(0,0,0,0.8), -20px 20px 60px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+  .phone::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(120deg, rgba(255,255,255,0.1) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.05) 100%);
+    pointer-events: none; z-index: 10;
+  }
+  .phone__screen {
+    width: 100%; height: 100%; background: #0c1115;
+    display: flex; flex-direction: column; padding: 20px; gap: 12px;
+    background-image: radial-gradient(circle at 50% 0%, rgba(74, 222, 128, 0.15), transparent 70%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .screen-header { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center; }
+  .screen-title { font-size: 18px; font-weight: 800; color: #fff; }
+  .status-bar { display: flex; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #333; }
+  .dot.active { background: var(--brand); box-shadow: 0 0 5px var(--brand); }
+
+  /* 手機 UI 元件 */
+  .alert-card {
+    background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
+  }
+  .alert-icon { width: 32px; height: 32px; background: var(--danger); border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 16px; }
+  .alert-info h4 { margin: 0; font-size: 13px; color: #fca5a5; }
+  .alert-info p { margin: 0; font-size: 11px; color: rgba(255,255,255,0.6); }
+
+  .widget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mini-card {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 14px; padding: 12px; position: relative; overflow: hidden;
+  }
+  .mini-card-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .mini-card-val { font-size: 18px; font-weight: 700; color: #fff; line-height: 1.2; }
+  .unit { font-size: 10px; color: #888; font-weight: 400; }
+  
+  .map-bg {
+    position: absolute; top:0; left:0; width:100%; height:100%; opacity: 0.3;
+    background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.1) 2px, transparent 3px),
+                radial-gradient(circle at 70% 80%, rgba(255,255,255,0.1) 2px, transparent 3px),
+                linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.1) 49%, rgba(255,255,255,0.1) 51%, transparent 52%);
+    background-size: 20px 20px, 20px 20px, 40px 40px;
+  }
+  .map-pin { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: var(--brand); border-radius: 50%; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.3); }
+  .map-text { position: relative; z-index: 2; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+
+  /* 回診卡片 (新增) */
+  .visit-card {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(56, 189, 248, 0.05));
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .visit-left { display: flex; flex-direction: column; gap: 2px; }
+  .visit-title { font-size: 13px; font-weight: 700; color: #bae6fd; }
+  .visit-time { font-size: 11px; color: #7dd3fc; display: flex; align-items: center; gap: 4px; }
+  .visit-icon { font-size: 20px; }
+
+  .med-section {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 16px; padding: 14px; flex: 1; display: flex; flex-direction: column;
+  }
+  .med-header { font-size: 12px; color: var(--muted); margin-bottom: 10px; display:flex; justify-content:space-between; }
+  .med-list { display: flex; flex-direction: column; gap: 8px; flex: 1; overflow: hidden; }
+  .med-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 10px; }
+  .med-time { font-size: 12px; font-weight: 700; color: var(--brand); background: rgba(74, 222, 128, 0.1); padding: 4px 6px; border-radius: 6px; }
+  .med-detail { flex: 1; }
+  .med-name { font-size: 13px; color: #fff; display: block; }
+  .med-dose { font-size: 10px; color: #888; }
+  .checkbox { width: 18px; height: 18px; border-radius: 6px; border: 1px solid #444; display: grid; place-items: center; }
+  .checkbox.checked { background: var(--brand); border-color: var(--brand); color: #000; }
+
+  /* --- Grid & Spotlight Cards --- */
+  .grid-section { max-width: 1200px; margin: 100px auto; padding: 0 24px; }
+  .section-title { text-align: center; margin-bottom: 60px; }
+  .section-title h2 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
+  .section-title p { color: var(--muted); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px; padding: 32px; position: relative; overflow: hidden;
+    transition: transform 0.3s; cursor: pointer;
+  }
+  .card:hover { transform: translateY(-5px); }
+  .card::before {
+    content: ""; position: absolute; height: 100%; width: 100%; top: 0; left: 0;
+    background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255, 255, 255, 0.06), transparent 40%);
+    z-index: 1; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+  }
+  .card::after {
+    content: ""; position: absolute; height: 100%; width: 100%; top: 0; left: 0;
+    background: radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(74, 222, 128, 0.3), transparent 40%);
+    z-index: 0; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+    border-radius: 20px;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 1px;
+  }
+  .grid:hover .card::before, .grid:hover .card::after { opacity: 1; }
+  .card-content { position: relative; z-index: 2; }
+  .card-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(74, 222, 128, 0.05));
+    border: 1px solid rgba(74, 222, 128, 0.2); display: grid; place-items: center; margin-bottom: 20px;
+    font-size: 24px; color: var(--brand);
+  }
+  .card h3 { margin: 0 0 10px; color: #fff; font-size: 20px; }
+  .card p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; }
+
+  .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s cubic-bezier(0.5, 0, 0, 1); }
+  .reveal.active { opacity: 1; transform: translateY(0); }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 40px 24px; margin-top: 80px;
+    text-align: center; color: var(--muted); font-size: 14px; background: rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body>
+
+  <canvas id="canvas-bg"></canvas>
+  <div class="noise-overlay"></div>
+
+  <header class="nav">
+    <div class="nav__inner">
+      <div class="brand">
+        <div class="brand__logo">C</div>
+        CareMate
+      </div>
+      <nav class="nav__links">
+        <a href="#">首頁</a>
+        <a href="#features">功能特色</a>
+        <a href="#">下載 App</a>
+        <a href="family_dashboard.html">登入</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero__left reveal">
+      <div class="chip">✨ AI 驅動的智慧照護系統</div>
+      <h1>讓關心成為日常<br><span>讓照護更有效率</span></h1>
+      <p>整合健康數據、用藥提醒與即時定位。CareMate 用極致的設計與科技，串起家人與長者間最安心的連結。</p>
+      
+      <div class="cta">
+        <a class="btn btn--primary" href="/static/CareMate.apk" download>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下載 Android 版
+        </a>
+        <a class="btn btn--ghost" href="https://www.youtube.com/watch?v=t71j2mUFjHY" target="_blank">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          觀看介紹影片
+        </a>
+      </div>
+
+      <div class="hero__meta">
+        <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 安全加密</div>
+        <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 實時同步</div>
+        <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 簡易介面</div>
+      </div>
+    </div>
+
+    <div class="hero__right reveal" style="transition-delay: 0.2s;">
+      <div class="phone-container" id="phone-tilt">
+        <div class="phone">
+          <div class="phone__screen">
+            
+            <div class="screen-header">
+              <span class="screen-title">Hello, Dad</span>
+              <div class="status-bar">
+                <div class="dot active"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+            
+            <div class="alert-card">
+              <div class="alert-icon">⚠️</div>
+              <div class="alert-info">
+                <h4>已封鎖可疑來電</h4>
+                <p>詐騙電話 (02) 7701...</p>
+              </div>
+            </div>
+
+            <div class="widget-grid">
+              <div class="mini-card">
+                <div class="mini-card-label">血壓測量</div>
+                <div class="mini-card-val">126<span class="unit">/82</span></div>
+                <div style="font-size:10px; color:var(--brand); margin-top:4px;">● 數值正常</div>
+              </div>
+              
+              <div class="mini-card" style="padding:0;">
+                <div class="map-bg"></div>
+                <div class="map-pin"></div>
+                <div style="position:absolute; bottom:10px; left:10px; z-index:2;">
+                  <div class="mini-card-label" style="text-shadow:0 1px 2px black;">目前位置</div>
+                  <div class="mini-card-val map-text" style="font-size:13px;">彰化縣彰化市...</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="visit-card">
+              <div class="visit-left">
+                <div class="visit-title">心臟科 回診提醒</div>
+                <div class="visit-time">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  明天 上午 09:30
+                </div>
+              </div>
+              <div class="visit-icon">🏥</div>
+            </div>
+
+            <div class="med-section">
+              <div class="med-header">
+                <span>待服用藥物</span>
+                <span>2/3</span>
+              </div>
+              <div class="med-list">
+                <div class="med-item">
+                  <div class="med-time">08:00</div>
+                  <div class="med-detail">
+                    <span class="med-name">降血壓藥 (Amlodipine)</span>
+                    <span class="med-dose">1 顆 / 睡前  </span>
+                  </div>
+                  <div class="checkbox checked">✓</div>
+                </div>
+                
+                <div class="med-item">
+                  <div class="med-time">18:30</div>
+                  <div class="med-detail">
+                    <span class="med-name">胃藥 (Cimewei)</span>
+                    <span class="med-dose">1.0 顆 / 飯前</span>
+                  </div>
+                  <div class="checkbox"></div>
+                </div>
+                <div class="med-item">
+                  <div class="med-time">18:30</div>
+                  <div class="med-detail">
+                    <span class="med-name">維他命c</span>
+                    <span class="med-dose">1.0 顆</span>
+                  </div>
+                  <div class="checkbox"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid-section" id="features">
+    <div class="section-title reveal">
+      <h2>全方位守護功能</h2>
+      <p>專為長者與照護者設計的貼心細節</p>
+    </div>
+
+    <div class="grid" id="cards-grid">
+      
+      <a href="ui-design.html" class="card reveal" style="transition-delay: 0.1s;">
+        <div class="card-content">
+          <div class="card-icon">👁‍🗨</div>
+          <h3>清晰大字體介面</h3>
+          <p>極高對比度與經過使用者測試的字體大小，確保長者不需費力也能看清每一則資訊。</p>
+          <div class="tags"><span class="tag">W3C 標準</span><span class="tag">無障礙</span></div>
+        </div>
+      </a>
+
+      <a href="health.html" class="card reveal" style="transition-delay: 0.1s;">
+        <div class="card-content">
+          <div class="card-icon">📊</div>
+          <h3>健康數據整合</h3>
+          <p>點擊進入 <strong>AI 儀表板</strong>：即時串接 Google Fit 步數與 YOLO 血壓辨識監控中心。</p>
+          <div class="tags"><span class="tag">Live Demo</span><span class="tag">Dashboard</span></div>
+        </div>
+      </a>
+
+      <a href="medicine.html" class="card reveal" style="transition-delay: 0.2s;">
+        <div class="card-content">
+          <div class="card-icon">🔔</div>
+          <h3>智慧用藥提醒</h3>
+          <p>點擊體驗 <strong>AI 藥單辨識</strong>：結合 Google Vision OCR 與 OpenAI，自動讀取藥袋並生成用藥排程。</p>
+          <div class="tags"><span class="tag">Live Demo</span><span class="tag">GenAI</span></div>
+        </div>
+      </a>
+
+      <a href="location.html" class="card reveal" style="transition-delay: 0.2s;">
+        <div class="card-content">
+          <div class="card-icon">📍</div>
+          <h3>即時定位追蹤</h3>
+          <p>設定安全活動範圍，當長者離開預設區域時發出警示，兼顧安全與隱私。</p>
+          <div class="tags"><span class="tag">GPS</span><span class="tag">地理圍欄</span></div>
+        </div>
+      </a>
+
+      <a href="security.html" class="card reveal" style="transition-delay: 0.2s;">
+        <div class="card-content">
+          <div class="card-icon">🛡</div>
+          <h3>隱私權限分級</h3>
+          <p>採用銀行級 TLS 加密傳輸，您可以精細控制誰能看到長者的健康數據或位置。</p>
+          <div class="tags"><span class="tag">E2EE 加密</span><span class="tag">權限控管</span></div>
+        </div>
+      </a>
+
+      <a href="ecosystem.html" class="card reveal" style="transition-delay: 0.2s;">
+        <div class="card-content">
+          <div class="card-icon">🧩</div>
+          <h3>模組化擴充</h3>
+          <p>支援穿戴裝置串接，未來將開放語音助理功能，打造可持續升級的照護生態系。</p>
+          <div class="tags"><span class="tag">IoT</span><span class="tag">Smart Home</span></div>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <footer>
+    <p>&copy; 2023 CareMate. Designed for Better Life.</p>
+  </footer>
+
+  <script>
+    const canvas = document.getElementById('canvas-bg');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let particles = [];
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.size = Math.random() * 2 + 1;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.x < 0 || this.x > width) this.vx *= -1;
+        if (this.y < 0 || this.y > height) this.vy *= -1;
+      }
+      draw() {
+        ctx.fillStyle = 'rgba(74, 222, 128, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 60; i++) {
+      particles.push(new Particle());
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.update();
+        p.draw();
+
+        for (let j = i; j < particles.length; j++) {
+          const p2 = particles[j];
+          const dx = p.x - p2.x;
+          const dy = p.y - p2.y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < 150) {
+            ctx.strokeStyle = `rgba(74, 222, 128, ${0.1 - dist/1500})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    const grid = document.getElementById('cards-grid');
+    const cards = document.querySelectorAll('.card');
+
+    grid.onmousemove = e => {
+      for(const card of cards) {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+      }
+    };
+
+    const heroSection = document.querySelector('.hero');
+    const phoneContainer = document.getElementById('phone-tilt');
+
+    heroSection.addEventListener('mousemove', (e) => {
+      const xAxis = (window.innerWidth / 2 - e.pageX) / 25;
+      const yAxis = (window.innerHeight / 2 - e.pageY) / 25;
+      phoneContainer.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+    });
+    
+    heroSection.addEventListener('mouseleave', () => {
+       phoneContainer.style.transition = 'transform 0.5s ease';
+       phoneContainer.style.transform = `rotateY(-15deg) rotateX(5deg)`;
+       setTimeout(() => { phoneContainer.style.transition = 'transform 0.1s ease-out'; }, 500);
+    });
+
+    const revealElements = document.querySelectorAll('.reveal');
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    revealElements.forEach(el => revealObserver.observe(el));
+
+  </script>
+</body>
+</html>

@@ -19,7 +19,7 @@ const COLORS = {
   white: '#FFFFFF', black: '#111111', textDark: '#111',
   textMid: '#333', line: '#E6E6E6', orange: '#F58402'
 };
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'https://caremate.ntub.edu.tw';
 
 type NavProp = StackNavigationProp<RootStackParamList, 'MedDetail'>;
 type RouteProps = RouteProp<RootStackParamList, 'MedDetail'>;

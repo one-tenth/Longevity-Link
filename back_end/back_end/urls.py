@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/ocrblood/', views.BloodYOLOView.as_view(), name='ocr_blood'),
     path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
     path('api/fitdata/by-date/', views.FitDataByDateAPI.as_view()),
+    path('member/<int:member_id>/steps/', views.get_member_steps_history),
     path('api/healthcare/by-date/', views.HealthCareByDateAPI.as_view()),
     path("api/med/analyze/", views.OcrAnalyzeView.as_view()),
     path('api/mednames/', views.MedNameListView.as_view(), name='medname-list'),

@@ -27,7 +27,7 @@ const CreateFamilyScreen: React.FC = () => {
 
       try {
 
-        const res = await fetch('http://192.168.0.91:8000/account/me/', {
+        const res = await fetch('https://caremate.ntub.edu.tw/account/me/', {
 
        
           headers: {
@@ -71,11 +71,7 @@ const CreateFamilyScreen: React.FC = () => {
       const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
       setFcode(generatedCode); // 更新畫面代碼
 
-<<<<<<< HEAD
-      const response = await fetch('http://192.168.1.150:8000/api/family/create/', {
-=======
-      const response = await fetch('http://192.168.0.91:8000/api/family/create/', {
->>>>>>> dev
+      const response = await fetch('https://caremate.ntub.edu.tw/api/family/create/', {
 
 
         method: 'POST',

@@ -1005,6 +1005,62 @@ class FitDataByDateAPI(APIView):
             'created_at': getattr(record, 'created_at', None),
             'updated_at': getattr(record, 'updated_at', None),
         })
+    
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model
+from .models import FitData
+from .serializers import FitDataSerializer1
+from datetime import datetime, timedelta
+
+User = get_user_model()
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_member_steps_history(request, member_id):
+    """
+    取得特定成員指定日期範圍內的步數資料
+    URL範例: /api/member/123/steps/?start_date=2023-11-01&end_date=2023-11-07
+    """
+    # 1. 權限檢查：確認目標成員存在且與請求者在同一家庭
+    try:
+        target_member = User.objects.get(UserID=member_id)
+    except User.DoesNotExist:
+        return Response({"error": "找不到該成員"}, status=404)
+
+    # 防呆：如果使用者沒有 FamilyID (例如剛註冊)，擋下來
+    if not request.user.FamilyID or target_member.FamilyID != request.user.FamilyID:
+        return Response({"error": "無權查看此成員資料"}, status=403)
+
+    # 2. 獲取日期參數 (預設為過去 7 天)
+    today = datetime.now().date()
+    default_start = today - timedelta(days=6)
+    
+    start_date_str = request.query_params.get('start_date')
+    end_date_str = request.query_params.get('end_date')
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else default_start
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else today
+    except ValueError:
+        return Response({"error": "日期格式錯誤，請使用 YYYY-MM-DD"}, status=400)
+
+    # 3. 查詢資料庫 (使用 __range 進行區間搜尋)
+    steps_data = FitData.objects.filter(
+        UserID=target_member,
+        date__range=[start_date, end_date]
+    ).order_by('date') # 重要：一定要排序，不然圖表會亂掉
+
+    # 4. 序列化回傳
+    serializer = FitDataSerializer1(steps_data, many=True)
+    
+    return Response({
+        "member_name": target_member.Name,
+        "start_date": start_date,
+        "end_date": end_date,
+        "data": serializer.data
+    })
 
 
 #----------------------------------------------------------------
