@@ -332,6 +332,50 @@ class HealthCareByDateAPI(APIView):
                 "captured_at": evening.CapturedAt if evening else None,
             } if evening else None,
         })
+from .models import HealthCare
+from .serializers import HealthCareSerializer
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_member_bp_history(request, member_id):
+    """
+    取得特定成員的血壓資料
+    URL: /api/member/123/bp/?start_date=2023-11-01&end_date=2023-11-07
+    """
+    try:
+        target_member = User.objects.get(UserID=member_id)
+    except User.DoesNotExist:
+        return Response({"error": "找不到該成員"}, status=404)
+
+    if not request.user.FamilyID or target_member.FamilyID != request.user.FamilyID:
+        return Response({"error": "無權查看此成員資料"}, status=403)
+
+    # 日期處理
+    today = datetime.now().date()
+    default_start = today - timedelta(days=6)
+    
+    start_date_str = request.query_params.get('start_date')
+    end_date_str = request.query_params.get('end_date')
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else default_start
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else today
+    except ValueError:
+        return Response({"error": "日期格式錯誤"}, status=400)
+
+    # 查詢並排序：日期優先，再來是時段 (早 -> 晚)
+    bp_data = HealthCare.objects.filter(
+        UserID=target_member,
+        LocalDate__range=[start_date, end_date]
+    ).order_by('LocalDate', '-Period') 
+
+    serializer = HealthCareSerializer(bp_data, many=True)
+    
+    return Response({
+        "member_name": target_member.Name,
+        "data": serializer.data
+    })
 
 #----------------------------------------------------------------
 #藥單
@@ -2071,3 +2115,74 @@ def location_history(request, elder_id):
 
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+
+
+
+
+# views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.conf import settings
+from .models import FitData, HealthCare
+from django.contrib.auth import get_user_model
+from datetime import datetime, timedelta
+import openai
+
+User = get_user_model()
+
+# 設定 OpenAI Client
+client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_ai_health_advice(request):
+    member_id = request.data.get('member_id')
+    
+    # 1. 檢查權限
+    try:
+        target_member = User.objects.get(UserID=member_id)
+        if target_member.FamilyID != request.user.FamilyID:
+            return Response({"advice": "無權限查看此成員資料。"}, status=403)
+    except User.DoesNotExist:
+        return Response({"advice": "找不到該成員。"}, status=404)
+
+    # 2. 撈取最近 3 天的數據 (作為 AI 判斷依據)
+    today = datetime.now().date()
+    start_date = today - timedelta(days=3)
+    
+    steps = FitData.objects.filter(UserID=member_id, date__range=[start_date, today])
+    bps = HealthCare.objects.filter(UserID=member_id, LocalDate__range=[start_date, today])
+
+    # 3. 整理數據成文字 (Prompt Context)
+    data_summary = f"使用者姓名：{target_member.Name}\n最近健康數據：\n"
+    
+    if not steps and not bps:
+        return Response({"advice": f"目前 {target_member.Name} 還沒有足夠的數據，請提醒長輩記得配戴裝置或量測血壓喔！"})
+
+    for s in steps:
+        data_summary += f"- {s.date}: 步數 {s.steps}\n"
+    for b in bps:
+        data_summary += f"- {b.LocalDate} ({b.Period}): 血壓 {b.Systolic}/{b.Diastolic}, 脈搏 {b.Pulse}\n"
+
+    # 4. 呼叫 OpenAI (GPT-4o-mini 比較快且便宜，適合這種應用)
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini", 
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "你是一位溫暖、專業的家庭醫師助理 AI。請根據提供的老人近三天健康數據，用繁體中文給出一段約 50-80 字的關懷建議。語氣要親切、像家人一樣。如果數據正常就給予鼓勵；如果有異常(收縮壓>140 或 步數<2000)請委婉提醒注意，不要直接列出冷冰冰的數字，而是轉化為建議。"
+                },
+                {"role": "user", "content": data_summary}
+            ],
+            max_tokens=200,
+            temperature=0.7
+        )
+        ai_advice = completion.choices[0].message.content
+        return Response({"advice": ai_advice})
+
+    except Exception as e:
+        print(f"OpenAI Error: {e}")
+        return Response({"advice": "AI 腦力激盪中...目前暫時無法連線，請稍後再試。"})

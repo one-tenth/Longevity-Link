@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/ping/', ping, name='api-ping'),
     path('api/hello/', views.hello_world),
     path('api/ocrblood/', views.BloodYOLOView.as_view(), name='ocr_blood'),
+    path('member/<int:member_id>/bp/', views.get_member_bp_history),
     path('api/fitdata/', views.FitDataAPI.as_view(), name='fitdata'),
     path('api/fitdata/by-date/', views.FitDataByDateAPI.as_view()),
     path('member/<int:member_id>/steps/', views.get_member_steps_history),
@@ -67,4 +68,5 @@ urlpatterns = [
     path('api/callrecords/<int:elder_id>/', views.get_call_records, name='get_call_records'),
     path('api/location/history/<int:elder_id>/', views.location_history,name='location_history'),
     # path('api/call/list/', views.list_call_logs, name='list_call_logs'),
+    path('member/ai_advice/', views.get_ai_health_advice),
 ]

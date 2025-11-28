@@ -6,7 +6,7 @@ load_dotenv()
 # settings.py
 import os
 
-
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 """
 Django settings for back_end project.
 
