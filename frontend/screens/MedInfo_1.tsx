@@ -37,7 +37,7 @@ const COLORS = {
 };
 
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'https://caremate.ntub.edu.tw';
 
 const R = 22;
 
@@ -299,7 +299,7 @@ const feature = StyleSheet.create({
 
 
 
-// const BASE = 'http://192.168.0.91:8000';
+// const BASE = 'https://caremate.ntub.edu.tw';
 
 // const R = 22;
 

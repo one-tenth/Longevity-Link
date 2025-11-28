@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — Smart Med Scanner Showcase</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080a;
+    --surface: rgba(15, 20, 25, 0.7);
+    --surface-border: rgba(255, 255, 255, 0.1);
+    --text: #e8f0e8;
+    --muted: #94a3b8;
+    --brand: #4ade80;
+    --accent: #38bdf8;
+    --google: #ea4335;
+    --openai: #10a37f;
+    --warning: #facc15;
+  }
+
+  * { box-sizing: border-box; }
+  
+  body {
+    margin: 0; color: var(--text); background-color: var(--bg);
+    font-family: 'Inter', sans-serif; overflow-x: hidden;
+    padding-bottom: 100px;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* 背景特效 */
+  #canvas-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; opacity: 0.3; }
+  .grid-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px; mask-image: radial-gradient(circle at 80% 20%, black 40%, transparent 80%);
+  }
+
+  .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header { padding: 30px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--surface-border); margin-bottom: 40px; }
+  .logo { font-size: 20px; font-weight: 900; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 10px; transition: opacity 0.3s; }
+  .logo:hover { opacity: 0.8; }
+  .tag { font-size: 12px; padding: 4px 12px; border-radius: 100px; border: 1px solid var(--surface-border); background: rgba(255,255,255,0.05); color: var(--accent); }
+
+  /* Showcase Grid Layout */
+  .showcase-grid {
+    display: grid; grid-template-columns: 1fr 1.2fr; gap: 60px; align-items: start;
+  }
+  @media (max-width: 1024px) { .showcase-grid { grid-template-columns: 1fr; } }
+
+  /* --- Left: Text Content --- */
+  .text-content { padding-top: 20px; }
+  .text-content h1 { font-size: 48px; line-height: 1.1; margin-bottom: 24px; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .text-content h2 { font-size: 24px; margin-top: 40px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .text-content p { font-size: 16px; color: var(--muted); line-height: 1.7; margin-bottom: 20px; }
+  
+  .tech-badges { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .tech-badge { font-size: 13px; padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); display: flex; align-items: center; gap: 6px; }
+
+  /* --- Right: Interactive Demo Wrapper --- */
+  .demo-wrapper {
+    background: var(--surface); border: 1px solid var(--surface-border);
+    border-radius: 24px; padding: 24px; position: relative; overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  }
+  
+  .demo-title { text-align: center; margin-bottom: 20px; color: var(--muted); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ... (Retention of your original Styles) ... */
+  .viewfinder { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
+  .camera-feed { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; background-image: url('https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=2030&auto=format&fit=crop'); background-size: cover; background-position: center; }
+  .scan-beam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, transparent, rgba(74, 222, 128, 0.2), var(--brand), rgba(74, 222, 128, 0.2), transparent); transform: translateY(-100%); opacity: 0; pointer-events: none; }
+  .scanning .scan-beam { animation: scanMove 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; opacity: 1; }
+  .ocr-box { position: absolute; border: 1px solid var(--accent); background: rgba(56, 189, 248, 0.1); opacity: 0; transition: opacity 0.3s; }
+  .scanning .ocr-box { opacity: 1; animation: flicker 0.5s infinite; }
+
+  .controls { display: flex; justify-content: center; margin-bottom: 20px; }
+  .btn-scan { background: var(--brand); color: #000; font-weight: 700; border: none; padding: 12px 32px; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 16px; transition: 0.2s; }
+  .btn-scan:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(74, 222, 128, 0.4); }
+  
+  /* Tech Pipeline (Small version) */
+  .tech-pipeline { display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; border: 1px solid var(--surface-border); margin-bottom: 20px; }
+  .tech-step { display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0.3; transition: 0.3s; }
+  .tech-step.active { opacity: 1; transform: translateY(-2px); }
+  .tech-icon { font-size: 18px; }
+  .tech-label { font-size: 10px; color: var(--muted); font-weight: bold; }
+  .arrow { flex: 1; height: 2px; background: #333; margin: 0 8px; position: relative; overflow: hidden; }
+  .arrow-packet { position: absolute; top: 0; left: -100%; width: 30%; height: 100%; background: var(--brand); opacity: 0; }
+  .processing .arrow-packet { opacity: 1; animation: packetMove 1s linear infinite; }
+
+  /* Result Card */
+  .result-card { background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); border-radius: 16px; padding: 20px; opacity: 0.5; filter: blur(5px); transition: 0.5s; transform: translateY(20px); }
+  .result-card.show { opacity: 1; filter: blur(0); transform: translateY(0); border-color: var(--brand); }
+  .drug-name { font-size: 20px; font-weight: 900; color: #fff; margin: 0 0 10px 0; }
+  .info-item { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .info-label { font-size: 11px; color: var(--muted); display: block; text-transform: uppercase; }
+  .info-content { font-size: 14px; color: #fff; }
+  
+  /* Console */
+  .console-view { background: #000; border-radius: 8px; padding: 10px; height: 80px; overflow-y: auto; font-size: 11px; color: #aaa; margin-bottom: 20px; font-family: 'JetBrains Mono'; }
+  .log-line span { color: var(--brand); }
+
+  @keyframes scanMove { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+  @keyframes flicker { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+  @keyframes packetMove { 0% { left: -30%; } 100% { left: 100%; } }
+</style>
+</head>
+<body>
+
+  <canvas id="canvas-bg"></canvas>
+  <div class="grid-overlay"></div>
+
+  <div class="container">
+    <header>
+      <a href="home.html" class="logo">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+        CareMate Med Scanner
+      </a>
+      <span class="tag">AI Feature Showcase</span>
+    </header>
+
+    <div class="showcase-grid">
+      
+      <div class="text-content">
+        <h1>Deciphering<br>Prescriptions</h1>
+        
+        <h2><span style="font-size:24px;">🚨</span> The Problem</h2>
+        <p>
+          許多長輩因視力退化或藥單資訊過於複雜，常有「吃錯藥」或「忘記吃藥」的風險。傳統的手動輸入排程既繁瑣又容易出錯。
+        </p>
+
+        <h2><span style="font-size:24px;">💡</span> The Solution</h2>
+        <p>
+          我們利用 <strong>Generative AI</strong> 的強大語意理解能力，將非結構化的藥單照片，瞬間轉換為結構化的用藥排程。
+        </p>
+        <p>
+          使用者只需「拍一張照」，系統便能自動提取藥名、劑量、頻率及副作用，並自動設定手機提醒。
+        </p>
+
+        <div class="tech-badges">
+          <div class="tech-badge"><span style="color:var(--google)">●</span> Google Cloud Vision API (OCR)</div>
+          <div class="tech-badge"><span style="color:var(--openai)">●</span> OpenAI GPT-4 Turbo (NLP)</div>
+          <div class="tech-badge"><span style="color:var(--brand)">●</span> JSON Structure Parsing</div>
+        </div>
+      </div>
+
+      <div class="demo-wrapper">
+        <div class="demo-title">/// INTERACTIVE DEMO ///</div>
+        
+        <div class="viewfinder" id="viewfinder">
+          <div class="camera-feed"></div>
+          <div class="scan-beam"></div>
+          <div class="ocr-box" style="top:20%; left:10%; width:60%; height:10%;"></div>
+          <div class="ocr-box" style="top:35%; left:15%; width:40%; height:8%;"></div>
+          <div class="ocr-box" style="top:50%; left:10%; width:80%; height:15%;"></div>
+        </div>
+
+        <div class="controls">
+          <button class="btn-scan" onclick="startProcess()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            Start Demo
+          </button>
+        </div>
+
+        <div class="tech-pipeline" id="pipeline">
+          <div class="tech-step active" id="step-img"><div class="tech-icon">🖼️</div><div class="tech-label">IMG</div></div>
+          <div class="arrow"><div class="arrow-packet"></div></div>
+          <div class="tech-step" id="step-ocr"><div class="tech-icon" style="color:var(--google)">G</div><div class="tech-label">OCR</div></div>
+          <div class="arrow"><div class="arrow-packet"></div></div>
+          <div class="tech-step" id="step-ai"><div class="tech-icon" style="color:var(--openai)">🧠</div><div class="tech-label">GPT</div></div>
+          <div class="arrow"><div class="arrow-packet"></div></div>
+          <div class="tech-step" id="step-json"><div class="tech-icon" style="color:var(--brand)">{}</div><div class="tech-label">JSON</div></div>
+        </div>
+        
+        <div class="console-view mono" id="console">
+          <div class="log-line">> Ready to scan.</div>
+        </div>
+
+        <div class="result-card" id="resultCard">
+          <h3 class="drug-name">Metformin <span style="font-size:14px; font-weight:400; color:#aaa;">每福敏 緩釋膜衣錠</span></h3>
+          <div class="info-item">
+            <span class="info-label">Usage</span>
+            <div class="info-content">每日 2 次 (早/晚)，飯後服用。</div>
+          </div>
+          <div class="info-item" style="border:none;">
+            <span class="info-label">Warning</span>
+            <div class="info-content" style="color:#eecba0;">可能引起腹瀉，請整粒吞服。</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 互動邏輯 (保持不變，負責右側的動畫演示)
+    const consoleDiv = document.getElementById('console');
+    const viewfinder = document.getElementById('viewfinder');
+    const pipeline = document.getElementById('pipeline');
+    const resultCard = document.getElementById('resultCard');
+    
+    function log(msg, color = '#aaa') {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML = `<span style="color:${color}">></span> ${msg}`;
+      consoleDiv.appendChild(div);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    function setStep(id, status) {
+      const el = document.getElementById(id);
+      if(status) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+
+    function startProcess() {
+      resultCard.classList.remove('show');
+      consoleDiv.innerHTML = '';
+      log('Demo started...', '#fff');
+      
+      // 1. Scan
+      viewfinder.classList.add('scanning');
+      pipeline.classList.add('processing');
+      setStep('step-img', true);
+      log('Capturing image...', '#fff');
+      
+      setTimeout(() => {
+        // 2. OCR
+        log('Google Vision API processing...', '#ea4335');
+        setStep('step-ocr', true);
+        
+        setTimeout(() => {
+            log('Text Extracted. Sending to LLM...', '#ea4335');
+            // 3. AI
+            setTimeout(() => {
+                log('OpenAI GPT-4 analyzing context...', '#10a37f');
+                setStep('step-ocr', false);
+                setStep('step-ai', true);
+                
+                setTimeout(() => {
+                    // 4. Result
+                    setStep('step-ai', false);
+                    setStep('step-json', true);
+                    log('Data structured. Generating reminder.', '#4ade80');
+                    
+                    viewfinder.classList.remove('scanning');
+                    pipeline.classList.remove('processing');
+                    resultCard.classList.add('show');
+                }, 1000);
+            }, 1200);
+        }, 1500);
+      }, 1000);
+    }
+
+    // 背景粒子動畫
+    const canvas = document.getElementById('canvas-bg');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const particles = Array.from({length:30}, () => ({ x:Math.random()*canvas.width, y:Math.random()*canvas.height, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.5 }));
+    function animate() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#38bdf8';
+      particles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0||p.x>canvas.width)p.vx*=-1; if(p.y<0||p.y>canvas.height)p.vy*=-1;
+        ctx.globalAlpha=0.2; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill();
+      });
+      requestAnimationFrame(animate);
+    }
+    animate();
+  </script>
+</body>
+</html>

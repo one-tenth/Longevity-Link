@@ -48,7 +48,7 @@ export default function LoginScreen() {
     try {
 
 
-      const response = await fetch('http://192.168.0.91:8000/api/account/login/', {
+      const response = await fetch('https://caremate.ntub.edu.tw/api/account/login/', {
 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

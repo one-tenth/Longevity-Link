@@ -85,3 +85,4 @@ frontend/android/app/.cxx/
 /package.json
 !frontend/package-lock.json
 !frontend/package.json
+google_maps_api.xml

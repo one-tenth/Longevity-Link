@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — Project Showcase</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080a;
+    --surface: rgba(15, 20, 25, 0.7);
+    --surface-border: rgba(255, 255, 255, 0.1);
+    --text: #e8f0e8;
+    --muted: #94a3b8;
+    --brand: #4ade80;
+    --accent: #38bdf8;
+    --yolo: #facc15;
+  }
+
+  * { box-sizing: border-box; }
+  
+  body {
+    margin: 0; color: var(--text); background-color: var(--bg);
+    font-family: 'Inter', sans-serif; overflow-x: hidden;
+    padding-bottom: 100px;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* 背景特效 */
+  #canvas-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; opacity: 0.4; }
+  .grid-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px; mask-image: radial-gradient(circle at 50% 20%, black 40%, transparent 80%);
+  }
+
+  /* --- Layout Components --- */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header { padding: 30px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--surface-border); margin-bottom: 60px; }
+  .logo { font-size: 20px; font-weight: 900; color: #fff; text-decoration: none; display: flex; align-items: center; gap: 10px; transition: opacity 0.3s; }
+  .logo:hover { opacity: 0.8; }
+  .tag { font-size: 12px; padding: 4px 12px; border-radius: 100px; border: 1px solid var(--surface-border); background: rgba(255,255,255,0.05); color: var(--brand); }
+
+  /* Hero Section */
+  .hero { text-align: center; margin-bottom: 100px; }
+  .hero h1 { font-size: clamp(40px, 6vw, 64px); line-height: 1.1; margin-bottom: 24px; background: linear-gradient(to bottom, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { font-size: 18px; color: var(--muted); max-width: 600px; margin: 0 auto; line-height: 1.6; }
+
+  /* Feature Sections (Grid Layout) */
+  .feature-section {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; margin-bottom: 120px;
+  }
+  .feature-section.reverse { direction: rtl; } /* 讓圖片在左邊 */
+  .feature-section.reverse .text-content { direction: ltr; } /* 文字轉回來 */
+
+  @media (max-width: 900px) {
+    .feature-section, .feature-section.reverse { grid-template-columns: 1fr; direction: ltr; gap: 40px; }
+  }
+
+  /* Text Content */
+  .text-content h2 { font-size: 32px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .text-content h2 span { font-size: 14px; background: var(--surface-border); padding: 4px 8px; border-radius: 6px; color: var(--brand); vertical-align: middle; }
+  .text-content p { color: var(--muted); line-height: 1.7; margin-bottom: 24px; font-size: 16px; }
+  .tech-stack { display: flex; gap: 12px; flex-wrap: wrap; }
+  .tech-badge { font-size: 13px; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); border-radius: 6px; color: #ccc; font-family: 'JetBrains Mono', monospace; }
+
+  /* Visual Containers (Cards) */
+  .visual-card {
+    background: var(--surface); border: 1px solid var(--surface-border);
+    border-radius: 24px; padding: 24px; position: relative; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  }
+  
+  /* --- Specific Visuals (Copied from Dashboard) --- */
+  
+  /* 1. YOLO Video */
+  .vision-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+  .camera-feed { width: 100%; height: 100%; object-fit: cover; opacity: 0.9; }
+  .scan-line { position: absolute; width: 100%; height: 2px; background: var(--brand); top: 0; left: 0; box-shadow: 0 0 10px var(--brand); animation: scan 3s linear infinite; opacity: 0.5; pointer-events: none; }
+  
+  /* Pipeline Animation */
+  .pipeline-flow { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--surface-border); }
+  .pipe-node { text-align: center; position: relative; z-index: 2; background: #1e293b; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--surface-border); font-size: 12px; color: var(--muted); transition: 0.3s; }
+  .pipe-node.active { border-color: var(--brand); color: var(--brand); }
+  .connector { flex: 1; height: 2px; background: #333; margin: 0 8px; position: relative; overflow: hidden; }
+  .packet { position: absolute; width: 10px; height: 100%; background: var(--brand); top: 0; left: -20px; animation: flow 1.5s linear infinite; }
+
+  /* 2. Google Fit Ring */
+  .fit-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
+  .progress-ring { position: relative; width: 200px; height: 200px; }
+  .progress-ring circle { fill: transparent; stroke-width: 12; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 1s ease-in-out; }
+  .ring-bg { stroke: rgba(255,255,255,0.05); }
+  .ring-val { stroke: var(--accent); stroke-dasharray: 565; stroke-dashoffset: 565; filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4)); }
+  .fit-stats { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+  .fit-icon { margin-top: 20px; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+
+  /* Animations */
+  @keyframes scan { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+  @keyframes flow { 0% { left: -20%; } 100% { left: 100%; } }
+
+  /* Console Log Style */
+  .console-box {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a8a8a8;
+    background: #000; padding: 12px; border-radius: 8px; margin-top: 20px;
+    border-left: 2px solid var(--yolo);
+  }
+</style>
+</head>
+<body>
+
+  <canvas id="canvas-bg"></canvas>
+  <div class="grid-overlay"></div>
+
+  <div class="container">
+    <header>
+      <a href="home.html" class="logo">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+        CareMate
+      </a>
+      <span class="tag">Technical Showcase</span>
+    </header>
+
+    <section class="hero">
+      <h1>Connecting Care<br>with Intelligence</h1>
+      <p>
+        為了解決長者健康數據破碎化的問題，CareMate 整合了 <strong>AI 電腦視覺</strong> 與 <strong>Google Health Connect</strong>，
+        打造一個無感、自動化的健康照護生態系。
+      </p>
+    </section>
+
+    <section class="feature-section">
+      <div class="text-content">
+        <h2>AI 視覺辨識 <span>Core Tech</span></h2>
+        <p>
+          長輩常常忘記手寫記錄血壓，或者抄寫錯誤。我們開發了一套基於 <strong>YOLOv8</strong> 的電腦視覺 Pipeline。
+          使用者只需將血壓計拍攝下來，系統即自動偵測螢幕區域、進行傾斜校正，並透過 yolo digits detection 提取數值。
+        </p>
+        <p>這解決了傳統藍牙設備配對困難的問題，讓任何品牌的血壓計都能變成「智慧裝置」。</p>
+        
+        <div class="tech-stack">
+          <span class="tech-badge">Python</span>
+          <span class="tech-badge">YOLOv8-Nano</span>
+          <span class="tech-badge">OpenCV</span>
+          <span class="tech-badge">EasyOCR</span>
+        </div>
+
+        <div class="console-box">
+          <div>> [System] Loading weights 'best.pt'... OK</div>
+          <div>> [Pipeline] ROI Detected: Class 'screen' (0.98)</div>
+          <div style="color:var(--brand)">> [DB] Upload Success: 126/82 mmHg</div>
+        </div>
+      </div>
+
+      <div class="visual-card">
+        <div class="vision-container">
+          <video id="demoVideo" class="camera-feed" autoplay loop muted playsinline>
+            <source src="/static/demo_detected.mp4" type="video/mp4">
+          </video>
+          
+          <div class="scan-line"></div>
+          
+          <div style="position:absolute; top:10px; left:10px; background:rgba(255,0,0,0.8); color:white; font-size:10px; padding:2px 6px; border-radius:4px;">LIVE INFERENCE</div>
+          <div style="position:absolute; bottom:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.3); padding:4px 8px; border-radius:6px; text-align:right;">
+            <div style="font-size:9px; color:var(--brand)">RESULT</div>
+            <div class="mono" style="font-size:16px; color:#fff">126 / 82</div>
+          </div>
+        </div>
+
+        <div class="pipeline-flow">
+          <div class="pipe-node active">Input</div>
+          <div class="connector"><div class="packet"></div></div>
+          <div class="pipe-node active">YOLO</div>
+          <div class="connector"><div class="packet" style="animation-delay:0.5s"></div></div>
+          <div class="pipe-node active">OCR</div>
+          <div class="connector"><div class="packet" style="animation-delay:1s"></div></div>
+          <div class="pipe-node">DB</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-section reverse">
+      <div class="text-content">
+        <h2>多源數據整合 <span>Integration</span></h2>
+        <p>
+          除了被動量測，我們也關注長者的活動量。透過串接 <strong>Google Fit API</strong>，
+          App 能背景同步長者的步數、睡眠與心率數據。
+        </p>
+        <p>
+          所有數據（AI 辨識的血壓 + Google Fit 的步數）都會匯總到同一個 Dashboard，讓照護者能一眼掌握長者的全天健康狀態。
+        </p>
+
+        <div class="tech-stack">
+          <span class="tech-badge">Google Health Connect</span>
+          <span class="tech-badge">REST API</span>
+          <span class="tech-badge">JSON</span>
+          <span class="tech-badge">OAuth 2.0</span>
+        </div>
+      </div>
+
+      <div class="visual-card fit-wrapper">
+        <div class="progress-ring">
+          <svg width="200" height="200">
+            <circle class="ring-bg" cx="100" cy="100" r="90"></circle>
+            <circle class="ring-val" id="stepRing" cx="100" cy="100" r="90"></circle>
+          </svg>
+          <div class="fit-stats">
+            <span class="step-count mono" id="stepCount">0</span>
+            <span style="font-size:12px; color:var(--muted); margin-top:4px; display:block;">今日步數</span>
+          </div>
+        </div>
+
+        <div class="fit-icon">
+           <svg width="18" height="18" viewBox="0 0 24 24"><path d="M18.2 4l-8.6 8.6L5.8 8.8a2.3 2.3 0 0 0-3.2 0l-.9.9c-.9.9-.9 2.3 0 3.2l5.1 5.1L16 8.9l3.1-3.1c.9-.9.9-2.3 0-3.2l-.9-.9c-.9-.9-2.3-.9-3.2 0z" fill="#EA4335"/><path d="M17.3 4.9l-8.6 8.6-3.8-3.8a2.3 2.3 0 0 0-3.2 0l-.9.9c-.9.9-.9 2.3 0 3.2l5.1 5.1L16 8.9l2.2-2.2" fill="#FBBC04"/><path d="M14.4 7.8l-5.7 5.7-3.8-3.8a2.3 2.3 0 0 0-3.2 0l-.9.9c-.9.9-.9 2.3 0 3.2l5.1 5.1L16 8.9" fill="#34A853"/><path d="M11.5 10.7L5.9 16.3l-1.3-1.3c-.9-.9-.9-2.3 0-3.2l.9-.9c.9-.9 2.3-.9 3.2 0l2.8 2.8" fill="#4285F4"/></svg>
+           <span>Sync with Google Cloud</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // --- 1. Google Fit 動畫 ---
+    const stepRing = document.getElementById('stepRing');
+    const stepCount = document.getElementById('stepCount');
+    const circumference = 2 * Math.PI * 90;
+    
+    stepRing.style.strokeDasharray = `${circumference} ${circumference}`;
+    stepRing.style.strokeDashoffset = circumference;
+
+    // 使用 IntersectionObserver 讓使用者滑到該區塊才開始跑動畫
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const targetSteps = 8432;
+          const maxSteps = 10000;
+          const offset = circumference - (targetSteps / maxSteps) * circumference;
+          stepRing.style.strokeDashoffset = offset;
+
+          let currentStep = 0;
+          const interval = setInterval(() => {
+            currentStep += 120;
+            if (currentStep >= targetSteps) {
+              currentStep = targetSteps;
+              clearInterval(interval);
+            }
+            stepCount.innerText = currentStep.toLocaleString();
+          }, 20);
+          observer.unobserve(entry.target); // 動畫只跑一次
+        }
+      });
+    }, { threshold: 0.5 });
+
+    observer.observe(document.querySelector('.fit-wrapper'));
+
+    // --- 2. Canvas Background ---
+    const canvas = document.getElementById('canvas-bg');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const particles = [];
+    for(let i=0; i<40; i++) particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3 });
+    
+    function animateBg() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#4ade80';
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+        ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+      });
+      requestAnimationFrame(animateBg);
+    }
+    animateBg();
+  </script>
+</body>
+</html>

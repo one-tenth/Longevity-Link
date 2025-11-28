@@ -51,6 +51,10 @@ class FitDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = FitData
         fields = ['steps', 'timestamp']
+class FitDataSerializer1(serializers.ModelSerializer):
+    class Meta:
+        model = FitData
+        fields = ['date', 'steps']
 
 
 class MedSerializer(serializers.ModelSerializer):
@@ -306,3 +310,12 @@ class MedDetailSerializer(serializers.ModelSerializer):
             'Effect', 
             'SideEffect'
         ]
+
+from rest_framework import serializers
+from .models import HealthCare
+
+class HealthCareSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HealthCare
+        # 回傳這幾個關鍵欄位給前端畫圖
+        fields = ['LocalDate', 'Period', 'Systolic', 'Diastolic', 'Pulse']

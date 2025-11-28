@@ -94,7 +94,7 @@ export default function CreateFamily() {
       if (!token) return;
       try {
 
-        const res = await fetch('http://192.168.0.91:8000/account/me/', {
+        const res = await fetch('https://caremate.ntub.edu.tw/account/me/', {
 
           headers: {
             'Content-Type': 'application/json',
@@ -128,12 +128,7 @@ export default function CreateFamily() {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setFamilyCode(code);
     try {
-
-<<<<<<< HEAD
-      const response = await fetch('http://192.168.1.150:8000/api/family/create/', {
-=======
-      const response = await fetch('http://192.168.0.91:8000/api/family/create/', {
->>>>>>> dev
+      const response = await fetch('https://caremate.ntub.edu.tw/api/family/create/', {
     
         method: 'POST',
         headers: {

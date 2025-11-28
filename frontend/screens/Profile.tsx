@@ -84,7 +84,7 @@ export default function ProfileScreen() {
       try {
 
 
-        const res = await fetch('http://192.168.0.91:8000/account/me/', {
+        const res = await fetch('https://caremate.ntub.edu.tw/account/me/', {
 
 
           headers: { Authorization: `Bearer ${token}` },

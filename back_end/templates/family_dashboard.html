@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>CareMate — Family AI Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #0f172a;
+    --glass: rgba(30, 41, 59, 0.75);
+    --glass-mobile: rgba(15, 23, 42, 0.98);
+    --border: rgba(255, 255, 255, 0.08);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --brand: #4ade80;
+    --accent: #38bdf8;
+    --pulse: #a3e635;
+    --danger: #ef4444;
+    --sidebar-width: 280px;
+    --sidebar-mini-width: 80px;
+    --ai-gradient: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+  }
+
+  /* --- Sidebar (側邊欄) --- */
+  .sidebar {
+    width: var(--sidebar-width); 
+    background: var(--glass); 
+    border-right: 1px solid var(--border); 
+    backdrop-filter: blur(12px);
+    padding: 24px 16px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 24px;
+    z-index: 100;
+    flex-shrink: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-x: hidden;
+    white-space: nowrap;
+  }
+
+  /* 電腦版縮小狀態 (Mini Sidebar) */
+  .sidebar.mini {
+    width: var(--sidebar-mini-width);
+    padding: 24px 10px;
+  }
+
+  .sidebar.mini .app-brand span,
+  .sidebar.mini .section-title,
+  .sidebar.mini .toggle-icon,
+  .sidebar.mini .member-info,
+  .sidebar.mini .btn-logout span {
+    opacity: 0;
+    pointer-events: none;
+    display: none; /* 完全隱藏以避免佈局問題 */
+  }
+  
+  .sidebar.mini .app-brand { justify-content: center; }
+  .sidebar.mini .section-header { justify-content: center; }
+  .sidebar.mini .member-card { justify-content: center; padding: 10px 0; }
+  .sidebar.mini .btn-logout { justify-content: center; }
+
+  .app-brand { 
+    font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 12px; 
+    color: #fff; transition: all 0.3s;
+  }
+  .brand-icon { 
+    width: 36px; height: 36px; background: var(--ai-gradient); border-radius: 10px; 
+    display:grid; place-items:center; color:#fff; font-weight:900; font-size: 14px; flex-shrink: 0;
+  }
+  
+  .section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; padding: 8px; user-select: none; border-radius: 8px;
+    transition: background 0.2s;
+  }
+  .section-header:hover { background: rgba(255,255,255,0.05); }
+  .section-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+  
+  .family-list-wrapper {
+    overflow-y: auto; overflow-x: hidden; flex: 1;
+    /* 自訂捲軸 */
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  
+  .member-card {
+    display: flex; align-items: center; gap: 12px; padding: 10px;
+    border-radius: 12px; cursor: pointer; transition: all 0.2s;
+    border: 1px solid transparent; margin-bottom: 8px;
+  }
+  .member-card:hover { background: rgba(255,255,255,0.05); }
+  .member-card.active { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); }
+  
+  .avatar { 
+    width: 40px; height: 40px; border-radius: 50%; background: #334155; 
+    display: grid; place-items: center; font-weight: 700; color: #cbd5e1; flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .member-card:hover .avatar { transform: scale(1.05); }
+  .member-card.active .avatar { background: var(--ai-gradient); color: #fff; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3); }
+  
+  .member-info h4 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .member-info p { margin: 2px 0 0; font-size: 12px; color: var(--text-secondary); }
+
+  .btn-logout {
+    margin-top: auto; padding: 12px; background: rgba(255,255,255,0.03); 
+    color: var(--text-secondary); border: 1px solid var(--border); 
+    border-radius: 12px; cursor: pointer; font-size: 14px; 
+    display: flex; align-items: center; gap: 10px; transition: 0.2s;
+  }
+  .btn-logout:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+
+  /* --- Main View --- */
+  .main-view { 
+    flex: 1; padding: 24px 32px; overflow-y: auto; 
+    display: flex; flex-direction: column; gap: 24px; position: relative; width: 100%;
+    /* 平滑滾動 */
+    scroll-behavior: smooth;
+  }
+  
+  .menu-btn { 
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; color: #fff; font-size: 24px; 
+    cursor: pointer; padding: 8px; border-radius: 8px;
+    transition: background 0.2s; margin-right: 10px;
+  }
+  .menu-btn:hover { background: rgba(255,255,255,0.1); }
+
+  .dashboard-header { 
+    display: flex; justify-content: space-between; align-items: flex-end; 
+    flex-wrap: wrap; gap: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .header-left { display: flex; align-items: center; }
+  .user-name { font-size: clamp(24px, 4vw, 32px); font-weight: 800; line-height: 1.2; letter-spacing: -0.5px; }
+  
+  /* 優化的日期控制器 */
+  .date-controls {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border);
+    padding: 6px; border-radius: 16px; flex-wrap: wrap;
+  }
+  .date-wrapper {
+    position: relative; display: flex; align-items: center;
+    background: rgba(255,255,255,0.05); border-radius: 10px; padding: 0 10px;
+    transition: 0.2s;
+  }
+  .date-wrapper:hover { background: rgba(255,255,255,0.1); }
+  
+  .date-input { 
+    background: transparent; border: none; color: #fff; 
+    font-family: inherit; color-scheme: dark; cursor: pointer; 
+    font-size: 13px; padding: 8px 0; outline: none;
+  }
+  /* 移除日期 icon 預設樣式讓點擊區域更大 (Webkit) */
+  .date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
+  .date-input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+  .btn-search { 
+    background: var(--ai-gradient); color: #fff; border: none; 
+    padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; 
+    cursor: pointer; white-space: nowrap; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .btn-search:active { transform: scale(0.96); }
+  .btn-search:hover { box-shadow: 0 6px 20px rgba(168, 85, 247, 0.6); }
+
+  /* AI Card - 更加醒目且適應寬度 */
+  .ai-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8));
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 20px; padding: 24px;
+    display: flex; gap: 20px; align-items: flex-start;
+    position: relative; overflow: hidden;
+    box-shadow: 0 10px 30px -10px rgba(168, 85, 247, 0.2);
+    min-height: 120px;
+  }
+  
+  .ai-icon-wrapper {
+    width: 50px; height: 50px; border-radius: 16px; 
+    background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(168, 85, 247, 0.4);
+    display: grid; place-items: center; font-size: 24px; flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+  }
+  .ai-status-dot {
+    position: absolute; top: -2px; right: -2px; width: 10px; height: 10px;
+    background: #a855f7; border-radius: 50%; box-shadow: 0 0 10px #a855f7;
+    animation: pulse 2s infinite;
+  }
+  
+  .ai-content { flex: 1; z-index: 1; }
+  .ai-title { font-size: 12px; font-weight: 800; color: #d8b4fe; letter-spacing: 1.2px; margin-bottom: 8px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .ai-message { font-size: 15px; line-height: 1.7; color: #f1f5f9; }
+
+  /* Charts - 響應式 Grid 佈局 */
+  .charts-wrapper { 
+    display: grid; 
+    /* 自動適應寬度：最小寬度 400px，如果螢幕夠大就並排，不夠就換行 */
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+    gap: 24px; 
+    padding-bottom: 24px;
+  }
+  
+  .chart-box {
+    background: var(--glass); border: 1px solid var(--border);
+    border-radius: 20px; padding: 24px; display: flex; flex-direction: column; 
+    height: 400px; /* 給予固定高度讓圖表清楚 */
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .chart-box:hover { border-color: rgba(255,255,255,0.2); }
+
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .chart-title { font-size: 16px; font-weight: 700; color: var(--text-secondary); display:flex; align-items:center; gap:8px;}
+  .chart-title::before { content:''; display:block; width:4px; height:16px; background:var(--brand); border-radius:2px; }
+  .chart-val { font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+
+  /* Login & Mobile Overlay */
+  #mobile-overlay-bg {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 90; display: none; backdrop-filter: blur(4px);
+    transition: opacity 0.3s;
+  }
+  
+  #login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(20px);
+    z-index: 9999; display: flex; justify-content: center; align-items: center;
+    transition: opacity 0.5s ease-in-out; padding: 20px;
+  }
+  .login-box {
+    background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1);
+    padding: 40px 30px; border-radius: 24px; width: 100%; max-width: 400px;
+    text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+  .login-input {
+    width: 100%; padding: 16px; margin-bottom: 16px; 
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+    color: #fff; border-radius: 12px; font-size: 16px; transition: border 0.2s;
+  }
+  .login-input:focus { border-color: var(--accent); outline: none; }
+  .btn-login {
+    width: 100%; padding: 16px; background: linear-gradient(135deg, var(--brand), #22c55e);
+    color: #0f172a; font-weight: 800; border: none; border-radius: 12px;
+    cursor: pointer; margin-top: 10px; font-size: 16px; box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+  }
+
+  /* RWD 設定 */
+  @media (max-width: 768px) {
+    /* 手機版 Sidebar */
+    .sidebar {
+      position: fixed; left: -100%; top: 0; height: 100%; width: 280px;
+      background: var(--glass-mobile); 
+      box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+    }
+    .sidebar.open { left: 0; }
+    
+    /* 強制取消 Mini 模式的影響 */
+    .sidebar.mini { width: 280px; padding: 24px 16px; } 
+    .sidebar.mini .app-brand span, .sidebar.mini .section-title, .sidebar.mini .member-info { display: block; opacity: 1; pointer-events: auto; }
+    
+    #mobile-overlay-bg.show { display: block; }
+    
+    .main-view { padding: 16px; gap: 20px; }
+    .header-left { width: 100%; margin-bottom: 10px; }
+    .date-controls { width: 100%; justify-content: space-between; padding: 10px; background: rgba(15,23,42,0.8); }
+    .date-wrapper { flex:1; justify-content: center; }
+    
+    /* 手機版圖表變單欄 */
+    .charts-wrapper { grid-template-columns: 1fr; } 
+    .chart-box { height: 320px; } /* 手機版圖表高度稍微縮小 */
+    
+    .ai-card { flex-direction: column; gap: 12px; }
+    .ai-icon-wrapper { width: 40px; height: 40px; font-size: 20px; }
+  }
+
+  .hidden { display: none !important; }
+  @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.7; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.7; } }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+  <div id="login-overlay">
+    <div class="login-box">
+      <div style="width:60px; height:60px; background:var(--ai-gradient); border-radius:16px; margin:0 auto 20px; display:grid; place-items:center; font-size:24px; color:#fff;">AI</div>
+      <h2 style="color:#fff; margin-bottom:10px; font-weight:800;">CareMate</h2>
+      <p style="color:#94a3b8; font-size:14px; margin-bottom:30px;">守護家人的健康智慧入口</p>
+      <input type="text" id="phoneInput" class="login-input" placeholder="手機號碼" value="0912345678">
+      <input type="password" id="pwdInput" class="login-input" placeholder="密碼" value="password123">
+      <button class="btn-login" onclick="handleLogin()">登入系統</button>
+      <p id="loginMsg" style="color:var(--danger); font-size:12px; margin-top:16px; min-height:18px;"></p>
+    </div>
+  </div>
+
+  <div id="mobile-overlay-bg" onclick="toggleSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="app-brand" title="CareMate AI">
+      <div class="brand-icon">AI</div>
+      <span>CareMate</span>
+    </div>
+    
+    <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="section-header" title="照護對象清單">
+        <span class="section-title">照護對象</span>
+        <div class="toggle-icon">
+             <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+        </div>
+      </div>
+      
+      <div class="family-list-wrapper" id="familyListWrapper">
+        <div id="familyList" class="family-list">
+          <div style="text-align:center; color:#666; margin-top:20px; font-size:13px;">載入中...</div>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="logout()" class="btn-logout" title="登出系統">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+        <span>登出帳號</span>
+    </button>
+  </div>
+
+  <div class="main-view">
+    
+    <div class="dashboard-header">
+      <div class="header-left">
+        <button class="menu-btn" onclick="toggleSidebar()">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <div>
+          <div style="font-size:13px; color:var(--text-secondary); margin-bottom:4px;">正在檢視 Dashboard</div>
+          <div class="user-name" id="currentName">--</div>
+        </div>
+      </div>
+      
+      <div class="date-controls">
+        <div class="date-wrapper">
+            <input type="date" id="startDate" class="date-input">
+        </div>
+        <span style="color:#64748b; font-size:12px;">至</span>
+        <div class="date-wrapper">
+            <input type="date" id="endDate" class="date-input">
+        </div>
+        <button class="btn-search" onclick="handleDateSearch()">AI 分析</button>
+      </div>
+    </div>
+
+    <div class="ai-card">
+      <div class="ai-icon-wrapper">
+        🤖
+        <div class="ai-status-dot"></div>
+      </div>
+      <div class="ai-content">
+        <div class="ai-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          AI Health Insight
+        </div>
+        <div class="ai-message">
+          <span id="aiText"></span><span class="cursor" style="display:inline-block; width:2px; height:16px; background:var(--brand); animation: blink 1s infinite; vertical-align:middle; margin-left:4px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-wrapper">
+      <div class="chart-box">
+        <div class="chart-header">
+          <div class="chart-title">步數趨勢 (Steps)</div>
+          <div class="chart-val" style="color:var(--brand)" id="totalSteps">--</div>
+        </div>
+        <div style="flex:1; position:relative; width:100%; overflow:hidden;">
+          <canvas id="stepsChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-header">
+          <div class="chart-title">血壓監測 (Blood Pressure)</div>
+          <div class="chart-val" style="color:var(--accent)" id="latestBP">--/--</div>
+        </div>
+        <div style="flex:1; position:relative; width:100%; overflow:hidden;">
+          <canvas id="bpChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://192.168.0.91:8000"; 
+    const URL_LOGIN = `${API_BASE}/api/account/login/`;
+    const URL_MEMBERS = `${API_BASE}/family/members/`;
+    const URL_STEPS_TEMPLATE = `${API_BASE}/member/ID_PLACEHOLDER/steps/`; 
+    const URL_BP_TEMPLATE = `${API_BASE}/member/ID_PLACEHOLDER/bp/`; 
+    const URL_AI_ADVICE = `${API_BASE}/member/ai_advice/`;
+
+    let currentToken = localStorage.getItem('access_token');
+    let stepsChart = null, bpChart = null;
+    let currentSelectedMemberId = null;
+    let typingInterval; 
+
+    // 初始化檢查
+    if(currentToken) { 
+        hideLoginBox(); 
+        fetchFamilyMembers(); 
+    }
+
+    // 判斷是否為手機版
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    // 優化的側邊欄切換邏輯
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('mobile-overlay-bg');
+        
+        if (isMobile()) {
+            // 手機模式：切換 active class (滑出/滑入)
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+            sidebar.classList.remove('mini'); // 手機版不應該有 mini 狀態
+        } else {
+            // 電腦模式：切換 mini class (變寬/變窄)
+            sidebar.classList.toggle('mini');
+            overlay.classList.remove('show');
+        }
+    }
+
+    // 監聽視窗大小改變，自動重置 Sidebar 狀態，避免 Layout 跑掉
+    window.addEventListener('resize', () => {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('mobile-overlay-bg');
+        if (!isMobile() && sidebar.classList.contains('open')) {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+    });
+
+    function hideLoginBox() {
+        const overlay = document.getElementById('login-overlay');
+        if(overlay) { 
+            overlay.style.opacity = '0'; 
+            setTimeout(() => overlay.classList.add('hidden'), 500); 
+        }
+    }
+
+    async function handleLogin() {
+      const phone = document.getElementById('phoneInput').value;
+      const password = document.getElementById('pwdInput').value;
+      const msgEl = document.getElementById('loginMsg');
+      msgEl.innerText = "驗證中...";
+      
+      try {
+        const res = await fetch(URL_LOGIN, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ Phone: phone, password: password }) 
+        });
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('access_token', data.token.access);
+          currentToken = data.token.access;
+          hideLoginBox();
+          fetchFamilyMembers();
+        } else { msgEl.innerText = data.message || "登入失敗"; }
+      } catch (err) { console.error(err); msgEl.innerText = "無法連線至伺服器"; }
+    }
+
+    async function fetchFamilyMembers() {
+      try {
+        const res = await fetch(URL_MEMBERS, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+        if (!res.ok) { logout(); return; }
+        const members = await res.json();
+        const seniors = members.filter(m => m.RelatedID === 1);
+        renderList(seniors);
+      } catch (err) { console.error("Fetch members failed", err); }
+    }
+
+    function renderList(members) {
+      const list = document.getElementById('familyList');
+      list.innerHTML = ''; 
+      if(members.length === 0) list.innerHTML = '<div style="text-align:center; color:#666; font-size:13px; padding:10px;">無長者資料</div>';
+
+      members.forEach((m, idx) => {
+        const div = document.createElement('div');
+        div.className = 'member-card';
+        // 加入 Tooltip 方便在 Mini 模式下辨識
+        div.title = m.Name || m.username; 
+        div.innerHTML = `
+          <div class="avatar">${(m.Name || "U")[0]}</div>
+          <div class="member-info"><h4>${m.Name || m.username}</h4><p>${m.Phone}</p></div>
+        `;
+        div.onclick = () => {
+            selectMember(m, div);
+            // 如果是手機版，點選後自動收合選單
+            if(isMobile()) toggleSidebar();
+        };
+        list.appendChild(div);
+        if(idx===0) setTimeout(() => selectMember(m, div), 100);
+      });
+    }
+
+    async function selectMember(member, element) {
+      currentSelectedMemberId = member.UserID;
+      document.querySelectorAll('.member-card').forEach(e => e.classList.remove('active'));
+      element.classList.add('active');
+      document.getElementById('currentName').innerText = member.Name || "Unknown";
+
+      typeWriter("正在連線至健康資料庫，進行 AI 綜合評估...", true);
+
+      const today = new Date();
+      const endDateStr = today.toISOString().split('T')[0];
+      const pastDate = new Date();
+      pastDate.setDate(today.getDate() - 6);
+      const startDateStr = pastDate.toISOString().split('T')[0];
+
+      document.getElementById('startDate').value = startDateStr;
+      document.getElementById('endDate').value = endDateStr;
+
+      const [stepsData, bpData] = await Promise.all([
+          fetchData(URL_STEPS_TEMPLATE, member.UserID, startDateStr, endDateStr),
+          fetchData(URL_BP_TEMPLATE, member.UserID, startDateStr, endDateStr)
+      ]);
+
+      renderStepsChart(stepsData);
+      renderBPChart(bpData);
+      fetchAIAdvice(member.UserID);
+    }
+
+    function handleDateSearch() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if(currentSelectedMemberId && start && end) {
+            typeWriter("重新計算區間數據中...", true);
+            Promise.all([
+                fetchData(URL_STEPS_TEMPLATE, currentSelectedMemberId, start, end),
+                fetchData(URL_BP_TEMPLATE, currentSelectedMemberId, start, end)
+            ]).then(([steps, bp]) => {
+                renderStepsChart(steps);
+                renderBPChart(bp);
+                fetchAIAdvice(currentSelectedMemberId);
+            });
+        }
+    }
+
+    async function fetchData(urlTemplate, uid, start, end) {
+        const url = urlTemplate.replace('ID_PLACEHOLDER', uid) + `?start_date=${start}&end_date=${end}`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            const json = await res.json();
+            return json.data || [];
+        } catch(e) { console.error(e); return []; }
+    }
+
+    async function fetchAIAdvice(memberId) {
+        try {
+            const res = await fetch(URL_AI_ADVICE, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}` 
+                },
+                body: JSON.stringify({ member_id: memberId })
+            });
+            const json = await res.json();
+            setTimeout(() => typeWriter(json.advice), 500);
+        } catch (err) {
+            typeWriter("AI 服務暫時無法連線，但根據圖表顯示，數據已成功載入。");
+        }
+    }
+
+    function typeWriter(text, isReset = false) {
+        const el = document.getElementById('aiText');
+        if(isReset) {
+            clearInterval(typingInterval);
+            el.innerHTML = text;
+            return;
+        }
+        el.innerHTML = ""; 
+        let i = 0;
+        clearInterval(typingInterval); 
+        typingInterval = setInterval(() => {
+            if (i < text.length) {
+                el.innerHTML += text.charAt(i);
+                i++;
+            } else { clearInterval(typingInterval); }
+        }, 30); 
+    }
+
+    // Chart.js 共用設定
+    const commonChartOptions = {
+        responsive: true, 
+        maintainAspectRatio: false, // 關鍵：允許圖表填滿父容器
+        plugins: { 
+            legend: { 
+                position:'top', 
+                align:'end', 
+                labels: { color: '#94a3b8', boxWidth: 10, font: {family: "'Plus Jakarta Sans', sans-serif"} } 
+            } 
+        },
+        scales: {
+            x: { grid:{display:false}, ticks:{color:'#64748b'} },
+            y: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#64748b'} }
+        }
+    };
+
+    function renderStepsChart(data) {
+        const labels = data.map(d => d.date.slice(5));
+        const values = data.map(d => d.steps);
+        document.getElementById('totalSteps').innerText = values.length ? values[values.length-1].toLocaleString() : 0;
+
+        const ctx = document.getElementById('stepsChart').getContext('2d');
+        if (stepsChart) stepsChart.destroy();
+
+        let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(74, 222, 128, 0.9)');
+        gradient.addColorStop(1, 'rgba(74, 222, 128, 0.1)');
+
+        stepsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{ 
+                    label: '步數', 
+                    data: values, 
+                    backgroundColor: gradient, 
+                    borderRadius: 6, 
+                    barThickness: 'flex', 
+                    maxBarThickness: 40 
+                }]
+            },
+            options: {
+                ...commonChartOptions,
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function renderBPChart(data) {
+        const labels = data.map(d => `${d.LocalDate.slice(5)} ${d.Period === 'morning' ? '早' : '晚'}`);
+        const sys = data.map(d => d.Systolic);
+        const dia = data.map(d => d.Diastolic);
+        const pulse = data.map(d => d.Pulse);
+
+        if (data.length > 0) {
+            const last = data[data.length - 1];
+            document.getElementById('latestBP').innerText = `${last.Systolic}/${last.Diastolic}`;
+        } else { document.getElementById('latestBP').innerText = "--/--"; }
+
+        const ctx = document.getElementById('bpChart').getContext('2d');
+        if (bpChart) bpChart.destroy();
+
+        bpChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: '收縮壓', data: sys, borderColor: '#38bdf8', backgroundColor: '#38bdf8', tension: 0.3, borderWidth: 2, pointRadius: 2 },
+                    { label: '舒張壓', data: dia, borderColor: '#ef4444', backgroundColor: '#ef4444', tension: 0.3, borderWidth: 2, pointRadius: 2 },
+                    { label: '脈搏', data: pulse, borderColor: '#a3e635', backgroundColor: '#a3e635', borderDash: [5, 5], tension: 0.3, borderWidth: 2, pointRadius: 0, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                ...commonChartOptions,
+                interaction: { mode: 'index', intersect: false },
+                scales: { 
+                    ...commonChartOptions.scales,
+                    y: { ...commonChartOptions.scales.y, min: 40 },
+                    y1: { type: 'linear', display: true, position: 'right', min: 40, max: 140, grid:{drawOnChartArea: false}, ticks:{color:'#a3e635'} }
+                } 
+            }
+        });
+    }
+
+    function logout() { localStorage.removeItem('access_token'); window.location.reload(); }
+  </script>
+</body>
+</html>
+<!-- <!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — Family Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root {
+    --bg: #05080a;
+    --surface: #0f1419;
+    --border: rgba(255, 255, 255, 0.1);
+    --text: #e8f0e8;
+    --brand: #4ade80;
+    --danger: #ef4444;
+    --accent: #38bdf8;
+    --warning: #f59e0b; /* 舒張壓顏色 */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; }
+
+  /* Login Overlay */
+  #login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(5, 8, 10, 0.95); z-index: 999; 
+    display: flex; justify-content: center; align-items: center;
+    transition: opacity 0.5s;
+  }
+  .login-box {
+    background: var(--surface); border: 1px solid var(--border); padding: 40px;
+    border-radius: 24px; width: 100%; max-width: 400px; text-align: center;
+  }
+  .login-input {
+    width: 100%; padding: 12px; margin-bottom: 16px; background: #000;
+    border: 1px solid var(--border); color: #fff; border-radius: 8px;
+  }
+  .btn-login {
+    width: 100%; padding: 12px; background: var(--brand); color: #000; font-weight: bold;
+    border: none; border-radius: 8px; cursor: pointer;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 300px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px; display: flex; flex-direction: column; gap: 20px;
+  }
+  .family-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  
+  .member-card {
+    padding: 15px; border: 1px solid var(--border); border-radius: 10px;
+    cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.02);
+  }
+  .member-card:hover { background: rgba(255,255,255,0.1); }
+  .member-card.active { border-color: var(--brand); background: rgba(74, 222, 128, 0.1); }
+  
+  /* Main Content */
+  .main-view { flex: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+  
+  .info-box {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center;
+  }
+  h1 { margin: 0; color: var(--brand); font-size: 24px; }
+  
+  /* Chart Grid (雙欄佈局) */
+  .chart-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: 400px;
+  }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px; border-radius: 20px; display: flex; flex-direction: column;
+    position: relative;
+  }
+  .chart-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; color: #888; }
+
+  /* Date Controls */
+  .date-controls {
+    display: flex; gap: 10px; align-items: center; 
+    background: rgba(255,255,255,0.05); padding: 10px; border-radius: 12px;
+  }
+  .date-input {
+    background: #000; border: 1px solid var(--border); color: #fff;
+    padding: 8px; border-radius: 6px; font-family: 'Inter'; color-scheme: dark;
+  }
+  .btn-search {
+    background: var(--accent); color: #000; border: none; padding: 8px 16px;
+    border-radius: 6px; font-weight: bold; cursor: pointer;
+  }
+
+  .debug-window {
+    padding: 15px; background: #000; 
+    border: 1px solid #333; border-radius: 10px; 
+    font-family: monospace; font-size: 12px; color: #ccc;
+    height: 120px; overflow-y: auto;
+  }
+  .log-line { margin-bottom: 5px; border-bottom: 1px solid #222; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>CareMate Login</h2>
+      <input type="text" id="phoneInput" class="login-input" placeholder="手機號碼" value="0912345678">
+      <input type="password" id="pwdInput" class="login-input" placeholder="密碼" value="password123">
+      <button class="btn-login" onclick="handleLogin()">登入</button>
+      <p id="loginMsg" style="color:var(--danger); font-size:12px; margin-top:10px;"></p>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h3>照護對象列表</h3>
+    <div id="familyList" class="family-list"><div style="text-align:center; color:#666;">(等待載入...)</div></div>
+    <button onclick="logout()" style="padding:10px; background:#333; color:#fff; border:none; border-radius:5px; cursor:pointer;">登出</button>
+  </div>
+
+  <div class="main-view">
+    <div class="info-box">
+      <div>
+        <h1 id="currentName">請選擇長者</h1>
+        <p style="color:#888; margin-top:5px;">ID: <span id="currentID">--</span></p>
+      </div>
+      <div class="date-controls">
+        <input type="date" id="startDate" class="date-input">
+        <span style="color:#888;">to</span>
+        <input type="date" id="endDate" class="date-input">
+        <button class="btn-search" onclick="handleDateSearch()">查詢區間</button>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>每日步數 (Steps)</span>
+          <span style="color:#fff; font-weight:bold;" id="totalSteps">--</span>
+        </div>
+        <div style="flex:1; position:relative;">
+          <canvas id="stepsChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>血壓趨勢 (Blood Pressure)</span>
+          <span style="color:var(--accent); font-weight:bold;" id="latestBP">--/--</span>
+        </div>
+        <div style="flex:1; position:relative;">
+          <canvas id="bpChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="debug-window" id="debugLog">
+      <div style="color:#4ade80;">[SYSTEM] Ready.</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://192.168.0.91:8000"; 
+    
+    const URL_LOGIN = `${API_BASE}/api/account/login/`;
+    const URL_MEMBERS = `${API_BASE}/family/members/`;
+    // 兩支 API 路徑
+    const URL_STEPS_TEMPLATE = `${API_BASE}/member/ID_PLACEHOLDER/steps/`; 
+    const URL_BP_TEMPLATE = `${API_BASE}/member/ID_PLACEHOLDER/bp/`; 
+
+    let currentToken = localStorage.getItem('access_token');
+    let stepsChart = null; // Chart instance for steps
+    let bpChart = null;    // Chart instance for BP
+    let currentSelectedMemberId = null;
+
+    if(currentToken) {
+      hideLoginBox();
+      log(`偵測到 Token，嘗試載入...`);
+      fetchFamilyMembers();
+    }
+
+    function hideLoginBox() {
+        const overlay = document.getElementById('login-overlay');
+        if(overlay) { overlay.style.opacity = '0'; setTimeout(() => overlay.classList.add('hidden'), 500); }
+    }
+
+    async function handleLogin() {
+      const phone = document.getElementById('phoneInput').value;
+      const password = document.getElementById('pwdInput').value;
+      const msgEl = document.getElementById('loginMsg');
+      try {
+        const res = await fetch(URL_LOGIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Phone: phone, password: password }) });
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('access_token', data.token.access);
+          currentToken = data.token.access;
+          hideLoginBox();
+          fetchFamilyMembers();
+        } else { msgEl.innerText = data.message || "登入失敗"; }
+      } catch (err) { log(`Login Error: ${err}`); }
+    }
+
+    async function fetchFamilyMembers() {
+      try {
+        const res = await fetch(URL_MEMBERS, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+        if (!res.ok) { logout(); return; }
+        const members = await res.json();
+        // 篩選老人 (RelatedID=1)
+        const seniors = members.filter(m => m.RelatedID === 1);
+        renderList(seniors);
+      } catch (err) { log(`Fetch members failed: ${err}`); }
+    }
+
+    function renderList(members) {
+      const list = document.getElementById('familyList');
+      list.innerHTML = ''; 
+      members.forEach((m, idx) => {
+        const div = document.createElement('div');
+        div.className = 'member-card';
+        div.innerHTML = `<strong>${m.Name || m.username}</strong><br><small style="color:#888">${m.Phone}</small>`;
+        div.onclick = () => selectMember(m, div);
+        list.appendChild(div);
+        if(idx===0) setTimeout(() => selectMember(m, div), 100);
+      });
+    }
+
+    async function selectMember(member, element) {
+      currentSelectedMemberId = member.UserID;
+      document.querySelectorAll('.member-card').forEach(e => e.classList.remove('active'));
+      element.classList.add('active');
+      document.getElementById('currentName').innerText = member.Name || "Unknown";
+      document.getElementById('currentID').innerText = member.UserID;
+
+      // 預設日期 (7天)
+      const today = new Date();
+      const endDateStr = today.toISOString().split('T')[0];
+      const pastDate = new Date();
+      pastDate.setDate(today.getDate() - 6);
+      const startDateStr = pastDate.toISOString().split('T')[0];
+
+      document.getElementById('startDate').value = startDateStr;
+      document.getElementById('endDate').value = endDateStr;
+
+      // 平行呼叫兩個 API
+      log(`Loading data for ${member.Name}...`);
+      
+      // 呼叫步數
+      fetchSteps(member.UserID, startDateStr, endDateStr);
+      // 呼叫血壓
+      fetchBP(member.UserID, startDateStr, endDateStr);
+    }
+
+    function handleDateSearch() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if(currentSelectedMemberId && start && end) {
+            fetchSteps(currentSelectedMemberId, start, end);
+            fetchBP(currentSelectedMemberId, start, end);
+        }
+    }
+
+    // --- 步數 API ---
+    async function fetchSteps(uid, start, end) {
+        const url = URL_STEPS_TEMPLATE.replace('ID_PLACEHOLDER', uid) + `?start_date=${start}&end_date=${end}`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            const json = await res.json();
+            renderStepsChart(json.data || []);
+        } catch(e) { log(`Steps API Error: ${e}`); }
+    }
+
+    // --- 血壓 API ---
+    async function fetchBP(uid, start, end) {
+        const url = URL_BP_TEMPLATE.replace('ID_PLACEHOLDER', uid) + `?start_date=${start}&end_date=${end}`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            const json = await res.json();
+            renderBPChart(json.data || []);
+        } catch(e) { log(`BP API Error: ${e}`); }
+    }
+
+    // --- 繪製步數圖 (長條圖) ---
+    function renderStepsChart(data) {
+        const labels = data.map(d => d.date);
+        const values = data.map(d => d.steps);
+        
+        // 顯示最後一天的步數
+        document.getElementById('totalSteps').innerText = values.length ? values[values.length-1].toLocaleString() : 0;
+
+        const ctx = document.getElementById('stepsChart').getContext('2d');
+        if (stepsChart) stepsChart.destroy();
+
+        stepsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{ 
+                    label: 'Steps', 
+                    data: values, 
+                    backgroundColor: '#4ade80', 
+                    borderRadius: 4,
+                    barThickness: 'flex', maxBarThickness: 40
+                }]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                plugins: { legend: { display: false } }, 
+                scales: { x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'rgba(255,255,255,0.1)'}} } 
+            }
+        });
+    }
+
+    // --- 繪製血壓圖 (雙線圖：收縮壓/舒張壓) ---
+    function renderBPChart(data) {
+        // 解析資料
+        const labels = data.map(d => `${d.LocalDate} (${d.Period === 'morning' ? '早' : '晚'})`);
+        const sys = data.map(d => d.Systolic);
+        const dia = data.map(d => d.Diastolic);
+
+        // 更新最新數值
+        if (data.length > 0) {
+            const last = data[data.length - 1];
+            document.getElementById('latestBP').innerText = `${last.Systolic}/${last.Diastolic}`;
+        } else {
+            document.getElementById('latestBP').innerText = "--/--";
+        }
+
+        const ctx = document.getElementById('bpChart').getContext('2d');
+        if (bpChart) bpChart.destroy();
+
+        bpChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { 
+                        label: '收縮壓 (Sys)', 
+                        data: sys, 
+                        borderColor: '#38bdf8', // 藍色
+                        backgroundColor: 'rgba(56, 189, 248, 0.2)', 
+                        tension: 0.3, borderWidth: 2, pointRadius: 3 
+                    },
+                    { 
+                        label: '舒張壓 (Dia)', 
+                        data: dia, 
+                        borderColor: '#f59e0b', // 橘色 (Warning color)
+                        backgroundColor: 'rgba(245, 158, 11, 0.2)', 
+                        tension: 0.3, borderWidth: 2, pointRadius: 3 
+                    }
+                ]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false }, // 滑鼠指上去同時顯示兩個數值
+                plugins: { legend: { labels: { color: '#fff' } } }, 
+                scales: { 
+                    x:{grid:{display:false}}, 
+                    y:{beginAtZero:false, min: 40, grid:{color:'rgba(255,255,255,0.1)'}} 
+                } 
+            }
+        });
+        
+        log("圖表更新完成");
+    }
+
+    function logout() { localStorage.removeItem('access_token'); window.location.href = "home.html"; }
+    function log(msg) { 
+        const box = document.getElementById('debugLog');
+        const p = document.createElement('div'); p.className = 'log-line'; p.innerText = `> ${msg}`; box.prepend(p);
+    }
+  </script>
+</body>
+</html> -->

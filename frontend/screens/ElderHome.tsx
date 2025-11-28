@@ -91,7 +91,7 @@ function toZhPeriod(key?: string): string {
 
 
 
-const BASE = 'http://192.168.0.91:8000';
+const BASE = 'https://caremate.ntub.edu.tw';
 
 
 

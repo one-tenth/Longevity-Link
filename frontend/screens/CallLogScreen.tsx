@@ -5,7 +5,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const API_BASE = 'http://192.168.0.91:8000';
+const API_BASE = 'https://caremate.ntub.edu.tw';
 
 type ServerCall = {
   [key: string]: any;

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CareMate — Real-time Location</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080a;
+    --surface: rgba(20, 25, 30, 0.8);
+    --surface-border: rgba(255, 255, 255, 0.1);
+    --text: #e8f0e8;
+    --muted: #94a3b8;
+    --brand: #4ade80; /* Signal Green */
+    --accent: #38bdf8; /* Map Blue */
+    --map-grid: rgba(56, 189, 248, 0.1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background-color: var(--bg); color: var(--text);
+    font-family: 'Inter', sans-serif; overflow-x: hidden;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* 背景特效 */
+  #canvas-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; opacity: 0.3; }
+  .grid-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+    background-image: linear-gradient(var(--surface-border) 1px, transparent 1px), linear-gradient(90deg, var(--surface-border) 1px, transparent 1px);
+    background-size: 60px 60px; mask-image: radial-gradient(circle at 70% 50%, black 30%, transparent 80%);
+  }
+
+  .container { max-width: 1300px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Header */
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 60px; border-bottom: 1px solid var(--surface-border); padding-bottom: 20px; }
+  .logo { font-weight: 900; font-size: 20px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
+  .tag { font-size: 12px; padding: 4px 12px; border-radius: 100px; border: 1px solid var(--surface-border); background: rgba(255,255,255,0.05); color: #38bdf8; }
+
+  /* Layout */
+  .showcase-grid {
+    display: grid; grid-template-columns: 1fr 1.2fr; gap: 60px; align-items: center;
+  }
+  @media (max-width: 960px) { .showcase-grid { grid-template-columns: 1fr; } }
+
+  /* --- Left: Content --- */
+  .content h1 { font-size: 48px; line-height: 1.1; margin-bottom: 24px; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .content h2 { font-size: 24px; margin-top: 40px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; color: #fff; }
+  .content p { font-size: 16px; color: var(--muted); line-height: 1.7; margin-bottom: 20px; }
+
+  .tech-stack { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .tech-badge { font-size: 13px; padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--surface-border); display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+  .tech-badge:hover { border-color: #4285F4; color: #fff; background: rgba(66, 133, 244, 0.1); }
+
+  /* --- Right: Map Simulation --- */
+  .map-interface {
+    background: #0a0e12; border: 1px solid var(--surface-border);
+    border-radius: 24px; padding: 0; position: relative; overflow: hidden;
+    aspect-ratio: 4/3; box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+  }
+
+  /* 模擬地圖背景 */
+  .map-bg {
+    width: 100%; height: 100%;
+    background-image: 
+        radial-gradient(rgba(255,255,255,0.1) 2px, transparent 2px),
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 100px 100px, 40px 40px, 40px 40px;
+    opacity: 0.5;
+  }
+
+  /* 使用者標點 (User Dot) */
+  .user-dot {
+    position: absolute; top: 50%; left: 50%;
+    width: 16px; height: 16px; background: #fff; border-radius: 50%;
+    box-shadow: 0 0 0 4px var(--brand);
+    z-index: 10; transition: 0.5s linear;
+  }
+  /* 脈衝效果 (Ping) */
+  .user-dot::after {
+    content: ''; position: absolute; top: -20px; left: -20px; width: 56px; height: 56px;
+    border: 1px solid var(--brand); border-radius: 50%; opacity: 0.5;
+    animation: pulse 2s infinite;
+  }
+  
+  /* 狀態面板 (GPS Tracker Style) */
+  .status-panel {
+    position: absolute; top: 20px; left: 20px; z-index: 20;
+    background: rgba(10, 14, 18, 0.9); border: 1px solid var(--surface-border);
+    padding: 16px; border-radius: 12px; backdrop-filter: blur(10px);
+    width: 240px;
+  }
+  .status-item { margin-bottom: 12px; }
+  .status-item:last-child { margin-bottom: 0; }
+  
+  .status-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .status-value { font-size: 16px; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 8px; }
+  
+  .signal-bars { display: flex; gap: 2px; align-items: flex-end; height: 12px; }
+  .bar { width: 3px; background: #333; border-radius: 1px; }
+  .bar.active { background: var(--brand); }
+
+  /* 系統日誌 */
+  .log-console {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 120px;
+    background: rgba(0,0,0,0.8); border-top: 1px solid var(--surface-border);
+    padding: 15px 20px; font-size: 11px; color: #888; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .log-entry { margin-bottom: 4px; }
+  .log-time { color: var(--brand); margin-right: 8px; }
+
+  /* Animations */
+  @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+</style>
+</head>
+<body>
+
+  <canvas id="canvas-bg"></canvas>
+  <div class="grid-overlay"></div>
+
+  <div class="container">
+    <header>
+      <a href="home.html" class="logo">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        CareMate Location
+      </a>
+      <span class="tag">Powered by Google Maps Platform</span>
+    </header>
+
+    <div class="showcase-grid">
+      
+      <div class="content">
+        <h1>Peace of Mind,<br>In Real-Time.</h1>
+        
+        <h2><span style="font-size:24px">🧭</span> The Anxiety</h2>
+        <p>
+          「爸媽出門散步，這麼晚了怎麼還沒回來？」<br>
+          對於沒住在一起，或是忙於工作的子女來說，不知道長輩現在身在何處，往往是最大的心理負擔。
+        </p>
+
+        <h2><span style="font-size:24px">📍</span> The Solution</h2>
+        <p>
+          CareMate 透過整合 <strong>Google Maps API</strong>，讓家人能隨時查看長輩的精確位置。
+        </p>
+        <p>
+          不需要打電話確認（這常讓長輩感到被催促或不耐煩），只要打開 App，就能看到即時更新的定位點。我們專注於<strong>「準確度」</strong>與<strong>「低延遲」</strong>，確保您看到的資訊是當下的狀態。
+        </p>
+
+        <div class="tech-stack">
+          <div class="tech-badge"><img src="https://upload.wikimedia.org/wikipedia/commons/a/aa/Google_Maps_icon_%282020%29.svg" width="16"> Maps SDK for Android</div>
+          <div class="tech-badge">📡 GPS / Wi-Fi Fusion</div>
+          <div class="tech-badge">⚡ WebSocket Sync</div>
+        </div>
+      </div>
+
+      <div class="map-interface" id="mapInterface">
+        <div class="map-bg"></div>
+        
+        <div class="user-dot" id="userDot"></div>
+
+        <div class="status-panel">
+          <div class="status-item">
+            <div class="status-label">TRACKING STATUS</div>
+            <div class="status-value" style="color:var(--brand)">
+              <div style="width:8px; height:8px; background:var(--brand); border-radius:50%;"></div>
+              LIVE UPDATING
+            </div>
+          </div>
+          
+          <div class="status-item">
+            <div class="status-label">SIGNAL STRENGTH</div>
+            <div class="status-value">
+              <div class="signal-bars">
+                <div class="bar active" style="height:4px;"></div>
+                <div class="bar active" style="height:6px;"></div>
+                <div class="bar active" style="height:8px;"></div>
+                <div class="bar active" style="height:12px;"></div>
+              </div>
+              <span class="mono" style="font-size:12px;">4G LTE</span>
+            </div>
+          </div>
+
+          <div class="status-item">
+            <div class="status-label">COORDINATES</div>
+            <div class="mono" style="font-size:13px; color:#fff;" id="coordText">25.0330° N, 121.5654° E</div>
+          </div>
+        </div>
+
+        <div class="log-console mono" id="console">
+          <div class="log-entry"><span class="log-time">[SYS]</span> GPS Module Initialized.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- 模擬地圖邏輯 (漫步模式) ---
+    const userDot = document.getElementById('userDot');
+    const coordText = document.getElementById('coordText');
+    const consoleDiv = document.getElementById('console');
+
+    // 模擬經緯度起點 (台北)
+    let lat = 25.0330;
+    let lng = 121.5654;
+    
+    // 視覺位置 (中心點)
+    let posX = 0;
+    let posY = 0;
+    
+    // 移動向量
+    let dx = 0.5;
+    let dy = 0.3;
+
+    function updateMap() {
+      // 讓點在畫面中隨機漫步 (Random Walk)
+      // 改變方向的機率
+      if(Math.random() > 0.95) {
+        dx = (Math.random() - 0.5) * 2; 
+        dy = (Math.random() - 0.5) * 2;
+      }
+
+      // 限制在畫面範圍內 (簡單邊界檢查)
+      if (posX > 200 || posX < -200) dx *= -1;
+      if (posY > 150 || posY < -150) dy *= -1;
+
+      posX += dx;
+      posY += dy;
+      
+      // 更新 CSS 位置
+      userDot.style.transform = `translate(calc(-50% + ${posX}px), calc(-50% + ${posY}px))`;
+
+      // 模擬更新經緯度數值
+      lat += dy * 0.00001;
+      lng += dx * 0.00001;
+      coordText.innerText = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
+
+      requestAnimationFrame(updateMap);
+    }
+
+    // 模擬系統日誌 (正常回報)
+    function addLog(msg) {
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+      consoleDiv.appendChild(div);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    updateMap();
+
+    // 定時發送模擬 Log
+    setInterval(() => {
+        const events = [
+            "Location packet received (24ms).",
+            "Coordinates synced with server.",
+            "Map view updated.",
+            "Battery Level: 82%."
+        ];
+        const randomEvent = events[Math.floor(Math.random() * events.length)];
+        addLog(randomEvent);
+    }, 2500);
+
+
+    // --- 背景特效 ---
+    const canvas = document.getElementById('canvas-bg');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const particles = Array.from({length:30}, () => ({ x:Math.random()*canvas.width, y:Math.random()*canvas.height, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.5 }));
+    function animateBg() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#38bdf8';
+      particles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0||p.x>canvas.width)p.vx*=-1; if(p.y<0||p.y>canvas.height)p.vy*=-1;
+        ctx.globalAlpha=0.2; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill();
+      });
+      requestAnimationFrame(animateBg);
+    }
+    animateBg();
+  </script>
+</body>
+</html>

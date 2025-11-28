@@ -1,12 +1,9 @@
-// android/app/build.gradle  專案
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.facebook.react.rootproject"
+// apply plugin: "com.facebook.react.rootproject"
 
-
-
-//讀取.env
+// 讀取 .env
 import java.util.Properties
 def env = rootProject.ext.env
 println("GOOGLE_MAPS_API_KEY in app build.gradle: " + env.getProperty("GOOGLE_MAPS_API_KEY", "NOT FOUND"))
@@ -15,13 +12,10 @@ project.ext.react = [
     entryFile: file("./index.js"),
 ]
 
-
-
-
 // fcm
-apply plugin: 'com.google.gms.google-services' // ← 若使用 Firebase 再打開
+apply plugin: 'com.google.gms.google-services'
 
-// ✅ 加入字型插件（最重要）
+// ✅ 加入字型插件
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 
 react {
@@ -29,8 +23,14 @@ react {
 }
 
 def enableProguardInReleaseBuilds = false
-
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+// 讀 keystore.properties (如果有這個檔案的話)
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -47,9 +47,8 @@ android {
         manifestPlaceholders = [
             GOOGLE_MAPS_API_KEY: env.getProperty("GOOGLE_MAPS_API_KEY", "")
         ]
-
-     
     }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -57,17 +56,32 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-    }
+        // ★ Release 設定 ★
+        release {
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            }
+        }
+    } // <--- 這裡原本少了一個括號，導致語法錯誤，現在補上了
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.debug
-            minifyEnabled enableProguardInReleaseBuilds
+            // 確保這裡指向上面定義的 release
+            signingConfig signingConfigs.release
+            // 建議開啟壓縮 & 混淆以縮小檔案
+            minifyEnabled true
+            shrinkResources false 
+            // 如果你有 proguard-rules.pro，會自動套用
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
     task generateGoogleMapsApiXml {
         def envApiKey = rootProject.ext.env.getProperty("GOOGLE_MAPS_API_KEY", "")
         def resDir = file("$projectDir/src/main/res/values")
@@ -89,28 +103,20 @@ android {
     }
 
     preBuild.dependsOn generateGoogleMapsApiXml
-    
 }
-
 
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation 'com.google.android.gms:play-services-auth:21.3.0'
 
-    //定位
-    
+    // 定位與地圖
     implementation 'com.google.android.gms:play-services-location:21.3.0'
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'com.google.android.gms:play-services-maps:18.1.0'
-
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
-
-    // implementation project(':react-native-maps')
-
 }
-
